@@ -594,26 +594,71 @@ with tab_onepager:
     with c_w2: st.code(texto_wa, language="markdown")
 
 with tab_ruta:
-    st.markdown(f"### 📍 Hoja de Ruta e Itinerario: {ciudad}")
-    if ciudad_filtro != "TODAS":
-        medicos_ciudad = df_filtrado["Médico"].unique()
-        lista_gira_completa = []
-        for med_gira in medicos_ciudad:
-            info_m = df_filtrado[df_filtrado["Médico"] == med_gira].iloc[0]
-            cat_num = pd.to_numeric(info_m.get("CATEGORIA", 3), errors='coerce')
-            lista_gira_completa.append({"Médico": med_gira, "Especialidad": info_m.get("Especialidad", "N/D"), "Cat": int(cat_num) if not pd.isna(cat_num) else 3, "Productos a Abordar": "Talerdín, Biotos, Ventilar" if "PEDIAT" in str(info_m.get("Especialidad", "")).upper() else "Gastroalivio, Talerdín, Valerpan"})
-        if lista_gira_completa:
-            df_gira = pd.DataFrame(lista_gira_completa).sort_values(by="Cat", ascending=True).reset_index(drop=True)
-            df_gira.index = [f"Visita {i+1}" for i in range(len(df_gira))]
-            st.dataframe(df_gira.reset_index().rename(columns={"index": "Orden", "Médico": "Médico (Objetivo)"}), use_container_width=True, hide_index=True)
-            st.divider()
-            st.markdown("#### 🧭 Asesor Táctico de Ruta")
-            for chat_g in st.session_state.gira_chat_history:
-                with st.chat_message(chat_g["role"]): st.write(chat_g["content"])
-            if pregunta_gira := st.chat_input("¿A qué médico voy ahora?"):
-                st.session_state.gira_chat_history.append({"role": "user", "content": pregunta_gira})
-                with st.chat_message("user"): st.write(pregunta_gira)
-                with st.spinner("Calculando recomendación..."):
-                    respuesta_asesor = llamar_gemini(f"Eres el supervisor de Gutis en {ciudad}. Responde conciso a la pregunta de ruta: {pregunta_gira}")
-                st.session_state.gira_chat_history.append({"role": "assistant", "content": respuesta_asesor})
-                st.rerun()
+    ciudad_analisis = ciudad_filtro if ciudad_filtro != "TODAS" else (ciudad if ciudad != "N/D" else "Granada")
+    st.markdown(f"### 📍 Hoja de Ruta e Itinerario: {ciudad_analisis}")
+    
+    df_ruta_zona = df_panel[df_panel["CIUDAD"] == ciudad_analisis] if ciudad_analisis != "TODAS" else df_panel
+    medicos_ciudad = df_ruta_zona["Médico"].dropna().unique()
+    
+    lista_gira_completa = []
+    datos_panel_para_ia = []
+    
+    for med_gira in medicos_ciudad:
+        info_m = df_ruta_zona[df_ruta_zona["Médico"] == med_gira].iloc[0]
+        cat_num = pd.to_numeric(info_m.get("CATEGORIA", 3), errors='coerce')
+        cat_val = int(cat_num) if not pd.isna(cat_num) else 3
+        esp = str(info_m.get("Especialidad", "N/D")).strip()
+        
+        # Cruzar con Close-Up / Auditoría de recetas
+        rx_m = df_productos[df_productos["Médico"] == med_gira]
+        resumen_rx = []
+        if not rx_m.empty:
+            for m_prio in ["TALERDIN", "GASTROALIVIO", "DALIVIO", "BIOTOS", "VENTILAR"]:
+                rx_match = rx_m[rx_m["MERCADO"].astype(str).str.upper().str.contains(m_prio, na=False)]
+                if not rx_match.empty:
+                    p_lider = rx_match.iloc[0]["NOMBRE_PRODUCTO"]
+                    resumen_rx.append(f"{m_prio} ({p_lider})")
+                    
+        rx_txt = f" | Close-Up: {', '.join(resumen_rx)}" if resumen_rx else ""
+        datos_panel_para_ia.append(f"- {med_gira} (Esp: {esp}, Cat: {cat_val}){rx_txt}")
+        
+        lista_gira_completa.append({
+            "Médico": med_gira,
+            "Especialidad": esp,
+            "Cat": cat_val,
+            "Productos a Abordar": "Talerdín, Biotos, Ventilar" if "PEDIAT" in esp.upper() else "Gastroalivio, Talerdín, Valerpan"
+        })
+        
+    if lista_gira_completa:
+        df_gira = pd.DataFrame(lista_gira_completa).sort_values(by="Cat", ascending=True).reset_index(drop=True)
+        df_gira.index = [f"Visita {i+1}" for i in range(len(df_gira))]
+        st.dataframe(df_gira.reset_index().rename(columns={"index": "Orden", "Médico": "Médico (Objetivo)"}), use_container_width=True, hide_index=True)
+        
+        st.divider()
+        st.markdown("#### 🧭 Asesor Táctico de Ruta")
+        for chat_g in st.session_state.gira_chat_history:
+            with st.chat_message(chat_g["role"]): 
+                st.write(chat_g["content"])
+                
+        if pregunta_gira := st.chat_input("¿A qué médico voy ahora?"):
+            st.session_state.gira_chat_history.append({"role": "user", "content": pregunta_gira})
+            with st.chat_message("user"): 
+                st.write(pregunta_gira)
+            with st.spinner("Consultando tu panel oficial..."):
+                prompt_supervisor = f"""{REGLAS_FARMA}
+Eres el supervisor de ventas de Laboratorios Gutis en {ciudad_analisis}, NICARAGUA.
+El usuario es Erick Calderón, visitador médico del territorio.
+
+PANEL REAL Y OFICIAL DE MÉDICOS DE ERICK EN {ciudad_analisis} (Extraído directamente de su Excel):
+{chr(10).join(datos_panel_para_ia[:45])}
+
+REGLAS ESTRICTAS DE RESPUESTA:
+1. Responde ÚNICAMENTE con los médicos que están listados en el panel de arriba.
+2. QUEDA TOTALMENTE PROHIBIDO inventar médicos, clínicas u hospitales (NO uses datos de España ni de ningún otro país).
+3. Si te preguntan por médicos top para un producto o mercado (como Talerdín), filtra a los especialistas afines (Pediatras, Médicos Generales, Internistas) y prioriza por Categoría (Cat 1 > Cat 2 > Cat 3) y por los que tengan prescripciones registradas en Close-Up.
+4. Responde con un tono directo, táctico y ejecutivo para alguien que está en ruta.
+
+Pregunta de Erick: {pregunta_gira}"""
+                respuesta_asesor = llamar_gemini(prompt_supervisor)
+            st.session_state.gira_chat_history.append({"role": "assistant", "content": respuesta_asesor})
+            st.rerun()
