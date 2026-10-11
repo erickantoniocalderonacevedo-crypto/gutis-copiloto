@@ -260,7 +260,7 @@ if os.path.exists(ARCHIVO_BITACORA):
             historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN DEFINITIVA LLAMADA GEMINI ---
+# --- FUNCIÓN DEFINITIVA LLAMADA GEMINI (CON AUTO-RECUPERACIÓN) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -274,46 +274,58 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
         except Exception as e:
             return f"Error procesando audio: {e}"
 
-    generation_config = {
-        "maxOutputTokens": max_tok,
-        "temperature": 0.2
-    }
-    if json_mode:
-        generation_config["responseMimeType"] = "application/json"
-
     payload = {
         "contents": [{"parts": parts}],
-        "generationConfig": generation_config
+        "generationConfig": {
+            "maxOutputTokens": max_tok,
+            "temperature": 0.2
+        }
     }
-    
+    if json_mode:
+        payload["generationConfig"]["responseMimeType"] = "application/json"
+
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key
     }
 
-    # Intentos ordenados con endpoints y versiones oficiales
-    intentos = [
-        ("v1", "gemini-1.5-flash"),
-        ("v1beta", "gemini-1.5-flash-latest"),
-        ("v1", "gemini-2.0-flash"),
-        ("v1beta", "gemini-2.0-flash"),
-        ("v1", "gemini-1.5-pro")
-    ]
-    
+    # Modelos activos en Google AI Studio (gemini-2.5-flash como principal)
+    modelos_principales = ["gemini-2.5-flash", "gemini-2.5-pro"]
     ultimo_detalle = ""
 
-    for version, modelo in intentos:
-        url = f"https://generativelanguage.googleapis.com/{version}/models/{modelo}:generateContent?key={api_key}"
+    # Intento 1: Modelos vigentes oficiales
+    for modelo in modelos_principales:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
         try:
             res = requests.post(url, headers=headers, json=payload, timeout=25)
             if res.status_code == 200:
                 res_json = res.json()
                 return res_json['candidates'][0]['content']['parts'][0]['text']
             else:
-                ultimo_detalle = f"{version}/{modelo} -> HTTP {res.status_code}: {res.text[:90]}"
+                ultimo_detalle = f"{modelo} -> HTTP {res.status_code}: {res.text[:100]}"
         except Exception as e:
             ultimo_detalle = str(e)
             continue
+
+    # Intento 2: Auto-descubrimiento dinámico de modelos activos en tu cuenta
+    try:
+        url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        r_list = requests.get(url_lista, timeout=10)
+        if r_list.status_code == 200:
+            todos_modelos = r_list.json().get('models', [])
+            modelos_compatibles = [
+                m['name'].replace('models/', '') 
+                for m in todos_modelos 
+                if 'generateContent' in m.get('supportedGenerationMethods', [])
+            ]
+            for m_disp in modelos_compatibles:
+                if m_disp not in modelos_principales:
+                    url_dinamica = f"https://generativelanguage.googleapis.com/v1beta/models/{m_disp}:generateContent?key={api_key}"
+                    res_dinamica = requests.post(url_dinamica, headers=headers, json=payload, timeout=25)
+                    if res_dinamica.status_code == 200:
+                        return res_dinamica.json()['candidates'][0]['content']['parts'][0]['text']
+    except Exception:
+        pass
             
     return "{}" if json_mode else f"⚠️ Error de conexión con la IA ({ultimo_detalle})"
 
