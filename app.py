@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-GEMINI_API_KEY = "AQ.Ab8RN6I7YEFNJN-TKhf58auTusSlxrZ6i0ICR-6PRdn44bSGCA"
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 ARCHIVO_BITACORA = "HISTORIAL_VISITAS.xlsx"
 ARCHIVO_PERFIL_360 = "PERFIL_360_MEDICOS.xlsx"
 
@@ -261,20 +261,47 @@ if os.path.exists(ARCHIVO_BITACORA):
 
 # --- FUNCIONES LLAMADAS GEMINI ---
 def llamar_gemini(prompt_text, max_tok=8192, json_mode=False, audio_bytes=None):
+    if not GEMINI_API_KEY:
+        return "Error: Clave API no configurada."
+
     parts = [{"text": prompt_text}]
     if audio_bytes is not None:
         try:
             audio_b64 = base64.b64encode(audio_bytes.read()).decode('utf-8')
             parts.append({"inlineData": {"mimeType": "audio/wav", "data": audio_b64}})
-        except Exception as e: return f"Error procesando audio: {e}"
+        except Exception as e:
+            return f"Error procesando audio: {e}"
 
-    payload = {"contents": [{"parts": parts}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
-    if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
+    generation_config = {
+        "maxOutputTokens": max_tok,
+        "temperature": 0.2
+    }
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
+
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": generation_config
+    }
     
-    for modelo in ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]:
-        res = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={GEMINI_API_KEY}", headers={'Content-Type': 'application/json'}, data=json.dumps(payload))
-        if res.status_code == 200: return res.json()['candidates'][0]['content']['parts'][0]['text']
-    return "{}" if json_mode else "Error de conexión con la IA."
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY
+    }
+    
+    modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+    
+    for modelo in modelos:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=25)
+            if res.status_code == 200:
+                res_json = res.json()
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+        except Exception:
+            continue
+            
+    return "{}" if json_mode else "Error de conexión con la IA. Verifica tu conexión e inténtalo de nuevo."
 
 # --- TARJETAS KPI ---
 col1, col2, col3 = st.columns(3)
@@ -528,7 +555,6 @@ with tab_proyeccion:
 with tab_onepager:
     st.markdown(f"## 📱 Ficha Táctica: {medico_sel}")
     
-    # Mostrar datos del perfil 360 si existen
     if perfil_360_actual:
         c_p1, c_p2 = st.columns(2)
         with c_p1:
