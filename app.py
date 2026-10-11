@@ -260,7 +260,7 @@ if os.path.exists(ARCHIVO_BITACORA):
             historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN DEFINITIVA LLAMADA GEMINI (CON AUTO-RECUPERACIÓN) ---
+# --- FUNCIÓN DEFINITIVA (RADAR AUTOMÁTICO DE MODELOS) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -285,49 +285,44 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
         payload["generationConfig"]["responseMimeType"] = "application/json"
 
     headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key
+        "Content-Type": "application/json"
     }
 
-    # Modelos activos en Google AI Studio (gemini-2.5-flash como principal)
-    modelos_principales = ["gemini-2.5-flash", "gemini-2.5-pro"]
-    ultimo_detalle = ""
-
-    # Intento 1: Modelos vigentes oficiales
-    for modelo in modelos_principales:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
-        try:
-            res = requests.post(url, headers=headers, json=payload, timeout=25)
-            if res.status_code == 200:
-                res_json = res.json()
-                return res_json['candidates'][0]['content']['parts'][0]['text']
-            else:
-                ultimo_detalle = f"{modelo} -> HTTP {res.status_code}: {res.text[:100]}"
-        except Exception as e:
-            ultimo_detalle = str(e)
-            continue
-
-    # Intento 2: Auto-descubrimiento dinámico de modelos activos en tu cuenta
+    # 1. RADAR: Preguntamos a Google qué modelos existen y están habilitados para tu clave hoy
+    url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
-        url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-        r_list = requests.get(url_lista, timeout=10)
+        r_list = requests.get(url_lista, timeout=15)
         if r_list.status_code == 200:
             todos_modelos = r_list.json().get('models', [])
-            modelos_compatibles = [
+            compatibles = [
                 m['name'].replace('models/', '') 
                 for m in todos_modelos 
                 if 'generateContent' in m.get('supportedGenerationMethods', [])
             ]
-            for m_disp in modelos_compatibles:
-                if m_disp not in modelos_principales:
-                    url_dinamica = f"https://generativelanguage.googleapis.com/v1beta/models/{m_disp}:generateContent?key={api_key}"
-                    res_dinamica = requests.post(url_dinamica, headers=headers, json=payload, timeout=25)
-                    if res_dinamica.status_code == 200:
-                        return res_dinamica.json()['candidates'][0]['content']['parts'][0]['text']
-    except Exception:
-        pass
             
-    return "{}" if json_mode else f"⚠️ Error de conexión con la IA ({ultimo_detalle})"
+            if not compatibles:
+                return "⚠️ Tu clave es válida pero no tiene modelos de generación de texto habilitados."
+            
+            # Seleccionamos el mejor disponible automáticamente (prioridad a "flash")
+            modelo_ideal = compatibles[0]
+            for m in compatibles:
+                if "1.5-flash" in m.lower():
+                    modelo_ideal = m
+                    break
+
+            # 2. LLAMADA: Usamos el modelo exacto que el radar confirmó que existe
+            url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_ideal}:generateContent?key={api_key}"
+            res = requests.post(url_post, headers=headers, json=payload, timeout=25)
+            
+            if res.status_code == 200:
+                return res.json()['candidates'][0]['content']['parts'][0]['text']
+            else:
+                return f"⚠️ Error con el modelo confirmado ({modelo_ideal}): HTTP {res.status_code} - {res.text[:100]}"
+        else:
+            return f"⚠️ Error de red al listar modelos: HTTP {r_list.status_code} - {r_list.text[:100]}"
+            
+    except Exception as e:
+        return f"⚠️ Error interno del código: {str(e)}"
 
 # --- TARJETAS KPI ---
 col1, col2, col3 = st.columns(3)
@@ -400,7 +395,7 @@ with tab_estrategia:
             st.session_state.chat_history.append({"role": "user", "content": prompt_chat})
             with chat_container.chat_message("user"): st.write(prompt_chat)
             with st.spinner("El doctor está pensando..."):
-                respuesta_doc = llamar_gemini(f"{REGLAS_FARMA}\nEres el médico {medico_sel}, especialista en {especialidad}. Tu producto es {producto_ataque_str}. Erick quiere cambiarte a {prod_gutis_ataque_oficial}. Pon una objeción realista en 1 párrafo. Mensaje de Erick: {prompt_chat}")
+                respuesta_doc = llamar_gemini(f"{REGLAS_FARMA}\nEres el médico {medico_sel}, specialist en {especialidad}. Tu producto es {producto_ataque_str}. Erick quiere cambiarte a {prod_gutis_ataque_oficial}. Pon una objeción realista en 1 párrafo. Mensaje de Erick: {prompt_chat}")
             st.session_state.chat_history.append({"role": "assistant", "content": respuesta_doc})
             st.rerun()
 
