@@ -260,7 +260,7 @@ if os.path.exists(ARCHIVO_BITACORA):
             historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN DEFINITIVA (RADAR AUTOMÁTICO DE MODELOS) ---
+# --- FUNCIÓN DEFINITIVA (RADAR AUTOMÁTICO DE MODELOS ACTUALIZADO) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -285,8 +285,13 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
         payload["generationConfig"]["responseMimeType"] = "application/json"
 
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key
     }
+
+    # Modelos principales actualizados (usando los que están activos ahora)
+    modelos_principales = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    ultimo_detalle = ""
 
     # 1. RADAR: Preguntamos a Google qué modelos existen y están habilitados para tu clave hoy
     url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
@@ -303,10 +308,10 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
             if not compatibles:
                 return "⚠️ Tu clave es válida pero no tiene modelos de generación de texto habilitados."
             
-            # Seleccionamos el mejor disponible automáticamente (prioridad a "flash")
+            # Seleccionamos el mejor disponible automáticamente, dando prioridad a gemini-3.8-flash o gemini-3.5-flash-lite
             modelo_ideal = compatibles[0]
             for m in compatibles:
-                if "1.5-flash" in m.lower():
+                if m in modelos_principales:
                     modelo_ideal = m
                     break
 
@@ -395,7 +400,7 @@ with tab_estrategia:
             st.session_state.chat_history.append({"role": "user", "content": prompt_chat})
             with chat_container.chat_message("user"): st.write(prompt_chat)
             with st.spinner("El doctor está pensando..."):
-                respuesta_doc = llamar_gemini(f"{REGLAS_FARMA}\nEres el médico {medico_sel}, specialist en {especialidad}. Tu producto es {producto_ataque_str}. Erick quiere cambiarte a {prod_gutis_ataque_oficial}. Pon una objeción realista en 1 párrafo. Mensaje de Erick: {prompt_chat}")
+                respuesta_doc = llamar_gemini(f"{REGLAS_FARMA}\nEres el médico {medico_sel}, especialista en {especialidad}. Tu producto es {producto_ataque_str}. Erick quiere cambiarte a {prod_gutis_ataque_oficial}. Pon una objeción realista en 1 párrafo. Mensaje de Erick: {prompt_chat}")
             st.session_state.chat_history.append({"role": "assistant", "content": respuesta_doc})
             st.rerun()
 
