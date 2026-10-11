@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Se lee la clave desde Streamlit Secrets para que GitHub no la bloquee
+# Lectura segura desde Streamlit Secrets
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 ARCHIVO_BITACORA = "HISTORIAL_VISITAS.xlsx"
 ARCHIVO_PERFIL_360 = "PERFIL_360_MEDICOS.xlsx"
@@ -260,7 +260,7 @@ if os.path.exists(ARCHIVO_BITACORA):
             historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIONES LLAMADAS GEMINI ---
+# --- FUNCIÓN DEFINITIVA LLAMADA GEMINI ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -290,19 +290,27 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
         "Content-Type": "application/json",
         "x-goog-api-key": api_key
     }
+
+    # Intentos ordenados con endpoints y versiones oficiales
+    intentos = [
+        ("v1", "gemini-1.5-flash"),
+        ("v1beta", "gemini-1.5-flash-latest"),
+        ("v1", "gemini-2.0-flash"),
+        ("v1beta", "gemini-2.0-flash"),
+        ("v1", "gemini-1.5-pro")
+    ]
     
-    modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     ultimo_detalle = ""
 
-    for modelo in modelos:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
+    for version, modelo in intentos:
+        url = f"https://generativelanguage.googleapis.com/{version}/models/{modelo}:generateContent?key={api_key}"
         try:
             res = requests.post(url, headers=headers, json=payload, timeout=25)
             if res.status_code == 200:
                 res_json = res.json()
                 return res_json['candidates'][0]['content']['parts'][0]['text']
             else:
-                ultimo_detalle = f"Código {res.status_code}: {res.text[:100]}"
+                ultimo_detalle = f"{version}/{modelo} -> HTTP {res.status_code}: {res.text[:90]}"
         except Exception as e:
             ultimo_detalle = str(e)
             continue
