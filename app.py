@@ -17,7 +17,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+# Se lee la clave desde Streamlit Secrets para que GitHub no la bloquee
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 ARCHIVO_BITACORA = "HISTORIAL_VISITAS.xlsx"
 ARCHIVO_PERFIL_360 = "PERFIL_360_MEDICOS.xlsx"
 
@@ -260,9 +261,10 @@ if os.path.exists(ARCHIVO_BITACORA):
     except: pass
 
 # --- FUNCIONES LLAMADAS GEMINI ---
-def llamar_gemini(prompt_text, max_tok=8192, json_mode=False, audio_bytes=None):
-    if not GEMINI_API_KEY:
-        return "Error: Clave API no configurada."
+def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return "⚠️ Error: Clave API no encontrada en los Secrets de Streamlit."
 
     parts = [{"text": prompt_text}]
     if audio_bytes is not None:
@@ -286,11 +288,12 @@ def llamar_gemini(prompt_text, max_tok=8192, json_mode=False, audio_bytes=None):
     
     headers = {
         "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
+        "x-goog-api-key": api_key
     }
     
-    modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
-    
+    modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    ultimo_detalle = ""
+
     for modelo in modelos:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
         try:
@@ -298,10 +301,13 @@ def llamar_gemini(prompt_text, max_tok=8192, json_mode=False, audio_bytes=None):
             if res.status_code == 200:
                 res_json = res.json()
                 return res_json['candidates'][0]['content']['parts'][0]['text']
-        except Exception:
+            else:
+                ultimo_detalle = f"Código {res.status_code}: {res.text[:100]}"
+        except Exception as e:
+            ultimo_detalle = str(e)
             continue
             
-    return "{}" if json_mode else "Error de conexión con la IA. Verifica tu conexión e inténtalo de nuevo."
+    return "{}" if json_mode else f"⚠️ Error de conexión con la IA ({ultimo_detalle})"
 
 # --- TARJETAS KPI ---
 col1, col2, col3 = st.columns(3)
@@ -378,7 +384,7 @@ with tab_estrategia:
             st.session_state.chat_history.append({"role": "assistant", "content": respuesta_doc})
             st.rerun()
 
-# --- NUEVA PESTAÑA: PERFIL 360° OMNICANAL ---
+# --- PESTAÑA: PERFIL 360° OMNICANAL ---
 with tab_perfil360:
     st.markdown(f"### 📋 Perfilamiento Estratégico 360°: {medico_sel}")
     st.caption("Captura de datos de contacto profesional, preferencias de visita y rapport personal.")
