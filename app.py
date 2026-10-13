@@ -21,25 +21,25 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 ARCHIVO_BITACORA = "HISTORIAL_VISITAS.xlsx"
 ARCHIVO_PERFIL_360 = "PERFIL_360_MEDICOS.xlsx"
 
-# --- MAPEO ESTRATÉGICO ---
+# --- MAPEO ESTRATÉGICO CON PONDERACIÓN POR MERCADO ---
 MERCADOS_PRIORITARIOS = {
-    "MR TALERDIN": {"producto": "Talerdín", "prioridad": 1},
-    "MR BIOTOS": {"producto": "Biotos Inmune", "prioridad": 1},
-    "MR CLEMBROXIL": {"producto": "Clembroxil Compuesto", "prioridad": 1},
-    "MR MOMETZONA": {"producto": "Mometzona", "prioridad": 1},
-    "MR VENTILAR": {"producto": "Ventilar", "prioridad": 1},
-    "MR GASTROALIVIO": {"producto": "Gastroalivio", "prioridad": 1},
-    "MR DALIVIO": {"producto": "Dalivio", "prioridad": 1},
-    "MR VALERPAN": {"producto": "Valerpan", "prioridad": 2},
-    "MR CONFLEXIL": {"producto": "Conflexil", "prioridad": 2},
-    "MR RENOVART": {"producto": "Renovart Platinum", "prioridad": 2},
-    "MR FEMGYL": {"producto": "Femgyl", "prioridad": 2},
-    "MR NORGYLEN": {"producto": "Norgylen", "prioridad": 2},
-    "MR BICORPAN": {"producto": "Bicorpan", "prioridad": 2},
-    "MR MUPIRAL": {"producto": "Mupiral", "prioridad": 2},
-    "MR ANSIOLIT": {"producto": "Ansiolit", "prioridad": 2},
-    "MR DEPAX": {"producto": "Depax", "prioridad": 2},
-    "MR FELICITAT": {"producto": "Felicitat", "prioridad": 2}
+    "MR TALERDIN": {"producto": "Talerdín", "peso": 2, "prioridad": 1},
+    "MR BIOTOS": {"producto": "Biotos Inmune", "peso": 2, "prioridad": 1},
+    "MR CLEMBROXIL": {"producto": "Clembroxil Compuesto", "peso": 2, "prioridad": 1},
+    "MR MOMETZONA": {"producto": "Mometzona", "peso": 2, "prioridad": 1},
+    "MR VENTILAR": {"producto": "Ventilar", "peso": 2, "prioridad": 1},
+    "MR GASTROALIVIO": {"producto": "Gastroalivio", "peso": 2, "prioridad": 1},
+    "MR DALIVIO": {"producto": "Dalivio", "peso": 2, "prioridad": 1},
+    "MR VALERPAN": {"producto": "Valerpan", "peso": 1, "prioridad": 2},
+    "MR CONFLEXIL": {"producto": "Conflexil", "peso": 1, "prioridad": 2},
+    "MR RENOVART": {"producto": "Renovart Platinum", "peso": 1, "prioridad": 2},
+    "MR FEMGYL": {"producto": "Femgyl", "peso": 1, "prioridad": 2},
+    "MR NORGYLEN": {"producto": "Norgylen", "peso": 1, "prioridad": 2},
+    "MR BICORPAN": {"producto": "Bicorpan", "peso": 1, "prioridad": 2},
+    "MR MUPIRAL": {"producto": "Mupiral", "peso": 1, "prioridad": 2},
+    "MR ANSIOLIT": {"producto": "Ansiolit", "peso": 1, "prioridad": 2},
+    "MR DEPAX": {"producto": "Depax", "peso": 1, "prioridad": 2},
+    "MR FELICITAT": {"producto": "Felicitat", "peso": 1, "prioridad": 2}
 }
 
 PRODUCTOS_GUTIS = [
@@ -64,49 +64,44 @@ REGLAS FARMACOLÓGICAS Y DE COMPETENCIA (ESTRICTO):
 # --- ESTILOS CSS ELEGANTES Y PREMIUM ---
 st.markdown("""
 <style>
-    /* Fondo general más limpio */
-    .stApp { background-color: #f4f6f9; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    .stApp { background-color: #f8fafc; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
     h1, h2, h3, h4, h5 { color: #0f172a; font-weight: 700; letter-spacing: -0.3px; }
     
-    /* Tarjetas KPI con diseño Premium */
     .metric-card { 
         background-color: #ffffff; 
         border-radius: 8px; 
-        padding: 22px; 
-        border-left: 6px solid #2563eb; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.04); 
+        padding: 20px; 
+        border-left: 5px solid #1e3a8a; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
         margin-bottom: 15px; 
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .metric-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 15px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.07);
     }
-    .metric-title { color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.8px; }
-    .metric-value { color: #0f172a; font-size: 1.65rem; font-weight: 900; }
+    .metric-title { color: #64748b; font-size: 0.72rem; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; letter-spacing: 0.8px; }
+    .metric-value { color: #0f172a; font-size: 1.55rem; font-weight: 800; }
     
-    /* Pestañas estilizadas */
     .stTabs [data-baseweb="tab-list"] { border-bottom: 2px solid #e2e8f0; gap: 6px; padding-bottom: 0; }
     .stTabs [data-baseweb="tab"] { 
         font-size: 0.85rem; 
         font-weight: 700; 
-        color: #64748b; 
-        padding: 12px 18px; 
+        color: #475569; 
+        padding: 10px 16px; 
         border-radius: 6px 6px 0 0; 
-        background-color: #f8fafc;
-        transition: all 0.3s ease;
+        background-color: #f1f5f9;
+        transition: all 0.2s ease;
         border: 1px solid transparent;
         border-bottom: none;
     }
     .stTabs [aria-selected="true"] { 
         color: #ffffff; 
-        background-color: #1e3a8a; /* Azul Índigo Elegante */
+        background-color: #1e3a8a; 
         border-bottom: none; 
-        box-shadow: inset 0 -4px 0 #38bdf8; /* Línea celeste inferior */
+        box-shadow: inset 0 -3px 0 #38bdf8; 
     }
-    
-    /* Cajas de texto y chat */
-    .stChatMessage { background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .stChatMessage { background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -116,17 +111,11 @@ def cargar_datos():
     df_p = pd.read_excel("PANEL ERICK 2026.xlsx")
     df_rx = pd.read_excel("DATA MEDICOS AGOSTO PRODUCTOS TOTAL NICARAGUA.xlsx")
     
-    try:
-        df_v1 = pd.read_excel("VENTA PRIMER TRIMESTRE 2026.xlsx")
-        df_v1['Trimestre'] = 'Q1'
+    try: df_v1 = pd.read_excel("VENTA PRIMER TRIMESTRE 2026.xlsx"); df_v1['Trimestre'] = 'Q1'
     except: df_v1 = pd.DataFrame()
-    try:
-        df_v2 = pd.read_excel("VENTAS SEGUNDO TRIMESTRE 2026.xlsx")
-        df_v2['Trimestre'] = 'Q2'
+    try: df_v2 = pd.read_excel("VENTAS SEGUNDO TRIMESTRE 2026.xlsx"); df_v2['Trimestre'] = 'Q2'
     except: df_v2 = pd.DataFrame()
-    try:
-        df_v3 = pd.read_excel("VENTAS TERCER TRIMESTRE 2026.xlsx", sheet_name="Export")
-        df_v3['Trimestre'] = 'Q3'
+    try: df_v3 = pd.read_excel("VENTAS TERCER TRIMESTRE 2026.xlsx", sheet_name="Export"); df_v3['Trimestre'] = 'Q3'
     except: df_v3 = pd.DataFrame()
 
     dataframes_ventas = [df for df in [df_v1, df_v2, df_v3] if not df.empty]
@@ -153,16 +142,16 @@ if "pasillo_result" not in st.session_state: st.session_state.pasillo_result = N
 
 # --- ENCABEZADO CORPORATIVO CON DEGRADADO ELEGANTE ---
 st.markdown("""
-<div style='background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); padding: 25px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #38bdf8;'>
-    <h2 style='color: #ffffff; margin: 0; font-size: 1.8rem; letter-spacing: 0.5px; font-weight: 800;'>[GUTIS BI] - PLATAFORMA DE INTELIGENCIA COMERCIAL</h2>
-    <p style='color: #93c5fd; margin: 0; font-size: 0.85rem; text-transform: uppercase; font-weight: 600; margin-top: 6px; letter-spacing: 1px;'>Sistema Integrado de Análisis Táctico y Gestión de Territorio</p>
+<div style='background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); padding: 22px 26px; border-radius: 8px; margin-bottom: 22px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-left: 6px solid #38bdf8;'>
+    <h2 style='color: #ffffff; margin: 0; font-size: 1.7rem; letter-spacing: 0.5px; font-weight: 800;'>[GUTIS BI] - TERMINAL DE INTELIGENCIA COMERCIAL</h2>
+    <p style='color: #93c5fd; margin: 0; font-size: 0.82rem; text-transform: uppercase; font-weight: 600; margin-top: 5px; letter-spacing: 1px;'>Sistema Integrado de Análisis Táctico, Cuotas y Gestión Territorial</p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- MENÚ LATERAL ---
-st.sidebar.markdown("### [FILTROS OPERATIVOS]")
+st.sidebar.markdown("### [FILTROS TERRITORIALES]")
 ciudades = ["TODAS"] + sorted([c for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() != ""])
-ciudad_filtro = st.sidebar.selectbox("Selección de Zona:", ciudades)
+ciudad_filtro = st.sidebar.selectbox("Zona / Ciudad:", ciudades)
 
 df_filtrado = df_panel if ciudad_filtro == "TODAS" else df_panel[df_panel["CIUDAD"] == ciudad_filtro]
 lista_medicos = sorted(df_filtrado["Médico"].dropna().unique().tolist())
@@ -185,7 +174,7 @@ especialidad = str(info_medico.get("Especialidad", "N/D")).strip().upper()
 categoria = str(info_medico.get("CATEGORIA", "N/D")).strip()
 es_pediatra = "PEDIAT" in especialidad
 
-# --- PERFIL OMNICANAL ---
+# --- PERFIL OMNICANAL 360 ---
 perfil_360_actual = {}
 if os.path.exists(ARCHIVO_PERFIL_360):
     try:
@@ -207,7 +196,7 @@ if perfil_360_actual:
     if partes_rapport:
         contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
 
-# --- PROCESAMIENTO ANALÍTICO DE RX ---
+# --- DETECCIÓN EXACTA DE COLUMNAS DE CLOSE-UP (Pxs-MES, %MS-MES, LABORATORIO) ---
 rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy()
 rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"])
 rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
@@ -224,14 +213,31 @@ rx_clean["Es_Mercado_Gutis"] = rx_clean["Meta_Mercado"].notnull()
 
 if es_pediatra: rx_clean = rx_clean[~rx_clean["MERCADO"].str.upper().str.contains("GASTROALIVIO", na=False)]
 
-# Búsqueda de columna de VOLUMEN de recetas
-col_volumen = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["RX", "RECETA", "UNIDAD", "TRX", "VALOR"])), None)
-col_mes = "%MS-MES" if "%MS-MES" in rx_clean.columns else "%MS-YTD" if "%MS-YTD" in rx_clean.columns else "%MS-TAM"
+# Mapeo de columnas de Pacientes (Pxs), Cuotas y Laboratorio
+col_pxs = next((c for c in rx_clean.columns if c.upper() == "PXS-MES"), None)
+if not col_pxs:
+    col_pxs = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS", "TRX", "RECETAS"])), None)
+
+col_mes = next((c for c in rx_clean.columns if c.upper() == "%MS-MES"), None)
+if not col_mes:
+    col_mes = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["%MS-YTD", "%MS-TRIM", "%MS-TAM"])), None)
+
+col_lab = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["LABORATORIO", "LAB", "CORP", "CASA", "FABRICANTE"])), None)
 
 rx_gutis_markets = rx_clean[rx_clean["Es_Mercado_Gutis"]].copy()
-if col_mes in rx_gutis_markets.columns: rx_gutis_markets[col_mes] = pd.to_numeric(rx_gutis_markets[col_mes], errors='coerce').fillna(0)
-if col_volumen and col_volumen in rx_gutis_markets.columns: 
-    rx_gutis_markets[col_volumen] = pd.to_numeric(rx_gutis_markets[col_volumen], errors='coerce').fillna(0)
+if col_mes and col_mes in rx_gutis_markets.columns: rx_gutis_markets[col_mes] = pd.to_numeric(rx_gutis_markets[col_mes], errors='coerce').fillna(0)
+if col_pxs and col_pxs in rx_gutis_markets.columns: rx_gutis_markets[col_pxs] = pd.to_numeric(rx_gutis_markets[col_pxs], errors='coerce').fillna(0)
+
+# CÁLCULOS GLOBALES DE PACIENTES DEL MÉDICO
+total_pxs_medico = 0
+gutis_pxs_medico = 0
+comp_pxs_medico = 0
+
+if not rx_clean.empty and col_pxs and col_pxs in rx_clean.columns:
+    rx_clean[col_pxs] = pd.to_numeric(rx_clean[col_pxs], errors='coerce').fillna(0)
+    total_pxs_medico = int(rx_clean[col_pxs].sum())
+    gutis_pxs_medico = int(rx_clean[rx_clean["Es_Gutis"]][col_pxs].sum())
+    comp_pxs_medico = total_pxs_medico - gutis_pxs_medico
 
 cards_ataque_html, total_amenazas, num_mercados, mercado_principal_str, producto_ataque_str, share_lider = "", 0, 0, "[S/D]", "[N/D]", 0.0
 prod_gutis_ataque_oficial = "Talerdín" if es_pediatra else "Gastroalivio"
@@ -240,35 +246,41 @@ if not rx_gutis_markets.empty:
     mercados_unicos = rx_gutis_markets["MERCADO"].unique()
     num_mercados = len(mercados_unicos)
     
-    if col_volumen:
-        rx_gutis_markets = rx_gutis_markets.sort_values(by=col_volumen, ascending=False)
-    else:
-        rx_gutis_markets = rx_gutis_markets.sort_values(by=col_mes, ascending=False)
+    # Priorizar mercados por Pacientes Reales (Pxs) x Peso estratégico
+    def calc_score(row):
+        meta = obtener_meta_mercado(row["MERCADO"])
+        peso = meta["peso"] if meta else 1
+        vol = row[col_pxs] if col_pxs else 1
+        return vol * peso
+
+    rx_gutis_markets["Score_Estrategico"] = rx_gutis_markets.apply(calc_score, axis=1)
+    rx_gutis_markets = rx_gutis_markets.sort_values(by="Score_Estrategico", ascending=False)
+    mercados_ordenados = rx_gutis_markets["MERCADO"].drop_duplicates().tolist()
         
-    for m in mercados_unicos:
+    for m in mercados_ordenados:
         df_m = rx_gutis_markets[rx_gutis_markets["MERCADO"] == m]
-        if col_volumen: df_m = df_m.sort_values(by=col_volumen, ascending=False)
-        else: df_m = df_m.sort_values(by=col_mes, ascending=False)
+        if col_pxs: df_m = df_m.sort_values(by=col_pxs, ascending=False)
+        elif col_mes: df_m = df_m.sort_values(by=col_mes, ascending=False)
             
         meta = obtener_meta_mercado(m)
         prod_gutis_esperado = meta["producto"]
         lider = df_m.iloc[0]
-        lider_nombre, lider_share, lider_es_gutis = str(lider["NOMBRE_PRODUCTO"]).strip(), lider[col_mes] * 100, lider["Es_Gutis"]
-        lider_volumen = lider[col_volumen] if col_volumen else "N/A"
+        lider_nombre = str(lider["NOMBRE_PRODUCTO"]).strip()
+        lider_share = (lider[col_mes] * 100) if col_mes else 0.0
+        lider_es_gutis = lider["Es_Gutis"]
+        lider_pxs = int(lider[col_pxs]) if col_pxs and not pd.isna(lider[col_pxs]) else 0
 
-        if mercado_principal_str == "[S/D]" and lider_share > 0:
+        if mercado_principal_str == "[S/D]" and (lider_pxs > 0 or lider_share > 0):
             mercado_principal_str, producto_ataque_str, prod_gutis_ataque_oficial, share_lider = m, lider_nombre, prod_gutis_esperado, lider_share
 
-        vol_txt = f" | Rx: <b>{int(lider_volumen)}</b>" if col_volumen and str(lider_volumen) != "nan" else ""
+        pxs_txt = f" | Pacientes: <b>{lider_pxs}</b>" if col_pxs else ""
 
-        if lider_share > 0:
+        if lider_share > 0 or lider_pxs > 0:
             if not lider_es_gutis:
                 total_amenazas += 1
-                # Tarjeta roja elegante
-                cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border: 1px solid #fecdd3; border-top: 4px solid #e11d48; border-radius: 6px; padding: 12px; min-width: 200px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #9f1239; text-transform: uppercase; letter-spacing: 0.5px;">{m.replace('MR ', '')}</div><div style="font-size: 0.9rem; color: #0f172a; margin: 6px 0;">Líder: <b style="color:#be123c;">{lider_nombre[:15]}</b></div><div style="font-size: 0.8rem; color: #475569;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 8px; font-size: 0.75rem; font-weight: 800; color: #0f172a; border-top: 1px dashed #cbd5e1; padding-top: 6px;">OBJETIVO: {prod_gutis_esperado}</div></div>"""
+                cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border: 1px solid #fecdd3; border-top: 4px solid #e11d48; border-radius: 6px; padding: 12px; min-width: 210px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #9f1239; text-transform: uppercase;">{m.replace('MR ', '')}</div><div style="font-size: 0.88rem; color: #0f172a; margin: 5px 0;">Líder: <b style="color:#be123c;">{lider_nombre[:16]}</b></div><div style="font-size: 0.78rem; color: #475569;">Cuota: {lider_share:.1f}% {pxs_txt}</div><div style="margin-top: 6px; font-size: 0.75rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 5px;">➔ Conquistar con {prod_gutis_esperado}</div></div>"""
             else:
-                # Tarjeta verde elegante
-                cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 12px; min-width: 200px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px;">{m.replace('MR ', '')}</div><div style="font-size: 0.9rem; color: #0f172a; margin: 6px 0;">Dominio: <b style="color:#047857;">{prod_gutis_esperado}</b></div><div style="font-size: 0.8rem; color: #475569;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 8px; font-size: 0.75rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 6px;">[ESTATUS: MANTENER]</div></div>"""
+                cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 12px; min-width: 210px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #065f46; text-transform: uppercase;">{m.replace('MR ', '')}</div><div style="font-size: 0.88rem; color: #0f172a; margin: 5px 0;">Dominio: <b style="color:#047857;">{prod_gutis_esperado}</b></div><div style="font-size: 0.78rem; color: #475569;">Fidelidad: {lider_share:.1f}% {pxs_txt}</div><div style="margin-top: 6px; font-size: 0.75rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 5px;">[BLINDAR RECETARIO]</div></div>"""
 
 # DATOS DE VENTAS Y CRUCE TÁCTICO
 df_farmacias_totales = pd.DataFrame()
@@ -301,10 +313,10 @@ if os.path.exists(ARCHIVO_BITACORA):
         if not df_hist_med.empty: historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN LLAMADA GEMINI (RADAR BLINDADO) ---
+# --- FUNCIÓN LLAMADA GEMINI (MOTOR CASCADA ANTI-404) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
-    if not api_key: return "[ERROR SISTEMA] Falla de autenticación API."
+    if not api_key: return "[ERROR SISTEMA] Falla de autenticación API: GEMINI_API_KEY no configurada."
 
     parts = [{"text": prompt_text}]
     if audio_bytes is not None:
@@ -315,30 +327,68 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
 
     payload = {"contents": [{"parts": parts}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
-    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-    
-    # Bucle robusto: prueba modelos garantizados hasta obtener un 200 OK
-    modelos_estables = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
-    
-    for modelo in modelos_estables:
-        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+
+    modelos_a_probar = []
+    try:
+        url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        r_list = requests.get(url_lista, timeout=10)
+        if r_list.status_code == 200:
+            todos = r_list.json().get('models', [])
+            compatibles = [m['name'].replace('models/', '') for m in todos if 'generateContent' in m.get('supportedGenerationMethods', [])]
+            preferidos = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
+            for p in preferidos:
+                if p in compatibles: modelos_a_probar.append(p)
+            for c in compatibles:
+                if c not in modelos_a_probar: modelos_a_probar.append(c)
+    except: pass
+
+    if not modelos_a_probar:
+        modelos_a_probar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
+
+    for mod in modelos_a_probar:
+        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
         try:
             res = requests.post(url_post, headers=headers, json=payload, timeout=25)
             if res.status_code == 200:
-                return res.json()['candidates'][0]['content']['parts'][0]['text']
-        except Exception:
-            continue
-            
-    return "[ERROR DE CONEXIÓN] Los servidores de análisis no respondieron. Intente de nuevo."
+                data = res.json()
+                candidates = data.get('candidates', [])
+                if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
+                    return candidates[0]['content']['parts'][0].get('text', '')
+        except: continue
+
+    return "[ERROR DE CONEXIÓN] El motor de análisis está ocupado. Por favor, reintente en unos segundos."
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
-with col1: st.markdown(f"<div class='metric-card'><div class='metric-title'>MÉDICO OBJETIVO</div><div class='metric-value'>{medico_sel}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>{especialidad} | Categoría {categoria} | {ciudad}</div></div>", unsafe_allow_html=True)
-with col2: st.markdown(f"<div class='metric-card' style='border-left-color: #0ea5e9;'><div class='metric-title'>FOCO ESTRATÉGICO ({mercado_principal_str})</div><div class='metric-value'>{producto_ataque_str[:15]}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Cuota Actual: {share_lider:.1f}% ({'Gutis' if es_gutis(producto_ataque_str) else 'Competencia'})</div></div>", unsafe_allow_html=True)
-with col3: st.markdown(f"<div class='metric-card' style='border-left-color: #8b5cf6;'><div class='metric-title'>SELL-OUT TERRITORIAL ({total_puntos_venta} PDV)</div><div class='metric-value'>${total_sellout_zona:,.2f}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Disponibilidad Zonal</div></div>", unsafe_allow_html=True)
+with col1: 
+    st.markdown(f"""
+    <div class='metric-card'>
+        <div class='metric-title'>MÉDICO OBJETIVO</div>
+        <div class='metric-value'>{medico_sel}</div>
+        <div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>{especialidad} | Categoría {categoria} | {ciudad}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col2: 
+    sub_potencial = f"Pacientes Totales: <b>{total_pxs_medico}</b> (Gutis: {gutis_pxs_medico} | Comp: {comp_pxs_medico})" if total_pxs_medico > 0 else f"Cuota: {share_lider:.1f}%"
+    st.markdown(f"""
+    <div class='metric-card' style='border-left-color: #0ea5e9;'>
+        <div class='metric-title'>FOCO ESTRATÉGICO ({mercado_principal_str})</div>
+        <div class='metric-value'>{producto_ataque_str[:15]}</div>
+        <div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>{sub_potencial}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col3: 
+    st.markdown(f"""
+    <div class='metric-card' style='border-left-color: #8b5cf6;'>
+        <div class='metric-title'>SELL-OUT TERRITORIAL ({total_puntos_venta} PDV)</div>
+        <div class='metric-value'>${total_sellout_zona:,.2f}</div>
+        <div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Disponibilidad Zonal</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 if not rx_gutis_markets.empty and cards_ataque_html:
-    html_completo = f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e293b; padding: 18px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 12px;">{cards_ataque_html}</div></div>"""
+    html_completo = f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 16px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>"""
     st.components.v1.html(html_completo, height=180, scrolling=True)
 
 # --- PESTAÑAS DEL SISTEMA ---
@@ -346,10 +396,10 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA (AHORA CON MEMORIA DE PANEL COMPLETA) ---
+# --- MÓDULO CHIRA (CON INTELIGENCIA COMPLETA DE PACIENTES) ---
 with tab_chira:
     st.markdown("### [CHIRA] - Consultor de Inteligencia Comercial Senior")
-    st.caption("Módulo de análisis integral conectado al Panel, Auditoría Rx y Ventas de Territorio.")
+    st.caption("Conectada en tiempo real a tu Panel, Auditoría de Pacientes (Pxs) y Sell-Out Zonal.")
     
     chat_container_chira = st.container(height=350)
     for msg in st.session_state.chira_history:
@@ -359,7 +409,7 @@ with tab_chira:
     with col_c2:
         audio_chira = st.audio_input("Ingreso por voz:") if hasattr(st, "audio_input") else None
     with col_c1:
-        if prompt_chira := st.chat_input("Consulte estrategias, rutas o análisis de panel..."):
+        if prompt_chira := st.chat_input("Ej: ¿Cuáles son los médicos con mayor potencial de Talerdín en Granada?"):
             pass 
 
     if prompt_chira or audio_chira:
@@ -367,27 +417,39 @@ with tab_chira:
         st.session_state.chira_history.append({"role": "user", "content": user_input})
         with chat_container_chira.chat_message("user"): st.write(user_input)
         
-        with st.spinner("[PROCESANDO DATA CORPORATIVA...]"):
-            # Extraer lista de médicos de la zona seleccionada para inyectarla en Chira
-            columnas_chira = ["Médico", "Especialidad", "CATEGORIA"]
-            columnas_chira_existentes = [c for c in columnas_chira if c in df_filtrado.columns]
-            datos_panel_chira = df_filtrado[columnas_chira_existentes].dropna(subset=["Médico"]).head(60).to_string(index=False)
+        with st.spinner("[CHIRA PROCESANDO DATOS TERRITORIALES...]"):
+            # Generar matriz ejecutiva con pacientes reales para alimentar a Chira
+            resumen_meds_chira = []
+            for _, r_m in df_filtrado.head(45).iterrows():
+                m_nom = str(r_m.get("Médico", "")).strip()
+                m_esp = str(r_m.get("Especialidad", "")).strip()
+                m_cat = str(r_m.get("CATEGORIA", "3")).strip()
+                px_tot = 0
+                if col_pxs and not df_productos.empty:
+                    m_rx = df_productos[df_productos["Médico"] == m_nom]
+                    if not m_rx.empty and col_pxs in m_rx.columns:
+                        px_tot = pd.to_numeric(m_rx[col_pxs], errors='coerce').fillna(0).sum()
+                resumen_meds_chira.append(f"- {m_nom} | Esp: {m_esp} | Cat: {m_cat} | Pacientes Totales: {int(px_tot)}")
             
-            prompt_sistema_chira = f"""
-            Eres CHIRA, la Analista Comercial Senior y estratega experta de Laboratorios Gutis para la zona de {ciudad}, Nicaragua.
-            Asistes al representante Erick Calderón. Tienes acceso total a la data. 
-            Responde SIEMPRE de forma directa, ejecutiva y con datos precisos. NUNCA inventes nombres de médicos ni hospitales; usa SOLO los que están en la base de datos a continuación.
-            
-            BASE DE DATOS (PANEL ACTUAL EN {ciudad}):
-            {datos_panel_chira}
-            
-            CONTEXTO ACTUAL:
-            - Médico seleccionado en pantalla: {medico_sel} (Esp: {especialidad}, Cat: {categoria})
-            - Total de médicos en {ciudad}: {len(df_filtrado)}
-            - Sell-Out en {ciudad}: ${total_sellout_zona:,.2f}
-            
-            CONSULTA DEL REPRESENTANTE: {user_input}
-            """
+            datos_inyectados = "\n".join(resumen_meds_chira)
+
+            prompt_sistema_chira = f"""{REGLAS_FARMA}
+Eres CHIRA, la Analista Comercial Senior y estratega experta de Laboratorios Gutis en Nicaragua.
+Asistes a Erick Calderón. Tienes acceso completo a la base de datos de Close-Up y Panel de {ciudad}.
+
+BASE DE DATOS REAL (MÉDICOS DE {ciudad} CON PACIENTES REGISTRADOS EN CLOSE-UP):
+{datos_inyectados}
+
+CONTEXTO OPERATIVO:
+- Sell-Out en {ciudad}: ${total_sellout_zona:,.2f}
+- Médico en pantalla: {medico_sel} (Esp: {especialidad}, Cat: {categoria}, Pacientes totales: {total_pxs_medico})
+
+INSTRUCCIONES CLAVE:
+1. Responde SIEMPRE con médicos de la lista anterior. NUNCA inventes nombres.
+2. Si te preguntan por médicos TOP, prioriza por Pacientes Totales (Pxs) y por Categoría (Cat 1 > Cat 2 > Cat 3).
+3. Sé ejecutiva, directa, analítica y orientada al cumplimiento de cuotas.
+
+CONSULTA DE ERICK: {user_input}"""
             
             if audio_chira: res_chira = llamar_gemini(prompt_sistema_chira, audio_bytes=audio_chira)
             else: res_chira = llamar_gemini(prompt_sistema_chira)
@@ -402,7 +464,7 @@ with tab_estrategia:
         st.markdown("#### [GENERACIÓN DE ARGUMENTOS TÁCTICOS]")
         
         if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True, type="primary"):
-            with st.spinner("[COMPILANDO...]"):
+            with st.spinner("[COMPILANDO ARGUMENTO GALÉNICO...]"):
                 prompt_pasillo = f"{REGLAS_FARMA}\nGenera un argumento ejecutivo (Pitch de ascensor) de 2 oraciones para {medico_sel}. Receta {producto_ataque_str}. Misión: Cambiar a {prod_gutis_ataque_oficial}. {contexto_rapport_str}\nDirecto, clínico y comercial."
                 st.session_state.pasillo_result = llamar_gemini(prompt_pasillo)
         
@@ -410,23 +472,23 @@ with tab_estrategia:
             st.info(st.session_state.pasillo_result)
 
         if st.button("[EJECUTAR ANÁLISIS TVP COMPLETO]", use_container_width=True):
-            with st.spinner("[ESTRUCTURANDO PLAN DE VISITA...]"):
-                prompt_tvp = f"{REGLAS_FARMA}\nEstructura plan comercial 6 pasos para {medico_sel}. Zona: {ciudad}. Diagnóstico: {escenario_tactico}. Atacar {producto_ataque_str} con {prod_gutis_ataque_oficial}."
+            with st.spinner("[ESTRUCTURANDO PLAN DE VISITA INTEGRAL...]"):
+                prompt_tvp = f"{REGLAS_FARMA}\nEstructura plan comercial 6 pasos para {medico_sel}. Zona: {ciudad}. Diagnóstico: {escenario_tactico}. Pacientes en juego: {total_pxs_medico}. Atacar {producto_ataque_str} con {prod_gutis_ataque_oficial}."
                 st.session_state.tvp_result = llamar_gemini(prompt_tvp)
         
         if st.session_state.tvp_result: st.markdown(st.session_state.tvp_result)
 
     with col_der_ia:
         st.markdown("#### [SIMULADOR DE OBJECIONES CLÍNICAS]")
-        st.caption(f"Perfil emulado: {medico_sel} | Defensa: {producto_ataque_str[:15]}")
+        st.caption(f"Perfil emulado: {medico_sel} | Defendiendo: {producto_ataque_str[:16]}")
         chat_container = st.container(height=300)
         for msg in st.session_state.chat_history:
             with chat_container.chat_message(msg["role"]): st.write(msg["content"])
-        if prompt_chat := st.chat_input("Ingrese refutación..."):
+        if prompt_chat := st.chat_input("Ingrese refutación clínica..."):
             st.session_state.chat_history.append({"role": "user", "content": prompt_chat})
             with chat_container.chat_message("user"): st.write(prompt_chat)
             with st.spinner("[PROCESANDO RESPUESTA MÉDICA...]"):
-                respuesta_doc = llamar_gemini(f"{REGLAS_FARMA}\nEres {medico_sel}. Defiendes {producto_ataque_str}. Erick ofrece {prod_gutis_ataque_oficial}. Objeción: {prompt_chat}")
+                respuesta_doc = llamar_gemini(f"{REGLAS_FARMA}\nEres el doctor {medico_sel}. Defiendes a capa y espada tu receta de {producto_ataque_str}. Erick Calderón de Gutis te propone cambiar a {prod_gutis_ataque_oficial}. Objeta con realismo en 1 párrafo: {prompt_chat}")
             st.session_state.chat_history.append({"role": "assistant", "content": respuesta_doc})
             st.rerun()
 
@@ -448,46 +510,68 @@ with tab_perfil360:
             val_estilo_visita = st.selectbox("Estilo Visita:", opc_visita, index=idx_vis)
 
         if st.form_submit_button("[GUARDAR EN BASE DE DATOS]", use_container_width=True):
-            st.success("[SISTEMA] Perfil guardado localmente.")
+            st.success("[SISTEMA] Perfil guardado correctamente.")
 
-# --- FASE 2: ANÁLISIS RX POR VOLUMEN ---
+# --- FASE 2: ANÁLISIS RX POR PACIENTES (Pxs-MES) Y RADAR DE LABORATORIOS ---
 with tab_rx:
-    st.markdown("#### [ANÁLISIS DE PRESCRIPCIÓN Y POSICIONAMIENTO]")
+    st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN: PACIENTES Y LABORATORIOS]")
+    
+    # Resumen de Pacientes en la parte superior
+    m_p1, m_p2, m_p3 = st.columns(3)
+    with m_p1: st.metric("Pacientes Totales (Pxs)", total_pxs_medico)
+    with m_p2: st.metric("Pacientes Gutis", gutis_pxs_medico)
+    with m_p3: st.metric("Oportunidad Conquista (Competencia)", comp_pxs_medico)
+    
+    st.divider()
+
     if not rx_clean.empty:
-        col_lab = "LABORATORIO" if "LABORATORIO" in rx_clean.columns else next((c for c in rx_clean.columns if "LAB" in c.upper() or "CORP" in c.upper()), None)
+        col_r1, col_r2 = st.columns([2.3, 1.2])
         
-        col_r1, col_r2 = st.columns([2.5, 1])
         with col_r1:
-            st.markdown("##### Priorización por Volumen Absoluto")
+            st.markdown("##### 📋 Priorización por Pacientes Reales (Pxs-MES)")
             cols_to_show = ["NOMBRE_PRODUCTO", "MERCADO"]
-            if col_volumen: cols_to_show.append(col_volumen)
+            if col_pxs: cols_to_show.append(col_pxs)
             if col_mes: cols_to_show.append(col_mes)
             if col_lab: cols_to_show.append(col_lab)
             
             df_rx_view = rx_clean[cols_to_show].copy()
+            df_rx_view["LAB_TIPO"] = df_rx_view["NOMBRE_PRODUCTO"].apply(lambda x: "🟢 GUTIS" if es_gutis(x) else "🔴 COMPETENCIA")
             
             if col_mes: df_rx_view[col_mes] = pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100
-            if col_volumen: df_rx_view[col_volumen] = pd.to_numeric(df_rx_view[col_volumen], errors='coerce').fillna(0)
+            if col_pxs: df_rx_view[col_pxs] = pd.to_numeric(df_rx_view[col_pxs], errors='coerce').fillna(0).astype(int)
             
-            if col_volumen: df_rx_view = df_rx_view.sort_values(by=[col_volumen, col_mes], ascending=[False, False])
-            else: df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
+            # ORDENAMIENTO PRINCIPAL: De mayor a menor número de PACIENTES (Pxs-MES)
+            if col_pxs:
+                df_rx_view = df_rx_view.sort_values(by=[col_pxs, col_mes] if col_mes else [col_pxs], ascending=[False, False])
+            elif col_mes:
+                df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
             
-            st.dataframe(df_rx_view, hide_index=True, use_container_width=True)
+            # Renombrar columnas para visualización clara
+            renombrar = {}
+            if col_pxs: renombrar[col_pxs] = "Pacientes (Pxs-MES)"
+            if col_mes: renombrar[col_mes] = "% Cuota Mercado"
+            if col_lab: renombrar[col_lab] = "Laboratorio"
+            renombrar["LAB_TIPO"] = "Origen"
+            
+            st.dataframe(df_rx_view.rename(columns=renombrar), hide_index=True, use_container_width=True)
 
         with col_r2:
-            st.markdown("##### [RADAR DE COMPETENCIA]")
-            if col_lab and col_volumen:
-                df_labs = rx_clean.groupby(col_lab)[col_volumen].sum().reset_index()
-                df_labs = df_labs.sort_values(by=col_volumen, ascending=False).head(5)
-                df_labs.columns = ["Laboratorio", "Recetas Totales"]
+            st.markdown("##### 🔬 [RADAR DE LABORATORIOS]")
+            st.caption("Laboratorios con mayor volumen de pacientes en este consultorio:")
+            if col_lab and col_pxs:
+                df_labs = rx_clean.groupby(col_lab)[col_pxs].sum().reset_index()
+                df_labs = df_labs.sort_values(by=col_pxs, ascending=False).head(10)
+                df_labs.columns = ["Laboratorio", "Pacientes (Pxs)"]
+                df_labs["Pacientes (Pxs)"] = df_labs["Pacientes (Pxs)"].astype(int)
                 st.dataframe(df_labs, hide_index=True, use_container_width=True)
             elif col_lab:
                 df_labs = rx_clean[col_lab].value_counts().reset_index()
-                df_labs.columns = ["Laboratorio", "Presencia en Líneas"]
-                st.dataframe(df_labs.head(5), hide_index=True, use_container_width=True)
+                df_labs.columns = ["Laboratorio", "Productos Recetados"]
+                st.dataframe(df_labs.head(10), hide_index=True, use_container_width=True)
             else:
-                st.info("[INFO] Columna de Laboratorio corporativo no detectada.")
-    else: st.info("[SISTEMA] Sin datos de prescripción.")
+                st.info("[INFO] Columna de Laboratorio no detectada en archivo Close-Up.")
+    else: 
+        st.info("[SISTEMA] Sin datos de prescripción registrados para este médico.")
 
 # --- FASE 3: SELL-OUT ---
 with tab_sellout:
@@ -504,7 +588,7 @@ with tab_bitacora:
     st.markdown("#### [CONSOLA DE CAPTURA CRM]")
     audio_grabado = st.audio_input("Ingreso de nota por voz:") if hasattr(st, "audio_input") else None
     if st.button("[PROCESAR ACUERDO A BASE DE DATOS]"):
-        st.warning("[SISTEMA] Módulo listo para conexión con Google Sheets (Fase 2).")
+        st.warning("[SISTEMA] Módulo listo para conexión con Google Sheets (Siguiente paso).")
 
 # --- RUTA ---
 with tab_ruta:
