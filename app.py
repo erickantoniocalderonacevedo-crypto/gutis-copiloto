@@ -23,23 +23,23 @@ ARCHIVO_PERFIL_360 = "PERFIL_360_MEDICOS.xlsx"
 
 # --- MAPEO ESTRATÉGICO CON PONDERACIÓN POR MERCADO ---
 MERCADOS_PRIORITARIOS = {
-    "MR TALERDIN": {"producto": "Talerdín", "peso": 2, "prioridad": 1},
-    "MR BIOTOS": {"producto": "Biotos Inmune", "peso": 2, "prioridad": 1},
-    "MR CLEMBROXIL": {"producto": "Clembroxil Compuesto", "peso": 2, "prioridad": 1},
-    "MR MOMETZONA": {"producto": "Mometzona", "peso": 2, "prioridad": 1},
-    "MR VENTILAR": {"producto": "Ventilar", "peso": 2, "prioridad": 1},
-    "MR GASTROALIVIO": {"producto": "Gastroalivio", "peso": 2, "prioridad": 1},
-    "MR DALIVIO": {"producto": "Dalivio", "peso": 2, "prioridad": 1},
-    "MR VALERPAN": {"producto": "Valerpan", "peso": 1, "prioridad": 2},
-    "MR CONFLEXIL": {"producto": "Conflexil", "peso": 1, "prioridad": 2},
-    "MR RENOVART": {"producto": "Renovart Platinum", "peso": 1, "prioridad": 2},
-    "MR FEMGYL": {"producto": "Femgyl", "peso": 1, "prioridad": 2},
-    "MR NORGYLEN": {"producto": "Norgylen", "peso": 1, "prioridad": 2},
-    "MR BICORPAN": {"producto": "Bicorpan", "peso": 1, "prioridad": 2},
-    "MR MUPIRAL": {"producto": "Mupiral", "peso": 1, "prioridad": 2},
-    "MR ANSIOLIT": {"producto": "Ansiolit", "peso": 1, "prioridad": 2},
-    "MR DEPAX": {"producto": "Depax", "peso": 1, "prioridad": 2},
-    "MR FELICITAT": {"producto": "Felicitat", "peso": 1, "prioridad": 2}
+    "MR TALERDIN": {"producto": "Talerdín", "peso": 2, "prioridad": 1, "keywords": ["TALERDIN", "TALERDÍN", "CETIRIZINA", "CETRILER", "ALERCET", "DEGRALER"]},
+    "MR BIOTOS": {"producto": "Biotos Inmune", "peso": 2, "prioridad": 1, "keywords": ["BIOTOS", "HEDERA", "PELARGONIUM", "ABRILAR"]},
+    "MR CLEMBROXIL": {"producto": "Clembroxil Compuesto", "peso": 2, "prioridad": 1, "keywords": ["CLEMBROXIL", "CLENBUTEROL", "AMBROXOL", "MUCOSOLVAN"]},
+    "MR MOMETZONA": {"producto": "Mometzona", "peso": 2, "prioridad": 1, "keywords": ["MOMETZONA", "MOMETASONA", "NASONEX"]},
+    "MR VENTILAR": {"producto": "Ventilar", "peso": 2, "prioridad": 1, "keywords": ["VENTILAR", "MONTELUKAST", "SINGULAIR", "AIRUM"]},
+    "MR GASTROALIVIO": {"producto": "Gastroalivio", "peso": 2, "prioridad": 1, "keywords": ["GASTROALIVIO", "ESOMEPRAZOL", "CARBUM", "NEXIUM"]},
+    "MR DALIVIO": {"producto": "Dalivio", "peso": 2, "prioridad": 1, "keywords": ["DALIVIO", "DEXKETOPROFENO", "ENANTYUM", "STADIUM"]},
+    "MR VALERPAN": {"producto": "Valerpan", "peso": 1, "prioridad": 2, "keywords": ["VALERPAN", "BETAMETASONA"]},
+    "MR CONFLEXIL": {"producto": "Conflexil", "peso": 1, "prioridad": 2, "keywords": ["CONFLEXIL", "TIZANIDINA", "MELOXICAM"]},
+    "MR RENOVART": {"producto": "Renovart Platinum", "peso": 1, "prioridad": 2, "keywords": ["RENOVART", "COLAGENO", "GLUCOSAMINA"]},
+    "MR FEMGYL": {"producto": "Femgyl", "peso": 1, "prioridad": 2, "keywords": ["FEMGYL"]},
+    "MR NORGYLEN": {"producto": "Norgylen", "peso": 1, "prioridad": 2, "keywords": ["NORGYLEN"]},
+    "MR BICORPAN": {"producto": "Bicorpan", "peso": 1, "prioridad": 2, "keywords": ["BICORPAN"]},
+    "MR MUPIRAL": {"producto": "Mupiral", "peso": 1, "prioridad": 2, "keywords": ["MUPIRAL", "MUPIROCINA", "BACTROBAN"]},
+    "MR ANSIOLIT": {"producto": "Ansiolit", "peso": 1, "prioridad": 2, "keywords": ["ANSIOLIT"]},
+    "MR DEPAX": {"producto": "Depax", "peso": 1, "prioridad": 2, "keywords": ["DEPAX"]},
+    "MR FELICITAT": {"producto": "Felicitat", "peso": 1, "prioridad": 2, "keywords": ["FELICITAT"]}
 }
 
 PRODUCTOS_GUTIS = [
@@ -53,12 +53,12 @@ REGLAS_FARMA = """
 REGLAS FARMACOLÓGICAS Y DE COMPETENCIA (ESTRICTO):
 1. CETRILER es CETIRIZINA (NO es Montelukast, NO es Desloratadina).
 2. CARBUM es ESOMEPRAZOL.
-3. TALERDÍN es CETIRIZINA. Ventaja competitiva: 100% libre de alcohol (cero irritación gástrica), gotas exactas y excelente tolerabilidad.
+3. TALERDÍN es CETIRIZINA. Ventaja competitiva: 100% libre de alcohol (cero irritación gástrica), dosificación pediátrica en gotas exactas y excelente tolerabilidad.
 4. GASTROALIVIO es ESOMEPRAZOL. Ventaja competitiva: Micropellets gastrorresistentes y Plan Paciente 2+1.
 5. VENTILAR es MONTELUKAST SÓDICO.
-6. MOMETZONA es FUROATO DE MOMETASONA (Spray acuoso libre de alcohol).
-7. BIOTOS INMUNE es HEDERA HELIX + PELARGONIUM SIDOIDES.
-8. PEDIATRÍA: PROHIBIDO sugerir GASTROALIVIO (solo existe adulto). Priorizar Talerdín, Biotos, Clembroxil o Ventilar.
+6. MOMETZONA es FUROATO DE MOMETASONA (Spray acuoso libre de alcohol, previene epistaxis).
+7. BIOTOS INMUNE es HEDERA HELIX + PELARGONIUM SIDOIDES (Doble acción mucolítica e inmunomoduladora antiviral).
+8. PEDIATRÍA: PROHIBIDO sugerir GASTROALIVIO (en Nicaragua solo existe cápsula 40mg para adultos). Priorizar Talerdín, Biotos, Clembroxil o Ventilar.
 """
 
 # --- ESTILOS CSS ELEGANTES Y PREMIUM ---
@@ -126,6 +126,8 @@ def cargar_datos():
             
     df_p["Médico"] = df_p["Médico"].astype(str).str.strip().str.upper()
     df_rx["Médico"] = df_rx["Médico"].astype(str).str.strip().str.upper()
+    if "CIUDAD" in df_p.columns:
+        df_p["CIUDAD"] = df_p["CIUDAD"].astype(str).str.strip().str.upper()
     if not df_v.empty and "DESCRIPCION_RUTA" in df_v.columns:
         df_v["DESCRIPCION_RUTA"] = df_v["DESCRIPCION_RUTA"].astype(str).str.strip().str.upper()
     
@@ -140,7 +142,7 @@ if "gira_chat_history" not in st.session_state: st.session_state.gira_chat_histo
 if "tvp_result" not in st.session_state: st.session_state.tvp_result = None
 if "pasillo_result" not in st.session_state: st.session_state.pasillo_result = None
 
-# --- ENCABEZADO CORPORATIVO CON DEGRADADO ELEGANTE ---
+# --- ENCABEZADO CORPORATIVO ---
 st.markdown("""
 <div style='background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); padding: 22px 26px; border-radius: 8px; margin-bottom: 22px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-left: 6px solid #38bdf8;'>
     <h2 style='color: #ffffff; margin: 0; font-size: 1.7rem; letter-spacing: 0.5px; font-weight: 800;'>[GUTIS BI] - TERMINAL DE INTELIGENCIA COMERCIAL</h2>
@@ -150,7 +152,7 @@ st.markdown("""
 
 # --- MENÚ LATERAL ---
 st.sidebar.markdown("### [FILTROS TERRITORIALES]")
-ciudades = ["TODAS"] + sorted([c for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() != ""])
+ciudades = ["TODAS"] + sorted([c for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]])
 ciudad_filtro = st.sidebar.selectbox("Zona / Ciudad:", ciudades)
 
 df_filtrado = df_panel if ciudad_filtro == "TODAS" else df_panel[df_panel["CIUDAD"] == ciudad_filtro]
@@ -196,7 +198,7 @@ if perfil_360_actual:
     if partes_rapport:
         contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
 
-# --- DETECCIÓN EXACTA DE COLUMNAS DE CLOSE-UP ---
+# --- DETECCIÓN DE COLUMNAS EN CLOSE-UP ---
 rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy()
 rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"])
 rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
@@ -213,7 +215,6 @@ rx_clean["Es_Mercado_Gutis"] = rx_clean["Meta_Mercado"].notnull()
 
 if es_pediatra: rx_clean = rx_clean[~rx_clean["MERCADO"].str.upper().str.contains("GASTROALIVIO", na=False)]
 
-# Identificación inteligente de columnas
 col_pxs = next((c for c in rx_clean.columns if c.upper() == "PXS-MES"), None)
 if not col_pxs:
     col_pxs = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS", "TRX", "RECETAS"])), None)
@@ -312,36 +313,75 @@ if os.path.exists(ARCHIVO_BITACORA):
         if not df_hist_med.empty: historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN LLAMADA GEMINI (MOTOR CASCADA ANTI-404) ---
+# --- FUNCIÓN DEFINITIVA Y TRANSPARENTE DE LLAMADA A GEMINI ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
-    if not api_key: return "[ERROR SISTEMA] Falla de autenticación API: GEMINI_API_KEY no configurada."
+    if not api_key:
+        return "⚠️ Error: Clave API GEMINI_API_KEY no configurada en Streamlit Secrets."
 
     parts = [{"text": prompt_text}]
     if audio_bytes is not None:
         try:
             audio_b64 = base64.b64encode(audio_bytes.read()).decode('utf-8')
             parts.append({"inlineData": {"mimeType": "audio/wav", "data": audio_b64}})
-        except Exception as e: return f"[ERROR AUDIO] {e}"
+        except Exception as e:
+            return f"⚠️ Error en audio: {e}"
 
-    payload = {"contents": [{"parts": parts}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
-    if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
-    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "maxOutputTokens": max_tok,
+            "temperature": 0.2
+        }
+    }
+    if json_mode:
+        payload["generationConfig"]["responseMimeType"] = "application/json"
 
-    modelos_a_probar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key
+    }
 
-    for mod in modelos_a_probar:
-        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
-        try:
-            res = requests.post(url_post, headers=headers, json=payload, timeout=25)
-            if res.status_code == 200:
-                data = res.json()
-                candidates = data.get('candidates', [])
-                if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
-                    return candidates[0]['content']['parts'][0].get('text', '')
-        except: continue
+    # 1. Preguntamos a Google cuáles modelos exactos están activos para esta clave
+    url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        r_list = requests.get(url_lista, timeout=12)
+        if r_list.status_code != 200:
+            return f"⚠️ Error consultando API de Google: HTTP {r_list.status_code} - {r_list.text[:150]}"
+        
+        todos = r_list.json().get('models', [])
+        compatibles = [
+            m['name'].replace('models/', '') 
+            for m in todos 
+            if 'generateContent' in m.get('supportedGenerationMethods', [])
+        ]
+        
+        if not compatibles:
+            return "⚠️ Tu clave de Google no tiene modelos de generación de texto habilitados."
+        
+        # Priorizar flash sobre pro para velocidad
+        modelo_ideal = compatibles[0]
+        for m in compatibles:
+            if "flash" in m.lower():
+                modelo_ideal = m
+                break
 
-    return "[ERROR DE CONEXIÓN] El motor de análisis está ocupado. Por favor, reintente en unos segundos."
+        # 2. Llamada directa al modelo confirmado
+        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_ideal}:generateContent?key={api_key}"
+        res = requests.post(url_post, headers=headers, json=payload, timeout=30)
+        
+        if res.status_code == 200:
+            cands = res.json().get('candidates', [])
+            if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
+                return cands[0]['content']['parts'][0].get('text', '')
+            return "⚠️ Respuesta vacía de Google."
+        else:
+            return f"⚠️ Error ejecutando modelo ({modelo_ideal}): HTTP {res.status_code} - {res.text[:150]}"
+            
+    except requests.exceptions.Timeout:
+        return "⚠️ Tiempo de espera agotado al conectar con Google. Reintenta."
+    except Exception as e:
+        return f"⚠️ Error de conexión: {str(e)}"
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
@@ -380,7 +420,7 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA (INTELIGENCIA AVANZADA DE PACIENTES POR MERCADO) ---
+# --- MÓDULO CHIRA CON CRUCE MATEMÁTICO REAL POR CIUDAD Y MERCADO ---
 with tab_chira:
     st.markdown("### [CHIRA] - Consultor de Inteligencia Comercial Senior")
     st.caption("Conectada en tiempo real a tu Panel, Auditoría de Pacientes (Pxs) y Sell-Out Zonal.")
@@ -401,61 +441,122 @@ with tab_chira:
         st.session_state.chira_history.append({"role": "user", "content": user_input})
         with chat_container_chira.chat_message("user"): st.write(user_input)
         
-        with st.spinner("[CHIRA PROCESANDO DATOS TERRITORIALES Y RECETARIOS...]"):
-            # Generación del EXPEDIENTE CLÍNICO por Mercado para cada médico de la ciudad filtrada
-            resumen_meds_chira = []
-            
-            # Recorremos los médicos de la ciudad seleccionada (hasta 100 para no saturar memoria)
-            for _, r_m in df_filtrado.dropna(subset=["Médico"]).head(100).iterrows():
-                m_nom = str(r_m["Médico"]).strip()
-                m_esp = str(r_m.get("Especialidad", "")).strip()
-                m_cat = str(r_m.get("CATEGORIA", "3")).strip()
-                m_ciudad_real = str(r_m.get("CIUDAD", ciudad)).strip()
-                
-                # Buscar recetas de este médico específico
-                m_rx = df_productos[df_productos["Médico"] == m_nom].dropna(subset=["NOMBRE_PRODUCTO", "MERCADO"])
-                
-                detalles_mercado = []
-                if not m_rx.empty and col_pxs and col_mes:
-                    mercados_del_medico = m_rx["MERCADO"].unique()
-                    for merc in mercados_del_medico:
-                        df_merc = m_rx[m_rx["MERCADO"] == merc].copy()
-                        df_merc[col_pxs] = pd.to_numeric(df_merc[col_pxs], errors='coerce').fillna(0)
-                        df_merc[col_mes] = pd.to_numeric(df_merc[col_mes], errors='coerce').fillna(0)
-                        
-                        px_totales_mercado = int(df_merc[col_pxs].sum())
-                        if px_totales_mercado > 0:
-                            # Ordenar para encontrar el producto líder en este consultorio
-                            df_merc = df_merc.sort_values(by=col_pxs, ascending=False)
-                            lider = df_merc.iloc[0]
-                            lider_prod = lider["NOMBRE_PRODUCTO"]
-                            lider_pxs = int(lider[col_pxs])
-                            lider_ms = lider[col_mes] * 100
-                            
-                            detalles_mercado.append(f"[{merc}] {px_totales_mercado} Pxs Totales (Receta principal: {lider_prod} con {lider_pxs} Pxs, MS: {lider_ms:.1f}%)")
-                
-                mercados_str = " | ".join(detalles_mercado) if detalles_mercado else "Sin prescripciones"
-                resumen_meds_chira.append(f"Dr/a. {m_nom} ({m_ciudad_real} | {m_esp} | Cat {m_cat}) -> {mercados_str}")
+        with st.spinner("[CHIRA PROCESANDO AUDITORÍA EN TIEMPO REAL...]"):
+            # 1. DETECCIÓN AUTOMÁTICA DE LA CIUDAD PREGUNTADA
+            ciudades_validas = [str(c).upper() for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]]
+            ciudad_detectada = None
+            for c_cand in ciudades_validas:
+                if c_cand in user_input.upper():
+                    ciudad_detectada = c_cand
+                    break
+            if not ciudad_detectada:
+                ciudad_detectada = ciudad_filtro if ciudad_filtro != "TODAS" else ciudad
 
-            datos_inyectados = "\n".join(resumen_meds_chira)
+            # 2. FILTRAR EXCLUSIVAMENTE MÉDICOS DE ESA CIUDAD
+            df_medicos_target = df_panel[df_panel["CIUDAD"].astype(str).str.upper() == ciudad_detectada.upper()]
+            if df_medicos_target.empty:
+                df_medicos_target = df_filtrado
+
+            # 3. DETECTAR SI EL USUARIO CONSULTÓ UN MERCADO O PRODUCTO ESPECÍFICO
+            mercado_detectado = None
+            for m_key, m_val in MERCADOS_PRIORITARIOS.items():
+                if any(k in user_input.upper() for k in m_val["keywords"]):
+                    mercado_detectado = m_key
+                    break
+
+            # 4. COMPILACIÓN DE DATOS MATEMÁTICOS REALES
+            resumen_analitico = []
+            medicos_evaluados = []
+
+            for _, r_m in df_medicos_target.dropna(subset=["Médico"]).iterrows():
+                m_nom = str(r_m["Médico"]).strip()
+                m_esp = str(r_m.get("Especialidad", "N/D")).strip()
+                m_cat = str(r_m.get("CATEGORIA", "3")).strip()
+                
+                m_rx = df_productos[df_productos["Médico"] == m_nom]
+                if m_rx.empty:
+                    continue
+
+                if mercado_detectado:
+                    m_rx_merc = m_rx[m_rx["MERCADO"].astype(str).str.upper().str.contains(mercado_detectado.replace("MR ", ""), na=False)].copy()
+                    if not m_rx_merc.empty and col_pxs:
+                        m_rx_merc[col_pxs] = pd.to_numeric(m_rx_merc[col_pxs], errors='coerce').fillna(0)
+                        pxs_totales_merc = int(m_rx_merc[col_pxs].sum())
+                        
+                        if pxs_totales_merc > 0:
+                            m_rx_merc = m_rx_merc.sort_values(by=col_pxs, ascending=False)
+                            lider_row = m_rx_merc.iloc[0]
+                            lider_prod = str(lider_row["NOMBRE_PRODUCTO"]).strip()
+                            lider_px = int(lider_row[col_pxs])
+                            lider_ms = (pd.to_numeric(lider_row[col_mes], errors='coerce') * 100) if col_mes else 0.0
+                            
+                            # Buscar si receta Gutis
+                            gutis_row = m_rx_merc[m_rx_merc["NOMBRE_PRODUCTO"].apply(es_gutis)]
+                            gutis_px = int(gutis_row[col_pxs].sum()) if not gutis_row.empty else 0
+                            gutis_ms = (pd.to_numeric(gutis_row[col_mes].iloc[0], errors='coerce') * 100) if (not gutis_row.empty and col_mes) else 0.0
+
+                            medicos_evaluados.append({
+                                "nombre": m_nom,
+                                "esp": m_esp,
+                                "cat": m_cat,
+                                "pxs_totales": pxs_totales_merc,
+                                "lider": lider_prod,
+                                "lider_px": lider_px,
+                                "lider_ms": lider_ms,
+                                "es_gutis": es_gutis(lider_prod),
+                                "gutis_px": gutis_px,
+                                "gutis_ms": gutis_ms
+                            })
+                else:
+                    # Sin mercado específico: sumar total de pacientes del médico
+                    if col_pxs:
+                        pxs_tot = int(pd.to_numeric(m_rx[col_pxs], errors='coerce').fillna(0).sum())
+                        if pxs_tot > 0:
+                            medicos_evaluados.append({
+                                "nombre": m_nom,
+                                "esp": m_esp,
+                                "cat": m_cat,
+                                "pxs_totales": pxs_tot,
+                                "lider": "Varias Líneas",
+                                "lider_px": pxs_tot,
+                                "lider_ms": 100.0,
+                                "es_gutis": False,
+                                "gutis_px": 0,
+                                "gutis_ms": 0.0
+                            })
+
+            # Ordenar por Pacientes Totales reales
+            medicos_evaluados = sorted(medicos_evaluados, key=lambda x: x["pxs_totales"], reverse=True)
+
+            lineas_datos = []
+            for item in medicos_evaluados[:12]:
+                lineas_datos.append(
+                    f"- Dr/a. {item['nombre']} ({item['esp']} | Cat {item['cat']}): "
+                    f"Volumen Total Mercado = {item['pxs_totales']} Pacientes (Pxs). "
+                    f"Receta Principal: {item['lider']} con {item['lider_px']} Pxs ({item['lider_ms']:.1f}% MS). "
+                    f"Gutis actual: {item['gutis_px']} Pxs ({item['gutis_ms']:.1f}% MS)."
+                )
+
+            datos_auditados_str = "\n".join(lineas_datos) if lineas_datos else f"No se registraron prescripciones en este mercado para {ciudad_detectada}."
 
             prompt_sistema_chira = f"""{REGLAS_FARMA}
-Eres CHIRA, la Analista Comercial Senior y estratega experta de Laboratorios Gutis en Nicaragua.
-Asistes al ejecutivo Erick Calderón. 
+Eres CHIRA, la Analista Comercial Senior y estratega de Laboratorios Gutis en Nicaragua.
+Asistes al representante Erick Calderón.
 
-BASE DE DATOS REAL (DETALLE DE RECETAS POR MERCADO EN {ciudad}):
-{datos_inyectados}
+CIUDAD AUDITADA: {ciudad_detectada}
+MERCADO ANALIZADO: {mercado_detectado if mercado_detectado else 'GENERAL'}
 
-INSTRUCCIONES ESTRICTAS DE RESPUESTA:
-1. NUNCA inventes médicos ni ciudades. Responde ÚNICAMENTE extrayendo información de la "BASE DE DATOS REAL" proporcionada arriba.
-2. Si el usuario pide los médicos más importantes para un producto o mercado (Ej. Talerdín / Antihistamínicos), busca en los datos inyectados cuáles médicos tienen el mayor número de "Pxs Totales" en ese mercado específico.
-3. Formula tu respuesta destacando la oportunidad de la siguiente manera:
-   "Los médicos más importantes para el mercado de [Producto] en [Ciudad] son:"
-   - Dr/a. [Nombre] ([Especialidad] - Cat [X]): Es de alta importancia porque maneja un volumen total de [X] pacientes en este mercado. Actualmente su receta principal es [Marca que receta] con [X] Pxs y un [X]% de MS.
-4. Si la receta principal es de la competencia, resalta que es una oportunidad de conquista.
-5. Sé ejecutiva, directa, analítica y sin excusas. Usa viñetas.
+DATOS REALES Y EXACTOS EXTRAÍDOS DEL CLOSE-UP PARA {ciudad_detectada}:
+{datos_auditados_str}
 
-CONSULTA DE ERICK: {user_input}"""
+REGLAS DE RESPUESTA ESTRICTAS:
+1. Responde ÚNICAMENTE con los médicos que están listados en los datos de arriba. Todos pertenecen a {ciudad_detectada}. PROHIBIDO mencionar médicos de otras ciudades.
+2. Sigue rigurosamente esta estructura clara para cada médico:
+   "Los médicos más importantes para este mercado en {ciudad_detectada} son:"
+   - Dr/a. [Nombre] ([Especialidad] - Cat [X]): Es de alta importancia por manejar un volumen total de [X] pacientes en este mercado. Actualmente su receta principal es [Marca Líder] con [X] Pxs y un [X]% de MS. (Indica si es oportunidad de conquista para Gutis).
+3. Sé profesional, analítica, directa y usa viñetas ejecutivas.
+
+PREGUNTA DE ERICK: {user_input}"""
             
             if audio_chira: res_chira = llamar_gemini(prompt_sistema_chira, audio_bytes=audio_chira)
             else: res_chira = llamar_gemini(prompt_sistema_chira)
@@ -591,7 +692,7 @@ with tab_bitacora:
     st.markdown("#### [CONSOLA DE CAPTURA CRM]")
     audio_grabado = st.audio_input("Ingreso de nota por voz:") if hasattr(st, "audio_input") else None
     if st.button("[PROCESAR ACUERDO A BASE DE DATOS]"):
-        st.warning("[SISTEMA] Módulo listo para conexión con Google Sheets (Siguiente paso).")
+        st.warning("[SISTEMA] Módulo listo para conexión con Google Sheets.")
 
 # --- RUTA ---
 with tab_ruta:
