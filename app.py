@@ -474,4 +474,12 @@ with tab_bitacora:
 with tab_ruta:
     st.markdown("#### [ITINERARIO DE ZONA]")
     df_ruta_zona = df_panel[df_panel["CIUDAD"] == ciudad] if ciudad != "N/D" else df_panel
-    st.dataframe(df_ruta_zona[["Médico", "Especialidad", "CATEGORIA", "DIRECCION"]].dropna(subset=["Médico"]).head(20), hide_index=True, use_container_width=True)
+    
+    # Validación inteligente de columnas (Evita el KeyError si cambia el Excel)
+    columnas_deseadas = ["Médico", "Especialidad", "CATEGORIA", "DIRECCION", "Dirección", "DIRECCIÓN", "CLINICA", "CIUDAD"]
+    columnas_existentes = [col for col in columnas_deseadas if col in df_ruta_zona.columns]
+    
+    if "Médico" in columnas_existentes:
+        st.dataframe(df_ruta_zona[columnas_existentes].dropna(subset=["Médico"]).head(20), hide_index=True, use_container_width=True)
+    else:
+        st.dataframe(df_ruta_zona.head(20), hide_index=True, use_container_width=True)
