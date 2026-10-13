@@ -259,7 +259,7 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
                 escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
             else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
 
-# --- FUNCIÓN LLAMADA A GEMINI (MOTOR 100% SEGURO Y DEFINITIVO) ---
+# --- FUNCIÓN LLAMADA A GEMINI (MOTOR OFICIAL - CERO 404) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return "⚠️ Error: Clave API GEMINI_API_KEY no configurada."
@@ -275,8 +275,8 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
 
-    # SOLO LOS MODELOS MÁS SEGUROS Y OFICIALES (Sin la versión 8b que causa error)
-    modelos_estables = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"]
+    # SOLO LOS DOS MODELOS BASE OFICIALES DE PRODUCCIÓN
+    modelos_estables = ["gemini-1.5-flash", "gemini-1.5-pro"]
     ultimo_error = ""
     for mod in modelos_estables:
         url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
@@ -373,7 +373,7 @@ with tab_chira:
         st.session_state.chira_history.append({"role": "assistant", "content": res_chira})
         st.rerun()
 
-# --- FASE 1: TÁCTICA TVP (RESTAURADA CON BOTÓN ROJO Y PROMPT AGRESIVO) ---
+# --- FASE 1: TÁCTICA TVP ---
 with tab_estrategia:
     col_izq_ia, col_der_ia = st.columns([1, 1.2])
     with col_izq_ia:
@@ -433,7 +433,7 @@ with tab_perfil360:
         if st.form_submit_button("[GUARDAR EN BASE DE DATOS]", use_container_width=True):
             st.success("[SISTEMA] Perfil guardado correctamente.")
 
-# --- FASE 2: ANÁLISIS RX (PORCENTAJES Y MS% YTD CORREGIDOS) ---
+# --- FASE 2: ANÁLISIS RX ---
 with tab_rx:
     st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN Y LABORATORIOS]")
     m_p1, m_p2, m_p3 = st.columns(3)
@@ -474,8 +474,6 @@ with tab_rx:
             
             if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
                 df_labs_medico = df_labs[df_labs["Médico"] == medico_sel].copy()
-                
-                # ELIMINAR LA FILA TOTAL QUE DUPLICA LA SUMA
                 df_labs_medico = df_labs_medico[~df_labs_medico["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
                 
                 if not df_labs_medico.empty:
@@ -483,42 +481,47 @@ with tab_rx:
                     
                     if col_pxs_ytd:
                         df_labs_medico[col_pxs_ytd] = pd.to_numeric(df_labs_medico[col_pxs_ytd], errors='coerce').fillna(0)
-                        
                         df_agrupado = df_labs_medico.groupby("FABRICANTE").agg({col_pxs_ytd: 'sum'}).reset_index()
                         
                         total_ytd_medico = df_agrupado[col_pxs_ytd].sum()
-                        if total_ytd_medico > 0:
-                            df_agrupado["% MS YTD"] = (df_agrupado[col_pxs_ytd] / total_ytd_medico) * 100
-                        else:
-                            df_agrupado["% MS YTD"] = 0.0
+                        if total_ytd_medico > 0: df_agrupado["% MS YTD"] = (df_agrupado[col_pxs_ytd] / total_ytd_medico) * 100
+                        else: df_agrupado["% MS YTD"] = 0.0
 
                         df_agrupado = df_agrupado.sort_values(by=col_pxs_ytd, ascending=False).head(10)
                         df_agrupado.columns = ["Laboratorio Fabricante", "Pxs Totales (YTD)", "% MS YTD"]
                         df_agrupado["Pxs Totales (YTD)"] = df_agrupado["Pxs Totales (YTD)"].astype(int)
-                        
-                        # FORMATO EXACTO A 2 DECIMALES
                         df_agrupado["% MS YTD"] = df_agrupado["% MS YTD"].map("{:.2f}%".format)
                         
                         st.dataframe(df_agrupado, hide_index=True, use_container_width=True)
-                    else:
-                        st.info("Columna 'Pxs-YTD' no detectada en el archivo de laboratorios para el cálculo.")
-                else:
-                    st.info("Sin registros de laboratorio para este médico.")
-            else:
-                st.info("ℹ️ Sube a GitHub el archivo de Laboratorios para activar este radar.")
+                    else: st.info("Columna 'Pxs-YTD' no detectada.")
+                else: st.info("Sin registros de laboratorio para este médico.")
+            else: st.info("ℹ️ Sube a GitHub el archivo de Laboratorios.")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
-# --- FASE 3: SELL-OUT ---
+# --- FASE 3: SELL-OUT (CON SUCURSALES SELECCIONABLES E IA) ---
 with tab_sellout:
     st.markdown("#### [INTELIGENCIA DE SELL-OUT Y TENDENCIAS TRIMESTRALES]")
     if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
         ventas_zona = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(ciudad, na=False)].copy()
+        
         if not ventas_zona.empty:
             col_prod_v = "VM4" if "VM4" in ventas_zona.columns else next((c for c in ventas_zona.columns if "PRODUCTO" in c.upper()), None)
             
-            if col_prod_v and "Trimestre" in ventas_zona.columns:
+            # ELIMINAR TOTALES FANTASMA DEL EXCEL
+            if col_prod_v:
+                ventas_zona[col_prod_v] = ventas_zona[col_prod_v].astype(str).str.strip()
+                ventas_zona = ventas_zona[~ventas_zona[col_prod_v].str.upper().isin(["TOTAL", "NAN", ""])]
+            ventas_zona = ventas_zona[~ventas_zona["NOMBRE_CLIENTE_1"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+
+            # SELECTOR DE SUCURSALES RESTAURADO
+            farmacias_disp = sorted(ventas_zona["NOMBRE_CLIENTE_1"].dropna().unique().tolist())
+            farm_sel = st.multiselect("🏥 Seleccione Farmacia(s) para ver el detalle de productos:", farmacias_disp, placeholder="Mostrando todas las farmacias de la zona...")
+            
+            df_v_mostrar = ventas_zona[ventas_zona["NOMBRE_CLIENTE_1"].isin(farm_sel)] if farm_sel else ventas_zona
+
+            if col_prod_v and "Trimestre" in df_v_mostrar.columns:
                 st.markdown("##### Detalle de Ventas por Farmacia, Trimestre y Producto")
-                df_pivot = pd.pivot_table(ventas_zona, values="Monto Real", index=["NOMBRE_CLIENTE_1", col_prod_v], columns=["Trimestre"], aggfunc="sum", fill_value=0).reset_index()
+                df_pivot = pd.pivot_table(df_v_mostrar, values="Monto Real", index=["NOMBRE_CLIENTE_1", col_prod_v], columns=["Trimestre"], aggfunc="sum", fill_value=0).reset_index()
                 
                 columnas_trim = [c for c in df_pivot.columns if c in ["Q1", "Q2", "Q3"]]
                 if columnas_trim:
@@ -526,11 +529,17 @@ with tab_sellout:
                     df_pivot = df_pivot.sort_values(by="Venta Total", ascending=False)
                 
                 renombrar_v = {"NOMBRE_CLIENTE_1": "Punto de Venta / Farmacia", col_prod_v: "Línea / Producto"}
-                st.dataframe(df_pivot.rename(columns=renombrar_v).head(30), hide_index=True, use_container_width=True)
+                st.dataframe(df_pivot.rename(columns=renombrar_v), hide_index=True, use_container_width=True)
+                
+                # BOTÓN DE IA PARA ANALIZAR VENTAS
+                st.markdown("#### [ANÁLISIS IA DE SELL-OUT]")
+                if st.button("[EJECUTAR ANÁLISIS DE VENTAS]", use_container_width=True):
+                    with st.spinner("Analizando tendencias de venta..."):
+                         prompt_ventas = f"{REGLAS_FARMA}\nAnaliza este Sell-Out de {ciudad}. Menciona cuál es la farmacia líder, qué producto estrella se vende más, y danos una sugerencia táctica para crecer:\n{df_pivot.head(20).to_string(index=False)}"
+                         st.info(llamar_gemini(prompt_ventas))
             else:
-                st.info("Agrupando ventas consolidadas por farmacia:")
-                df_farms = ventas_zona.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
-                st.dataframe(df_farms.head(10), hide_index=True, use_container_width=True)
+                df_farms = df_v_mostrar.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
+                st.dataframe(df_farms, hide_index=True, use_container_width=True)
     else: st.error("[SISTEMA] No hay cruce de rutas de venta.")
 
 # --- BITÁCORA CRM ---
