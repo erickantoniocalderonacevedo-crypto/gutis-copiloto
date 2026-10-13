@@ -196,7 +196,7 @@ if perfil_360_actual:
     if partes_rapport:
         contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
 
-# --- DETECCIÓN EXACTA DE COLUMNAS DE CLOSE-UP (Pxs-MES, %MS-MES, LABORATORIO) ---
+# --- DETECCIÓN EXACTA DE COLUMNAS DE CLOSE-UP ---
 rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy()
 rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"])
 rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
@@ -213,7 +213,7 @@ rx_clean["Es_Mercado_Gutis"] = rx_clean["Meta_Mercado"].notnull()
 
 if es_pediatra: rx_clean = rx_clean[~rx_clean["MERCADO"].str.upper().str.contains("GASTROALIVIO", na=False)]
 
-# Mapeo de columnas de Pacientes (Pxs), Cuotas y Laboratorio
+# Identificación inteligente de columnas
 col_pxs = next((c for c in rx_clean.columns if c.upper() == "PXS-MES"), None)
 if not col_pxs:
     col_pxs = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS", "TRX", "RECETAS"])), None)
@@ -246,7 +246,6 @@ if not rx_gutis_markets.empty:
     mercados_unicos = rx_gutis_markets["MERCADO"].unique()
     num_mercados = len(mercados_unicos)
     
-    # Priorizar mercados por Pacientes Reales (Pxs) x Peso estratégico
     def calc_score(row):
         meta = obtener_meta_mercado(row["MERCADO"])
         peso = meta["peso"] if meta else 1
@@ -329,22 +328,7 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json"}
 
-    modelos_a_probar = []
-    try:
-        url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-        r_list = requests.get(url_lista, timeout=10)
-        if r_list.status_code == 200:
-            todos = r_list.json().get('models', [])
-            compatibles = [m['name'].replace('models/', '') for m in todos if 'generateContent' in m.get('supportedGenerationMethods', [])]
-            preferidos = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
-            for p in preferidos:
-                if p in compatibles: modelos_a_probar.append(p)
-            for c in compatibles:
-                if c not in modelos_a_probar: modelos_a_probar.append(c)
-    except: pass
-
-    if not modelos_a_probar:
-        modelos_a_probar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
+    modelos_a_probar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
 
     for mod in modelos_a_probar:
         url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
@@ -396,7 +380,7 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA (CON INTELIGENCIA COMPLETA DE PACIENTES) ---
+# --- MÓDULO CHIRA (INTELIGENCIA AVANZADA DE PACIENTES POR MERCADO) ---
 with tab_chira:
     st.markdown("### [CHIRA] - Consultor de Inteligencia Comercial Senior")
     st.caption("Conectada en tiempo real a tu Panel, Auditoría de Pacientes (Pxs) y Sell-Out Zonal.")
@@ -409,7 +393,7 @@ with tab_chira:
     with col_c2:
         audio_chira = st.audio_input("Ingreso por voz:") if hasattr(st, "audio_input") else None
     with col_c1:
-        if prompt_chira := st.chat_input("Ej: ¿Cuáles son los médicos con mayor potencial de Talerdín en Granada?"):
+        if prompt_chira := st.chat_input("Ej: ¿Cuáles son los 5 médicos más importantes para Talerdín en Granada?"):
             pass 
 
     if prompt_chira or audio_chira:
@@ -417,37 +401,59 @@ with tab_chira:
         st.session_state.chira_history.append({"role": "user", "content": user_input})
         with chat_container_chira.chat_message("user"): st.write(user_input)
         
-        with st.spinner("[CHIRA PROCESANDO DATOS TERRITORIALES...]"):
-            # Generar matriz ejecutiva con pacientes reales para alimentar a Chira
+        with st.spinner("[CHIRA PROCESANDO DATOS TERRITORIALES Y RECETARIOS...]"):
+            # Generación del EXPEDIENTE CLÍNICO por Mercado para cada médico de la ciudad filtrada
             resumen_meds_chira = []
-            for _, r_m in df_filtrado.head(45).iterrows():
-                m_nom = str(r_m.get("Médico", "")).strip()
+            
+            # Recorremos los médicos de la ciudad seleccionada (hasta 100 para no saturar memoria)
+            for _, r_m in df_filtrado.dropna(subset=["Médico"]).head(100).iterrows():
+                m_nom = str(r_m["Médico"]).strip()
                 m_esp = str(r_m.get("Especialidad", "")).strip()
                 m_cat = str(r_m.get("CATEGORIA", "3")).strip()
-                px_tot = 0
-                if col_pxs and not df_productos.empty:
-                    m_rx = df_productos[df_productos["Médico"] == m_nom]
-                    if not m_rx.empty and col_pxs in m_rx.columns:
-                        px_tot = pd.to_numeric(m_rx[col_pxs], errors='coerce').fillna(0).sum()
-                resumen_meds_chira.append(f"- {m_nom} | Esp: {m_esp} | Cat: {m_cat} | Pacientes Totales: {int(px_tot)}")
-            
+                m_ciudad_real = str(r_m.get("CIUDAD", ciudad)).strip()
+                
+                # Buscar recetas de este médico específico
+                m_rx = df_productos[df_productos["Médico"] == m_nom].dropna(subset=["NOMBRE_PRODUCTO", "MERCADO"])
+                
+                detalles_mercado = []
+                if not m_rx.empty and col_pxs and col_mes:
+                    mercados_del_medico = m_rx["MERCADO"].unique()
+                    for merc in mercados_del_medico:
+                        df_merc = m_rx[m_rx["MERCADO"] == merc].copy()
+                        df_merc[col_pxs] = pd.to_numeric(df_merc[col_pxs], errors='coerce').fillna(0)
+                        df_merc[col_mes] = pd.to_numeric(df_merc[col_mes], errors='coerce').fillna(0)
+                        
+                        px_totales_mercado = int(df_merc[col_pxs].sum())
+                        if px_totales_mercado > 0:
+                            # Ordenar para encontrar el producto líder en este consultorio
+                            df_merc = df_merc.sort_values(by=col_pxs, ascending=False)
+                            lider = df_merc.iloc[0]
+                            lider_prod = lider["NOMBRE_PRODUCTO"]
+                            lider_pxs = int(lider[col_pxs])
+                            lider_ms = lider[col_mes] * 100
+                            
+                            detalles_mercado.append(f"[{merc}] {px_totales_mercado} Pxs Totales (Receta principal: {lider_prod} con {lider_pxs} Pxs, MS: {lider_ms:.1f}%)")
+                
+                mercados_str = " | ".join(detalles_mercado) if detalles_mercado else "Sin prescripciones"
+                resumen_meds_chira.append(f"Dr/a. {m_nom} ({m_ciudad_real} | {m_esp} | Cat {m_cat}) -> {mercados_str}")
+
             datos_inyectados = "\n".join(resumen_meds_chira)
 
             prompt_sistema_chira = f"""{REGLAS_FARMA}
 Eres CHIRA, la Analista Comercial Senior y estratega experta de Laboratorios Gutis en Nicaragua.
-Asistes a Erick Calderón. Tienes acceso completo a la base de datos de Close-Up y Panel de {ciudad}.
+Asistes al ejecutivo Erick Calderón. 
 
-BASE DE DATOS REAL (MÉDICOS DE {ciudad} CON PACIENTES REGISTRADOS EN CLOSE-UP):
+BASE DE DATOS REAL (DETALLE DE RECETAS POR MERCADO EN {ciudad}):
 {datos_inyectados}
 
-CONTEXTO OPERATIVO:
-- Sell-Out en {ciudad}: ${total_sellout_zona:,.2f}
-- Médico en pantalla: {medico_sel} (Esp: {especialidad}, Cat: {categoria}, Pacientes totales: {total_pxs_medico})
-
-INSTRUCCIONES CLAVE:
-1. Responde SIEMPRE con médicos de la lista anterior. NUNCA inventes nombres.
-2. Si te preguntan por médicos TOP, prioriza por Pacientes Totales (Pxs) y por Categoría (Cat 1 > Cat 2 > Cat 3).
-3. Sé ejecutiva, directa, analítica y orientada al cumplimiento de cuotas.
+INSTRUCCIONES ESTRICTAS DE RESPUESTA:
+1. NUNCA inventes médicos ni ciudades. Responde ÚNICAMENTE extrayendo información de la "BASE DE DATOS REAL" proporcionada arriba.
+2. Si el usuario pide los médicos más importantes para un producto o mercado (Ej. Talerdín / Antihistamínicos), busca en los datos inyectados cuáles médicos tienen el mayor número de "Pxs Totales" en ese mercado específico.
+3. Formula tu respuesta destacando la oportunidad de la siguiente manera:
+   "Los médicos más importantes para el mercado de [Producto] en [Ciudad] son:"
+   - Dr/a. [Nombre] ([Especialidad] - Cat [X]): Es de alta importancia porque maneja un volumen total de [X] pacientes en este mercado. Actualmente su receta principal es [Marca que receta] con [X] Pxs y un [X]% de MS.
+4. Si la receta principal es de la competencia, resalta que es una oportunidad de conquista.
+5. Sé ejecutiva, directa, analítica y sin excusas. Usa viñetas.
 
 CONSULTA DE ERICK: {user_input}"""
             
@@ -516,7 +522,6 @@ with tab_perfil360:
 with tab_rx:
     st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN: PACIENTES Y LABORATORIOS]")
     
-    # Resumen de Pacientes en la parte superior
     m_p1, m_p2, m_p3 = st.columns(3)
     with m_p1: st.metric("Pacientes Totales (Pxs)", total_pxs_medico)
     with m_p2: st.metric("Pacientes Gutis", gutis_pxs_medico)
@@ -540,13 +545,11 @@ with tab_rx:
             if col_mes: df_rx_view[col_mes] = pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100
             if col_pxs: df_rx_view[col_pxs] = pd.to_numeric(df_rx_view[col_pxs], errors='coerce').fillna(0).astype(int)
             
-            # ORDENAMIENTO PRINCIPAL: De mayor a menor número de PACIENTES (Pxs-MES)
             if col_pxs:
                 df_rx_view = df_rx_view.sort_values(by=[col_pxs, col_mes] if col_mes else [col_pxs], ascending=[False, False])
             elif col_mes:
                 df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
             
-            # Renombrar columnas para visualización clara
             renombrar = {}
             if col_pxs: renombrar[col_pxs] = "Pacientes (Pxs-MES)"
             if col_mes: renombrar[col_mes] = "% Cuota Mercado"
