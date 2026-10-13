@@ -305,7 +305,7 @@ with col3:
 if not rx_gutis_markets.empty and cards_ataque_html:
     st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 16px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=180, scrolling=True)
 
-# --- PESTAÑAS DEL SISTEMA ---
+# --- PESTAÑAS DEL SISTEMA COMPLETAS ---
 tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab_ruta = st.tabs([
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
@@ -379,7 +379,6 @@ with tab_estrategia:
     with col_izq_ia:
         st.markdown("#### [GENERACIÓN DE ARGUMENTOS TÁCTICOS]")
         
-        # Botón con atributo type="primary" para que Streamlit lo renderice de color rojo/acentuado
         if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True, type="primary"):
             with st.spinner("[COMPILANDO...]"):
                 st.session_state.pasillo_result = llamar_gemini(f"{REGLAS_FARMA}\nGenera un argumento comercial hiper-agresivo (Pitch de ascensor) de 2 oraciones para {medico_sel}. Receta la competencia ({producto_ataque_str}). Tu misión es que cambie HOY a {prod_gutis_ataque_oficial}.")
@@ -387,7 +386,6 @@ with tab_estrategia:
 
         if st.button("[EJECUTAR ANÁLISIS TVP COMPLETO]", use_container_width=True):
             with st.spinner("[ESTRUCTURANDO PLAN DE VISITA INTEGRAL...]"):
-                # Prompt enriquecido para el análisis TVP profundo que teníamos antes
                 prompt_tvp = f"""{REGLAS_FARMA}
 Genera un Plan de Visita Médica (TVP) altamente estratégico, profesional y agresivo para {medico_sel}.
 Contexto: Prescribe {producto_ataque_str}. Necesitamos que prescriba {prod_gutis_ataque_oficial}.
@@ -460,14 +458,13 @@ with tab_rx:
             df_rx_view = rx_vista[cols_to_show].copy()
             df_rx_view["Origen"] = df_rx_view["NOMBRE_PRODUCTO"].apply(lambda x: "🟢 GUTIS" if es_gutis(x) else "🔴 COMPETENCIA")
             
-            # ORDENAMIENTO DE LA TABLA
             if col_mes: df_rx_view[col_mes] = pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100
             if col_pxs: df_rx_view[col_pxs] = pd.to_numeric(df_rx_view[col_pxs], errors='coerce').fillna(0).astype(int)
             
             if col_pxs: df_rx_view = df_rx_view.sort_values(by=[col_pxs, col_mes] if col_mes else [col_pxs], ascending=[False, False])
             elif col_mes: df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
             
-            # FORMATEO DE PORCENTAJE (Para que no salga 63.6364 sino 63.6%)
+            # FORMATEO DE PORCENTAJE ELEGANTE
             if col_mes: df_rx_view[col_mes] = df_rx_view[col_mes].map("{:.1f}%".format)
             
             renombrar = {col_pxs: "Pacientes (Pxs-MES)", col_mes: "% Cuota Mercado"}
@@ -478,30 +475,30 @@ with tab_rx:
             
             if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
                 df_labs_medico = df_labs[df_labs["Médico"] == medico_sel].copy()
+                
+                # ELIMINAR LA FILA TOTAL QUE DUPLICA LA SUMA
+                df_labs_medico = df_labs_medico[~df_labs_medico["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+                
                 if not df_labs_medico.empty:
-                    # Buscar explícitamente Pxs-YTD para el cálculo del Market Share anual
                     col_pxs_ytd = "Pxs-YTD" if "Pxs-YTD" in df_labs_medico.columns else next((c for c in df_labs_medico.columns if "YTD" in c.upper() and "PXS" in c.upper()), None)
                     
                     if col_pxs_ytd:
                         df_labs_medico[col_pxs_ytd] = pd.to_numeric(df_labs_medico[col_pxs_ytd], errors='coerce').fillna(0)
                         
-                        # Agrupar por fabricante y sumar sus pacientes del año
                         df_agrupado = df_labs_medico.groupby("FABRICANTE").agg({col_pxs_ytd: 'sum'}).reset_index()
                         
-                        # Calcular el MS% YTD exacto basado en el total del médico
                         total_ytd_medico = df_agrupado[col_pxs_ytd].sum()
                         if total_ytd_medico > 0:
                             df_agrupado["% MS YTD"] = (df_agrupado[col_pxs_ytd] / total_ytd_medico) * 100
                         else:
                             df_agrupado["% MS YTD"] = 0.0
 
-                        # Ordenar, limpiar y formatear
                         df_agrupado = df_agrupado.sort_values(by=col_pxs_ytd, ascending=False).head(10)
                         df_agrupado.columns = ["Laboratorio Fabricante", "Pxs Totales (YTD)", "% MS YTD"]
                         df_agrupado["Pxs Totales (YTD)"] = df_agrupado["Pxs Totales (YTD)"].astype(int)
                         
-                        # Formatear la columna de MS% para que se vea como porcentaje real (Ej: 15.4%)
-                        df_agrupado["% MS YTD"] = df_agrupado["% MS YTD"].map("{:.1f}%".format)
+                        # FORMATO EXACTO A 2 DECIMALES
+                        df_agrupado["% MS YTD"] = df_agrupado["% MS YTD"].map("{:.2f}%".format)
                         
                         st.dataframe(df_agrupado, hide_index=True, use_container_width=True)
                     else:
@@ -509,7 +506,7 @@ with tab_rx:
                 else:
                     st.info("Sin registros de laboratorio para este médico.")
             else:
-                st.info("ℹ️ Carga exitosa del archivo, validando columnas de Fabricante...")
+                st.info("ℹ️ Sube a GitHub el archivo de Laboratorios para activar este radar.")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
 # --- FASE 3: SELL-OUT ---
