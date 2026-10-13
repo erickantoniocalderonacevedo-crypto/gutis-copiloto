@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import os
 import json
+import re
 from datetime import datetime
 import numpy as np
 from urllib.parse import quote
@@ -264,12 +265,13 @@ def llamar_gemini(prompt_text, max_tok=4096):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return None
 
-    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
 
+    # Probar dinámicamente o con los modelos vigentes
     modelos_a_probar = ["gemini-1.5-flash", "gemini-1.5-pro"]
     try:
-        r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=6)
+        r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=5)
         if r_list.status_code == 200:
             todos = r_list.json().get('models', [])
             dinamicos = [m['name'].replace('models/', '') for m in todos if 'generateContent' in m.get('supportedGenerationMethods', [])]
@@ -280,7 +282,8 @@ def llamar_gemini(prompt_text, max_tok=4096):
 
     for mod in modelos_a_probar:
         try:
-            res = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}", headers=headers, json=payload, timeout=20)
+            url_p = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
+            res = requests.post(url_p, headers=headers, json=payload, timeout=15)
             if res.status_code == 200:
                 cands = res.json().get('candidates', [])
                 if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
@@ -322,7 +325,7 @@ with tab_chira:
         with st.spinner("[CHIRA PROCESANDO AUDITORÍA EN TIEMPO REAL...]"):
             texto_u = prompt_chira.upper()
             
-            # 1. Detección Inteligente de la Ciudad Consultada
+            # 1. Detección Segura de la Ciudad Consultada
             mapeo_ciudades = {
                 "CARAZO": ["CARAZO", "JINOTEPE", "DIRIAMBA", "SAN MARCOS"],
                 "GRANADA": ["GRANADA", "NANDAIME"],
@@ -342,11 +345,21 @@ with tab_chira:
                 ciudades_en_panel = [str(c).upper() for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]]
                 ciudad_detectada = next((c for c in ciudades_en_panel if c in texto_u), ciudad_filtro if ciudad_filtro != "TODAS" else ciudad)
 
-            # Filtrar médicos pertenecientes a la zona detectada
-            variantes_zona = mapeo_ciudades.get(ciudad_detectada, [ciudad_detectada])
-            df_meds_zona = df_panel[df_panel["CIUDAD"].astype(str).str.upper().apply(lambda x: any(v in x for v in variantes_zona))].copy()
+            # Filtro blindado contra valores nulos (evita TypeError)
+            ciudad_str = str(ciudad_detectada or ciudad_filtro or ciudad or "").strip().upper()
+            if ciudad_str in ["", "TODAS", "NONE", "NAN"]:
+                variantes_zona = []
+            else:
+                variantes_zona = [str(v).strip().upper() for v in mapeo_ciudades.get(ciudad_str, [ciudad_str]) if v and str(v).upper() not in ["NONE", "NAN", "TODAS", ""]]
+
+            if variantes_zona:
+                patron_z = "|".join([re.escape(v) for v in variantes_zona])
+                df_meds_zona = df_panel[df_panel["CIUDAD"].astype(str).str.upper().str.contains(patron_z, na=False)].copy()
+            else:
+                df_meds_zona = df_filtrado.copy()
+
             if df_meds_zona.empty:
-                df_meds_zona = df_filtrado
+                df_meds_zona = df_filtrado.copy()
 
             # 2. Detección Inteligente del Mercado Consultado
             mercado_detectado = None
@@ -423,7 +436,7 @@ with tab_chira:
             else:
                 resultado_final = f"No se registraron prescripciones activas en el archivo de auditoría para el mercado de **{producto_objetivo}** en **{ciudad_detectada}**."
 
-            # Si la API de Google está lista, perfecciona el estilo manteniendo los números exactos
+            # Si la API de Google responde, perfecciona el estilo manteniendo los números reales intactos
             prompt_ia = f"{REGLAS_FARMA}\nEres CHIRA, estratega de Gutis. Con estos datos reales auditados de {ciudad_detectada}, entrega un resumen comercial ejecutivo a Erick Calderón:\n{resultado_final}"
             respuesta_ia = llamar_gemini(prompt_ia)
             if respuesta_ia and len(respuesta_ia.strip()) > 50:
@@ -456,9 +469,9 @@ Contexto: Prescribe {producto_ataque_str} ({total_pxs_medico} Pxs). Debe prescri
                 if not res_tvp:
                     res_tvp = f"""### Plan de Visita Médica Táctico (TVP) - {medico_sel}
 * **1. Pre-Visita (Análisis de escenario):** El especialista atiende en {ciudad} ({especialidad}). Su volumen activo es de {total_pxs_medico} pacientes donde predomina {producto_ataque_str}. Misión: Conquista con {prod_gutis_ataque_oficial}.
-* **2. Rapport (Ganar confianza inicial):** Conectar con un saludo ejecutivo reconociendo su alta demanda en consulta pediátrica/general en {ciudad}.
+* **2. Rapport (Ganar confianza inicial):** Conectar con un saludo ejecutivo reconociendo su alta demanda en consulta médica en {ciudad}.
 * **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor, con qué frecuencia sus pacientes experimentan intolerancia o rechazo al sabor y contenido alcohólico en las opciones actuales de {producto_ataque_str}?
-* **4. Presentación de Valor:** Introducir **{prod_gutis_ataque_oficial}**, destacando su fórmula 100% libre de alcohol, excelente perfil de tolerabilidad y dosificación exacta en gotas para garantizar el éxito del tratamiento.
+* **4. Presentación de Valor:** Introducir **{prod_gutis_ataque_oficial}**, destacando su fórmula 100% libre de alcohol, excelente perfil de tolerabilidad y dosificación exacta en gotas para garantizar el éxito terapéutico.
 * **5. Manejo de Objeciones:** Si el médico defiende su uso de {producto_ataque_str}, validar su criterio pero contrastar de inmediato la seguridad gástrica superior de {prod_gutis_ataque_oficial}.
 * **6. Cierre Directo:** Comprometer al especialista a iniciar a sus próximos 5 pacientes de la semana con {prod_gutis_ataque_oficial} verificando disponibilidad en las farmacias clave de {ciudad}."""
                 st.session_state.tvp_result = res_tvp
