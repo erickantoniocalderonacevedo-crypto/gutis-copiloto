@@ -229,7 +229,6 @@ rx_gutis_markets = rx_clean[rx_clean["Es_Mercado_Gutis"]].copy()
 if col_mes and col_mes in rx_gutis_markets.columns: rx_gutis_markets[col_mes] = pd.to_numeric(rx_gutis_markets[col_mes], errors='coerce').fillna(0)
 if col_pxs and col_pxs in rx_gutis_markets.columns: rx_gutis_markets[col_pxs] = pd.to_numeric(rx_gutis_markets[col_pxs], errors='coerce').fillna(0)
 
-# CÁLCULOS GLOBALES DE PACIENTES DEL MÉDICO
 total_pxs_medico = 0
 gutis_pxs_medico = 0
 comp_pxs_medico = 0
@@ -313,7 +312,7 @@ if os.path.exists(ARCHIVO_BITACORA):
         if not df_hist_med.empty: historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN DEFINITIVA Y TRANSPARENTE DE LLAMADA A GEMINI ---
+# --- FUNCIÓN DEFINITIVA Y SEGURA DE LLAMADA A GEMINI (SOLO MODELOS OFICIALES ESTABLES) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -342,46 +341,25 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
         "x-goog-api-key": api_key
     }
 
-    # 1. Preguntamos a Google cuáles modelos exactos están activos para esta clave
-    url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-    try:
-        r_list = requests.get(url_lista, timeout=12)
-        if r_list.status_code != 200:
-            return f"⚠️ Error consultando API de Google: HTTP {r_list.status_code} - {r_list.text[:150]}"
-        
-        todos = r_list.json().get('models', [])
-        compatibles = [
-            m['name'].replace('models/', '') 
-            for m in todos 
-            if 'generateContent' in m.get('supportedGenerationMethods', [])
-        ]
-        
-        if not compatibles:
-            return "⚠️ Tu clave de Google no tiene modelos de generación de texto habilitados."
-        
-        # Priorizar flash sobre pro para velocidad
-        modelo_ideal = compatibles[0]
-        for m in compatibles:
-            if "flash" in m.lower():
-                modelo_ideal = m
-                break
-
-        # 2. Llamada directa al modelo confirmado
-        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_ideal}:generateContent?key={api_key}"
-        res = requests.post(url_post, headers=headers, json=payload, timeout=30)
-        
-        if res.status_code == 200:
-            cands = res.json().get('candidates', [])
-            if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
-                return cands[0]['content']['parts'][0].get('text', '')
-            return "⚠️ Respuesta vacía de Google."
-        else:
-            return f"⚠️ Error ejecutando modelo ({modelo_ideal}): HTTP {res.status_code} - {res.text[:150]}"
+    # ÚNICAMENTE los modelos estables oficiales de Google (se excluyen experimentales y 2.5 obsoletos)
+    modelos_estables = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]
+    
+    ultimo_error = ""
+    for mod in modelos_estables:
+        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
+        try:
+            res = requests.post(url_post, headers=headers, json=payload, timeout=25)
+            if res.status_code == 200:
+                cands = res.json().get('candidates', [])
+                if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
+                    return cands[0]['content']['parts'][0].get('text', '')
+            else:
+                ultimo_error = f"HTTP {res.status_code} ({mod}): {res.text[:120]}"
+        except Exception as e:
+            ultimo_error = str(e)
+            continue
             
-    except requests.exceptions.Timeout:
-        return "⚠️ Tiempo de espera agotado al conectar con Google. Reintenta."
-    except Exception as e:
-        return f"⚠️ Error de conexión: {str(e)}"
+    return f"⚠️ Error en servidores de Google: {ultimo_error}"
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
@@ -465,7 +443,6 @@ with tab_chira:
                     break
 
             # 4. COMPILACIÓN DE DATOS MATEMÁTICOS REALES
-            resumen_analitico = []
             medicos_evaluados = []
 
             for _, r_m in df_medicos_target.dropna(subset=["Médico"]).iterrows():
@@ -490,7 +467,6 @@ with tab_chira:
                             lider_px = int(lider_row[col_pxs])
                             lider_ms = (pd.to_numeric(lider_row[col_mes], errors='coerce') * 100) if col_mes else 0.0
                             
-                            # Buscar si receta Gutis
                             gutis_row = m_rx_merc[m_rx_merc["NOMBRE_PRODUCTO"].apply(es_gutis)]
                             gutis_px = int(gutis_row[col_pxs].sum()) if not gutis_row.empty else 0
                             gutis_ms = (pd.to_numeric(gutis_row[col_mes].iloc[0], errors='coerce') * 100) if (not gutis_row.empty and col_mes) else 0.0
@@ -508,7 +484,6 @@ with tab_chira:
                                 "gutis_ms": gutis_ms
                             })
                 else:
-                    # Sin mercado específico: sumar total de pacientes del médico
                     if col_pxs:
                         pxs_tot = int(pd.to_numeric(m_rx[col_pxs], errors='coerce').fillna(0).sum())
                         if pxs_tot > 0:
@@ -525,7 +500,6 @@ with tab_chira:
                                 "gutis_ms": 0.0
                             })
 
-            # Ordenar por Pacientes Totales reales
             medicos_evaluados = sorted(medicos_evaluados, key=lambda x: x["pxs_totales"], reverse=True)
 
             lineas_datos = []
