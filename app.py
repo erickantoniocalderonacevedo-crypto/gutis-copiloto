@@ -53,12 +53,12 @@ REGLAS_FARMA = """
 REGLAS FARMACOLÓGICAS Y DE COMPETENCIA (ESTRICTO):
 1. CETRILER es CETIRIZINA.
 2. CARBUM es ESOMEPRAZOL.
-3. TALERDÍN es CETIRIZINA. Ventaja: 100% libre de alcohol, gotas exactas pediátricas.
+3. TALERDÍN es CETIRIZINA. Ventaja: 100% libre de alcohol, dosificación pediátrica en gotas exactas y alta tolerabilidad.
 4. GASTROALIVIO es ESOMEPRAZOL. Ventaja: Micropellets gastrorresistentes.
 5. VENTILAR es MONTELUKAST SÓDICO.
-6. MOMETZONA es FUROATO DE MOMETASONA.
-7. BIOTOS INMUNE es HEDERA HELIX + PELARGONIUM SIDOIDES.
-8. PEDIATRÍA: PROHIBIDO GASTROALIVIO. Priorizar Talerdín, Biotos, Clembroxil o Ventilar.
+6. MOMETZONA es FUROATO DE MOMETASONA (Spray nasal acuoso sin alcohol).
+7. BIOTOS INMUNE es HEDERA HELIX + PELARGONIUM SIDOIDES (Doble acción antiviral y mucolítica).
+8. PEDIATRÍA: PROHIBIDO GASTROALIVIO (solo adulto en Nicaragua). Priorizar Talerdín, Biotos, Clembroxil o Ventilar.
 """
 
 # --- ESTILOS CSS ELEGANTES Y PREMIUM ---
@@ -259,49 +259,34 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
                 escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
             else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
 
-# --- FUNCIÓN LLAMADA A GEMINI (CON MOTOR HÍBRIDO INTELIGENTE LOCAL Y DE RED) ---
-def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
+# --- FUNCIÓN DE LLAMADA API A GOOGLE GEMINI ---
+def llamar_gemini(prompt_text, max_tok=4096):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
-    
-    # Si es una consulta de Chira pidiendo médicos, hacemos la extracción matemática local exacta
-    if "Eres CHIRA, estratega de Gutis" in prompt_text:
-        # Extraer ciudad y mercado de la pregunta real del usuario
-        texto_q = prompt_text.upper()
-        # Buscamos qué ciudad está en el prompt
-        ciudad_q = "GRANADA"
-        for c_test in ["RIVAS", "GRANADA", "MANAGUA", "MASAYA", "CARAZO", "CHONTALES", "BOACO"]:
-            if c_test in texto_q:
-                ciudad_q = c_test
-                break
-        
-        return f"""### Análisis Comercial para {ciudad_q} (Datos de Auditoría Close-Up):
-Basado en el panel de Close-Up para **{ciudad_q}**, los médicos con mayor volumen de pacientes en este mercado estratégico son:
-1. **Dr(a). Principal de la Zona (Cat 1):** Concentra el mayor volumen de prescripciones mensuales. Su receta principal está liderada por la competencia directa, representando una **oportunidad clave de conversión** para los productos de Laboratorios Gutis.
-2. **Dr(a). Secundario (Cat 2):** Muestra estabilidad en su recetario trimestral. Estrategia recomendada: Reforzar visitas con argumentación basada en la alta tolerabilidad y beneficios clínicos diferenciados.
-*Acción sugerida:* Priorizar la visita ejecutiva en la ruta de {ciudad_q} enfocándose en los médicos de Categoría 1 y 2."""
+    if not api_key: return None
 
-    # Si es para el TVP de la Fase 1
-    if "Plan de Visita Médica (TVP)" in prompt_text:
-        return f"""### Plan de Visita Médica Táctico (TVP) - {medico_sel}
-* **1. Pre-Visita (Análisis de escenario):** El especialista atiende en {ciudad} ({especialidad}). Su enfoque actual es {producto_ataque_str}. La estrategia se centra en introducir {prod_gutis_ataque_oficial}.
-* **2. Rapport (Ganar confianza inicial):** Conectar mediante los registros previos de afinidad y un saludo ejecutivo enfocado en optimizar su tiempo en clínica.
-* **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor, cuáles son los mayores retos que enfrenta con la tolerancia gástrica y la adherencia al recetar este tipo de tratamientos?
-* **4. Presentación de Valor:** Posicionar a **{prod_gutis_ataque_oficial}** resaltando su ventaja competitiva: 100% libre de alcohol, gotas exactas y excelente perfil de seguridad clínica.
-* **5. Manejo de Objeciones:** Si el especialista menciona que ya confía en {producto_ataque_str}, validar su experiencia pero respaldar con evidencia cómo {prod_gutis_ataque_oficial} optimiza el resultado terapéutico.
-* **6. Cierre Directo:** Asegurar el compromiso de las primeras prescripciones de prueba en la próxima semana en las farmacias de la zona."""
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
 
-    # Si hay API Key y no cayó en los anteriores, intentamos llamar a la API de red con flash
-    if api_key:
-        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-        payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
+    modelos_a_probar = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    try:
+        r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=6)
+        if r_list.status_code == 200:
+            todos = r_list.json().get('models', [])
+            dinamicos = [m['name'].replace('models/', '') for m in todos if 'generateContent' in m.get('supportedGenerationMethods', [])]
+            for d in dinamicos:
+                if d not in modelos_a_probar and "flash" in d.lower():
+                    modelos_a_probar.insert(0, d)
+    except: pass
+
+    for mod in modelos_a_probar:
         try:
-            res = requests.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}".format(api_key), headers=headers, json=payload, timeout=15)
+            res = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}", headers=headers, json=payload, timeout=20)
             if res.status_code == 200:
                 cands = res.json().get('candidates', [])
-                if cands: return cands[0]['content']['parts'][0].get('text', '')
-        except: pass
-
-    return f"Estrategia comercial para {medico_sel}: Presentar las ventajas diferenciales de {prod_gutis_ataque_oficial} frente a {producto_ataque_str} en la zona de {ciudad}."
+                if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
+                    return cands[0]['content']['parts'][0].get('text', '')
+        except: continue
+    return None
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
@@ -321,7 +306,7 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA ---
+# --- MÓDULO CHIRA: ANÁLISIS COMERCIAL REAL POR TERRITORIO Y MERCADO ---
 with tab_chira:
     st.markdown("### [CHIRA] - Consultor de Inteligencia Comercial Senior")
     st.caption("Conectada en tiempo real a tu Panel, Auditoría de Pacientes (Pxs) y Sell-Out Zonal.")
@@ -330,21 +315,121 @@ with tab_chira:
     for msg in st.session_state.chira_history:
         with chat_container_chira.chat_message(msg["role"]): st.write(msg["content"])
         
-    col_c1, col_c2 = st.columns([3, 1])
-    with col_c2: audio_chira = st.audio_input("Ingreso por voz:") if hasattr(st, "audio_input") else None
-    with col_c1:
-        if prompt_chira := st.chat_input("Ej: ¿Cuáles son los 5 médicos más importantes para Talerdín en Granada?"): pass 
-
-    if prompt_chira or audio_chira:
-        user_input = prompt_chira if prompt_chira else "Analiza el audio proporcionado y responde."
-        st.session_state.chira_history.append({"role": "user", "content": user_input})
-        with chat_container_chira.chat_message("user"): st.write(user_input)
+    if prompt_chira := st.chat_input("Ej: regalame los 5 medicos mas importante para el mercado de talerdin en carazo"):
+        st.session_state.chira_history.append({"role": "user", "content": prompt_chira})
+        with chat_container_chira.chat_message("user"): st.write(prompt_chira)
         
         with st.spinner("[CHIRA PROCESANDO AUDITORÍA EN TIEMPO REAL...]"):
-            prompt_sistema_chira = f"Eres CHIRA, estratega de Gutis. Consulta de Erick: {user_input}"
-            res_chira = llamar_gemini(prompt_sistema_chira, audio_bytes=audio_chira) if audio_chira else llamar_gemini(prompt_sistema_chira)
-        
-        st.session_state.chira_history.append({"role": "assistant", "content": res_chira})
+            texto_u = prompt_chira.upper()
+            
+            # 1. Detección Inteligente de la Ciudad Consultada
+            mapeo_ciudades = {
+                "CARAZO": ["CARAZO", "JINOTEPE", "DIRIAMBA", "SAN MARCOS"],
+                "GRANADA": ["GRANADA", "NANDAIME"],
+                "MASAYA": ["MASAYA", "NINDIRI"],
+                "RIVAS": ["RIVAS", "SAN JORGE"],
+                "MANAGUA": ["MANAGUA"],
+                "BOACO": ["BOACO"],
+                "CHONTALES": ["CHONTALES", "JUIGALPA"]
+            }
+            ciudad_detectada = None
+            for c_clave, c_variantes in mapeo_ciudades.items():
+                if any(v in texto_u for v in c_variantes):
+                    ciudad_detectada = c_clave
+                    break
+            
+            if not ciudad_detectada:
+                ciudades_en_panel = [str(c).upper() for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]]
+                ciudad_detectada = next((c for c in ciudades_en_panel if c in texto_u), ciudad_filtro if ciudad_filtro != "TODAS" else ciudad)
+
+            # Filtrar médicos pertenecientes a la zona detectada
+            variantes_zona = mapeo_ciudades.get(ciudad_detectada, [ciudad_detectada])
+            df_meds_zona = df_panel[df_panel["CIUDAD"].astype(str).str.upper().apply(lambda x: any(v in x for v in variantes_zona))].copy()
+            if df_meds_zona.empty:
+                df_meds_zona = df_filtrado
+
+            # 2. Detección Inteligente del Mercado Consultado
+            mercado_detectado = None
+            producto_objetivo = "Talerdín"
+            for m_key, m_val in MERCADOS_PRIORITARIOS.items():
+                if any(k in texto_u for k in m_val["keywords"]):
+                    mercado_detectado = m_key
+                    producto_objetivo = m_val["producto"]
+                    break
+
+            # 3. Cálculo de Pacientes Reales por Médico en ese Mercado
+            ranking_medicos = []
+            if not df_productos.empty and "Médico" in df_productos.columns:
+                col_pxs_calc = next((c for c in df_productos.columns if c.upper() == "PXS-MES"), None)
+                if not col_pxs_calc: col_pxs_calc = next((c for c in df_productos.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS"])), None)
+                col_ms_calc = next((c for c in df_productos.columns if c.upper() == "%MS-MES"), None)
+                if not col_ms_calc: col_ms_calc = next((c for c in df_productos.columns if any(x in c.upper() for x in ["%MS-YTD", "%MS-TRIM"])), None)
+
+                for _, r_doc in df_meds_zona.dropna(subset=["Médico"]).iterrows():
+                    nom_doc = str(r_doc["Médico"]).strip()
+                    esp_doc = str(r_doc.get("Especialidad", "N/D")).strip()
+                    cat_doc = str(r_doc.get("CATEGORIA", "3")).strip()
+                    
+                    df_doc_rx = df_productos[df_productos["Médico"] == nom_doc]
+                    if df_doc_rx.empty: continue
+
+                    if mercado_detectado:
+                        kw_merc = mercado_detectado.replace("MR ", "").upper()
+                        df_merc_doc = df_doc_rx[df_doc_rx["MERCADO"].astype(str).str.upper().str.contains(kw_merc, na=False)].copy()
+                    else:
+                        df_merc_doc = df_doc_rx.copy()
+
+                    if not df_merc_doc.empty and col_pxs_calc:
+                        df_merc_doc[col_pxs_calc] = pd.to_numeric(df_merc_doc[col_pxs_calc], errors='coerce').fillna(0)
+                        pxs_totales_merc = int(df_merc_doc[col_pxs_calc].sum())
+                        
+                        if pxs_totales_merc > 0:
+                            df_merc_doc = df_merc_doc.sort_values(by=col_pxs_calc, ascending=False)
+                            lider_row = df_merc_doc.iloc[0]
+                            lider_nombre = str(lider_row.get("NOMBRE_PRODUCTO", "N/D")).strip()
+                            lider_pxs = int(lider_row[col_pxs_calc])
+                            lider_ms = (pd.to_numeric(lider_row[col_ms_calc], errors='coerce') * 100) if col_ms_calc else 0.0
+
+                            gutis_row = df_merc_doc[df_merc_doc["NOMBRE_PRODUCTO"].apply(es_gutis)]
+                            gutis_pxs = int(gutis_row[col_pxs_calc].sum()) if not gutis_row.empty else 0
+
+                            ranking_medicos.append({
+                                "nombre": nom_doc,
+                                "especialidad": esp_doc,
+                                "categoria": cat_doc,
+                                "pxs_totales": pxs_totales_merc,
+                                "lider_producto": lider_nombre,
+                                "lider_pxs": lider_pxs,
+                                "lider_ms": lider_ms,
+                                "es_gutis": es_gutis(lider_nombre),
+                                "gutis_pxs": gutis_pxs
+                            })
+
+            ranking_medicos = sorted(ranking_medicos, key=lambda x: x["pxs_totales"], reverse=True)
+
+            # 4. Construcción del Informe Real Exhaustivo
+            if ranking_medicos:
+                lineas_informe = [f"### [AUDITORÍA DE CLOSE-UP] Top Médicos para el Mercado de {producto_objetivo} en {ciudad_detectada}:\n"]
+                for idx, m_info in enumerate(ranking_medicos[:5], 1):
+                    origen_str = "🟢 GUTIS (Blindar cuota)" if m_info["es_gutis"] else "🔴 OPORTUNIDAD DE CONQUISTA (Competencia)"
+                    lineas_informe.append(
+                        f"**{idx}. Dr(a). {m_info['nombre']}** ({m_info['especialidad']} - Cat {m_info['categoria']}):\n"
+                        f"- **Volumen Total en Mercado:** {m_info['pxs_totales']} Pacientes (Pxs-MES).\n"
+                        f"- **Receta Dominante:** `{m_info['lider_producto']}` con **{m_info['lider_pxs']} Pxs** ({m_info['lider_ms']:.1f}% MS).\n"
+                        f"- **Situación Gutis:** {m_info['gutis_pxs']} Pxs actuales. Estrategia: {origen_str}.\n"
+                    )
+                lineas_informe.append(f"\n💡 **Acción Inmediata en Ruta:** Desplazar a `{ranking_medicos[0]['lider_producto']}` en el consultorio del Dr(a). {ranking_medicos[0]['nombre']} destacando la tolerabilidad gástrica y dosificación exacta de **{producto_objetivo}**.")
+                resultado_final = "\n".join(lineas_informe)
+            else:
+                resultado_final = f"No se registraron prescripciones activas en el archivo de auditoría para el mercado de **{producto_objetivo}** en **{ciudad_detectada}**."
+
+            # Si la API de Google está lista, perfecciona el estilo manteniendo los números exactos
+            prompt_ia = f"{REGLAS_FARMA}\nEres CHIRA, estratega de Gutis. Con estos datos reales auditados de {ciudad_detectada}, entrega un resumen comercial ejecutivo a Erick Calderón:\n{resultado_final}"
+            respuesta_ia = llamar_gemini(prompt_ia)
+            if respuesta_ia and len(respuesta_ia.strip()) > 50:
+                resultado_final = respuesta_ia
+
+        st.session_state.chira_history.append({"role": "assistant", "content": resultado_final})
         st.rerun()
 
 # --- FASE 1: TÁCTICA TVP ---
@@ -354,16 +439,29 @@ with tab_estrategia:
         st.markdown("#### [GENERACIÓN DE ARGUMENTOS TÁCTICOS]")
         
         if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True, type="primary"):
-            with st.spinner("[COMPILANDO...]"):
-                st.session_state.pasillo_result = llamar_gemini(f"{REGLAS_FARMA}\nGenera un argumento comercial hiper-agresivo (Pitch de ascensor) de 2 oraciones para {medico_sel}. Receta la competencia ({producto_ataque_str}). Tu misión es que cambie HOY a {prod_gutis_ataque_oficial}.")
+            with st.spinner("[COMPILANDO ARGUMENTO GALÉNICO...]"):
+                prompt_flash = f"{REGLAS_FARMA}\nGenera un pitch de pasillo de 2 oraciones para {medico_sel}. Receta {producto_ataque_str}. Misión: Cambiar a {prod_gutis_ataque_oficial}."
+                res_f = llamar_gemini(prompt_flash)
+                if not res_f:
+                    res_f = f"Doctor {medico_sel}, ante los pacientes que hoy reciben {producto_ataque_str}, {prod_gutis_ataque_oficial} le ofrece una respuesta clínica superior libre de alcohol y con dosificación en gotas exactas para garantizar cero irritación gástrica y máxima adherencia."
+                st.session_state.pasillo_result = res_f
         if st.session_state.pasillo_result: st.info(st.session_state.pasillo_result)
 
         if st.button("[EJECUTAR ANÁLISIS TVP COMPLETO]", use_container_width=True):
             with st.spinner("[ESTRUCTURANDO PLAN DE VISITA INTEGRAL...]"):
                 prompt_tvp = f"""{REGLAS_FARMA}
-Plan de Visita Médica (TVP) altamente estratégico, profesional y agresivo para {medico_sel}.
-Contexto: Prescribe {producto_ataque_str}. Necesitamos que prescriba {prod_gutis_ataque_oficial}."""
-                st.session_state.tvp_result = llamar_gemini(prompt_tvp)
+Genera un Plan de Visita Médica (TVP) en 6 pasos exactos para {medico_sel}. Especialidad: {especialidad}, Ciudad: {ciudad}.
+Contexto: Prescribe {producto_ataque_str} ({total_pxs_medico} Pxs). Debe prescribir {prod_gutis_ataque_oficial}."""
+                res_tvp = llamar_gemini(prompt_tvp)
+                if not res_tvp:
+                    res_tvp = f"""### Plan de Visita Médica Táctico (TVP) - {medico_sel}
+* **1. Pre-Visita (Análisis de escenario):** El especialista atiende en {ciudad} ({especialidad}). Su volumen activo es de {total_pxs_medico} pacientes donde predomina {producto_ataque_str}. Misión: Conquista con {prod_gutis_ataque_oficial}.
+* **2. Rapport (Ganar confianza inicial):** Conectar con un saludo ejecutivo reconociendo su alta demanda en consulta pediátrica/general en {ciudad}.
+* **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor, con qué frecuencia sus pacientes experimentan intolerancia o rechazo al sabor y contenido alcohólico en las opciones actuales de {producto_ataque_str}?
+* **4. Presentación de Valor:** Introducir **{prod_gutis_ataque_oficial}**, destacando su fórmula 100% libre de alcohol, excelente perfil de tolerabilidad y dosificación exacta en gotas para garantizar el éxito del tratamiento.
+* **5. Manejo de Objeciones:** Si el médico defiende su uso de {producto_ataque_str}, validar su criterio pero contrastar de inmediato la seguridad gástrica superior de {prod_gutis_ataque_oficial}.
+* **6. Cierre Directo:** Comprometer al especialista a iniciar a sus próximos 5 pacientes de la semana con {prod_gutis_ataque_oficial} verificando disponibilidad en las farmacias clave de {ciudad}."""
+                st.session_state.tvp_result = res_tvp
         if st.session_state.tvp_result: st.markdown(st.session_state.tvp_result)
 
     with col_der_ia:
@@ -376,6 +474,8 @@ Contexto: Prescribe {producto_ataque_str}. Necesitamos que prescriba {prod_gutis
             with chat_container.chat_message("user"): st.write(prompt_chat)
             with st.spinner("[PROCESANDO...]"):
                 res_sim = llamar_gemini(f"{REGLAS_FARMA}\nEres {medico_sel} defendiendo {producto_ataque_str} ante {prod_gutis_ataque_oficial}. Objeción: {prompt_chat}")
+                if not res_sim:
+                    res_sim = f"Comprendo su punto colega, pero con {producto_ataque_str} tengo años de experiencia y mis pacientes ya están habituados. ¿Por qué arriesgarme a cambiar a {prod_gutis_ataque_oficial} si ya me funciona?"
             st.session_state.chat_history.append({"role": "assistant", "content": res_sim})
             st.rerun()
 
@@ -464,7 +564,7 @@ with tab_rx:
             else: st.info("ℹ️ Sube a GitHub el archivo de Laboratorios.")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
-# --- FASE 3: SELL-OUT ---
+# --- FASE 3: SELL-OUT CON SUCURSALES SELECCIONABLES ---
 with tab_sellout:
     st.markdown("#### [INTELIGENCIA DE SELL-OUT Y TENDENCIAS TRIMESTRALES]")
     if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
@@ -493,16 +593,19 @@ with tab_sellout:
                     df_pivot = df_pivot.sort_values(by="Venta Total", ascending=False)
                 
                 renombrar_v = {"NOMBRE_CLIENTE_1": "Punto de Venta / Farmacia", col_prod_v: "Línea / Producto"}
-                st.dataframe(df_pivot.rename(columns=renombrar_v), hide_index=True, use_container_width=True)
+                st.dataframe(df_pivot.rename(columns=renombrar_v).head(30), hide_index=True, use_container_width=True)
                 
                 st.markdown("#### [ANÁLISIS IA DE SELL-OUT]")
                 if st.button("[EJECUTAR ANÁLISIS DE VENTAS]", use_container_width=True):
                     with st.spinner("Analizando tendencias de venta..."):
                          prompt_ventas = f"Analiza este Sell-Out de {ciudad} y danos una sugerencia táctica:\n{df_pivot.head(20).to_string(index=False)}"
-                         st.info(llamar_gemini(prompt_ventas))
+                         res_v = llamar_gemini(prompt_ventas)
+                         if not res_v:
+                             res_v = f"En la zona de {ciudad}, la mayor concentración de Sell-Out se encuentra en los puntos de mayor rotación de la cadena. Se recomienda asegurar inventario de las líneas prioritarias para cubrir la prescripción generada en los consultorios aledaños."
+                         st.info(res_v)
             else:
                 df_farms = df_v_mostrar.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
-                st.dataframe(df_farms, hide_index=True, use_container_width=True)
+                st.dataframe(df_farms.head(10), hide_index=True, use_container_width=True)
     else: st.error("[SISTEMA] No hay cruce de rutas de venta.")
 
 # --- BITÁCORA CRM ---
