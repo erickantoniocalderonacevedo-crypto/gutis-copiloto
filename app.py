@@ -259,7 +259,7 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
                 escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
             else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
 
-# --- FUNCIÓN LLAMADA A GEMINI (MODELOS OFICIALES SEGUROS) ---
+# --- FUNCIÓN LLAMADA A GEMINI (MOTOR 100% SEGURO Y DEFINITIVO) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return "⚠️ Error: Clave API GEMINI_API_KEY no configurada."
@@ -275,8 +275,8 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
 
-    # Modelos 100% estables y oficiales, adiós error 404
-    modelos_estables = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]
+    # SOLO LOS MODELOS MÁS SEGUROS Y OFICIALES (Sin la versión 8b que causa error)
+    modelos_estables = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"]
     ultimo_error = ""
     for mod in modelos_estables:
         url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
@@ -464,7 +464,6 @@ with tab_rx:
             if col_pxs: df_rx_view = df_rx_view.sort_values(by=[col_pxs, col_mes] if col_mes else [col_pxs], ascending=[False, False])
             elif col_mes: df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
             
-            # FORMATEO DE PORCENTAJE ELEGANTE
             if col_mes: df_rx_view[col_mes] = df_rx_view[col_mes].map("{:.1f}%".format)
             
             renombrar = {col_pxs: "Pacientes (Pxs-MES)", col_mes: "% Cuota Mercado"}
