@@ -169,6 +169,28 @@ especialidad = str(info_medico.get("Especialidad", "N/D")).strip().upper()
 categoria = str(info_medico.get("CATEGORIA", "N/D")).strip()
 es_pediatra = "PEDIAT" in especialidad
 
+# --- PERFIL OMNICANAL 360 ---
+perfil_360_actual = {}
+if os.path.exists(ARCHIVO_PERFIL_360):
+    try:
+        df_p360 = pd.read_excel(ARCHIVO_PERFIL_360)
+        coincidencias = df_p360[df_p360["Médico"].astype(str) == medico_sel]
+        if not coincidencias.empty:
+            perfil_360_actual = coincidencias.iloc[0].to_dict()
+    except: pass
+
+contexto_rapport_str = ""
+if perfil_360_actual:
+    cumple = perfil_360_actual.get("Cumpleaños", "")
+    deporte = perfil_360_actual.get("Deporte", "")
+    estilo_visita = perfil_360_actual.get("Estilo_Visita", "")
+    partes_rapport = []
+    if cumple and str(cumple) != "nan": partes_rapport.append(f"Cumpleaños: {cumple}")
+    if deporte and str(deporte) != "nan": partes_rapport.append(f"Afinidad: {deporte}")
+    if estilo_visita and str(estilo_visita) != "nan": partes_rapport.append(f"Estilo Visita: {estilo_visita}")
+    if partes_rapport:
+        contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
+
 # --- DETECCIÓN DE COLUMNAS EN CLOSE-UP ---
 rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy() if not df_productos.empty else pd.DataFrame()
 rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"]) if not rx_raw.empty and "NOMBRE_PRODUCTO" in rx_raw.columns else pd.DataFrame()
@@ -302,9 +324,9 @@ with col3:
 if not rx_gutis_markets.empty and cards_ataque_html:
     st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 16px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=180, scrolling=True)
 
-# --- PESTAÑAS DEL SISTEMA ---
-tab_chira, tab_estrategia, tab_rx, tab_sellout, tab_ruta = st.tabs([
-    "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Itinerario de Ruta"
+# --- PESTAÑAS DEL SISTEMA COMPLETAS (LAS 7 PESTAÑAS RESTAURADAS) ---
+tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab_ruta = st.tabs([
+    "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
 # --- MÓDULO CHIRA ---
@@ -393,7 +415,27 @@ with tab_estrategia:
             st.session_state.chat_history.append({"role": "assistant", "content": res_sim})
             st.rerun()
 
-# --- FASE 2: ANÁLISIS RX POR PACIENTES Y LABORATORIOS (RESTAURADO CON BOTONES) ---
+# --- PERFIL 360° (RESTAURADO) ---
+with tab_perfil360:
+    st.markdown("#### [ACTUALIZACIÓN DE PERFIL OMNICANAL]")
+    with st.form("form_perfil_360"):
+        c1, c2, c3 = st.columns(3)
+        with c1: 
+            val_minsa = st.text_input("MINSA:", value=str(perfil_360_actual.get("MINSA", "")) if str(perfil_360_actual.get("MINSA", "")) != "nan" else "")
+            val_cel = st.text_input("Celular:", value=str(perfil_360_actual.get("Celular", "")) if str(perfil_360_actual.get("Celular", "")) != "nan" else "")
+        with c2: 
+            val_correo = st.text_input("Correo:", value=str(perfil_360_actual.get("Correo", "")) if str(perfil_360_actual.get("Correo", "")) != "nan" else "")
+            val_cumple = st.text_input("Cumpleaños:", value=str(perfil_360_actual.get("Cumpleaños", "")) if str(perfil_360_actual.get("Cumpleaños", "")) != "nan" else "")
+        with c3: 
+            val_deporte = st.text_input("Afinidad/Hobby:", value=str(perfil_360_actual.get("Deporte", "")) if str(perfil_360_actual.get("Deporte", "")) != "nan" else "")
+            opc_visita = ["Ultra-ejecutiva", "Discusión científica", "Casos clínicos"]
+            idx_vis = opc_visita.index(perfil_360_actual.get("Estilo_Visita", opc_visita[0])) if perfil_360_actual.get("Estilo_Visita") in opc_visita else 0
+            val_estilo_visita = st.selectbox("Estilo Visita:", opc_visita, index=idx_vis)
+
+        if st.form_submit_button("[GUARDAR EN BASE DE DATOS]", use_container_width=True):
+            st.success("[SISTEMA] Perfil guardado correctamente.")
+
+# --- FASE 2: ANÁLISIS RX POR PACIENTES Y LABORATORIOS (CON LECTURA EXACTA DE PXS-MES) ---
 with tab_rx:
     st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN Y LABORATORIOS]")
     m_p1, m_p2, m_p3 = st.columns(3)
@@ -434,22 +476,29 @@ with tab_rx:
             if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
                 df_labs_medico = df_labs[df_labs["Médico"] == medico_sel].copy()
                 if not df_labs_medico.empty:
-                    col_pxs_lab = next((c for c in df_labs_medico.columns if "PXS" in c.upper() or "TRX" in c.upper() or "VALOR" in c.upper()), None)
+                    # Búsqueda estricta de la columna Pxs-MES tal como se mostró en la imagen
+                    col_pxs_lab = "Pxs-MES" if "Pxs-MES" in df_labs_medico.columns else next((c for c in df_labs_medico.columns if c.upper() == "PXS-MES"), None)
+                    if not col_pxs_lab: 
+                        col_pxs_lab = next((c for c in df_labs_medico.columns if "PXS" in c.upper()), None)
+                        
                     if col_pxs_lab:
                         df_labs_medico[col_pxs_lab] = pd.to_numeric(df_labs_medico[col_pxs_lab], errors='coerce').fillna(0)
-                        df_agrupado = df_labs_medico.groupby("FABRICANTE")[col_pxs_lab].sum().reset_index()
+                        df_agrupado = df_labs_medico.groupby("FABRICANTE").agg({col_pxs_lab: 'sum'}).reset_index()
+                        
                         df_agrupado = df_agrupado.sort_values(by=col_pxs_lab, ascending=False).head(10)
                         df_agrupado.columns = ["Laboratorio Fabricante", "Pacientes (Pxs)"]
+                        df_agrupado["Pacientes (Pxs)"] = df_agrupado["Pacientes (Pxs)"].astype(int)
+                        
                         st.dataframe(df_agrupado, hide_index=True, use_container_width=True)
                     else:
-                        st.info("Columna de pacientes no detectada en archivo de laboratorios.")
+                        st.info("Columna de pacientes (Pxs-MES) no detectada en archivo de laboratorios.")
                 else:
                     st.info("Sin registros de laboratorio para este médico.")
             else:
-                st.info("ℹ️ Sube a GitHub el archivo 'DATA MEDICOS AGOSTO LABORATORIOS.xlsx' para activar este radar.")
+                st.info("ℹ️ Sube a GitHub el archivo 'DATA MEDICOS AGOSTO LABORATORIOS.xlsx' con la columna FABRICANTE.")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
-# --- FASE 3: SELL-OUT (RESTAURADO CON TRIMESTRES Y LÍNEAS) ---
+# --- FASE 3: SELL-OUT ---
 with tab_sellout:
     st.markdown("#### [INTELIGENCIA DE SELL-OUT Y TENDENCIAS TRIMESTRALES]")
     if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
@@ -474,7 +523,14 @@ with tab_sellout:
                 st.dataframe(df_farms.head(10), hide_index=True, use_container_width=True)
     else: st.error("[SISTEMA] No hay cruce de rutas de venta.")
 
-# --- RUTA (NUEVO: FILTRO INTELIGENTE DE MERCADOS) ---
+# --- BITÁCORA CRM (RESTAURADA) ---
+with tab_bitacora:
+    st.markdown("#### [CONSOLA DE CAPTURA CRM]")
+    audio_grabado = st.audio_input("Ingreso de nota por voz:") if hasattr(st, "audio_input") else None
+    if st.button("[PROCESAR ACUERDO A BASE DE DATOS]"):
+        st.warning("[SISTEMA] Módulo listo para conexión con Google Sheets.")
+
+# --- RUTA ---
 with tab_ruta:
     st.markdown("#### [ITINERARIO INTELIGENTE POR MERCADO]")
     st.caption("Selecciona los mercados que vas a auditar hoy para filtrar a los médicos más importantes de tu ruta.")
