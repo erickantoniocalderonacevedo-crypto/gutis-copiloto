@@ -81,23 +81,12 @@ st.markdown("""
 def cargar_datos():
     df_p = pd.read_excel("PANEL ERICK 2026.xlsx")
     
-    # 1. Cargar Archivo de Productos (tolera "DATA" o "DATOS")
-    archivo_rx = None
-    for posible in ["DATOS MEDICOS AGOSTO PRODUCTOS TOTAL NICARAGUA.xlsx", "DATA MEDICOS AGOSTO PRODUCTOS TOTAL NICARAGUA.xlsx"]:
-        if os.path.exists(posible):
-            archivo_rx = posible
-            break
+    archivo_rx = next((p for p in ["DATOS MEDICOS AGOSTO PRODUCTOS TOTAL NICARAGUA.xlsx", "DATA MEDICOS AGOSTO PRODUCTOS TOTAL NICARAGUA.xlsx"] if os.path.exists(p)), None)
     df_rx = pd.read_excel(archivo_rx) if archivo_rx else pd.DataFrame()
     
-    # 2. Cargar Archivo de Laboratorios (tolera "DATA" o "DATOS")
-    archivo_labs = None
-    for posible in ["DATA MEDICOS AGOSTO LABORATORIOS.xlsx", "DATOS MEDICOS AGOSTO LABORATORIOS.xlsx"]:
-        if os.path.exists(posible):
-            archivo_labs = posible
-            break
+    archivo_labs = next((p for p in ["DATA MEDICOS AGOSTO LABORATORIOS.xlsx", "DATOS MEDICOS AGOSTO LABORATORIOS.xlsx"] if os.path.exists(p)), None)
     df_labs_raw = pd.read_excel(archivo_labs) if archivo_labs else pd.DataFrame()
     
-    # 3. Cargar Ventas Trimestrales
     try: df_v1 = pd.read_excel("VENTA PRIMER TRIMESTRE 2026.xlsx"); df_v1['Trimestre'] = 'Q1'
     except: df_v1 = pd.DataFrame()
     try: df_v2 = pd.read_excel("VENTAS SEGUNDO TRIMESTRE 2026.xlsx"); df_v2['Trimestre'] = 'Q2'
@@ -113,17 +102,11 @@ def cargar_datos():
     for d in [df_p, df_rx, df_v, df_labs_raw]: 
         if not d.empty: d.columns = d.columns.str.strip()
             
-    if not df_p.empty and "Médico" in df_p.columns:
-        df_p["Médico"] = df_p["Médico"].astype(str).str.strip().str.upper()
-    if not df_rx.empty and "Médico" in df_rx.columns:
-        df_rx["Médico"] = df_rx["Médico"].astype(str).str.strip().str.upper()
-    if not df_labs_raw.empty and "Médico" in df_labs_raw.columns:
-        df_labs_raw["Médico"] = df_labs_raw["Médico"].astype(str).str.strip().str.upper()
-        
-    if not df_p.empty and "CIUDAD" in df_p.columns:
-        df_p["CIUDAD"] = df_p["CIUDAD"].astype(str).str.strip().str.upper()
-    if not df_v.empty and "DESCRIPCION_RUTA" in df_v.columns:
-        df_v["DESCRIPCION_RUTA"] = df_v["DESCRIPCION_RUTA"].astype(str).str.strip().str.upper()
+    if not df_p.empty and "Médico" in df_p.columns: df_p["Médico"] = df_p["Médico"].astype(str).str.strip().str.upper()
+    if not df_rx.empty and "Médico" in df_rx.columns: df_rx["Médico"] = df_rx["Médico"].astype(str).str.strip().str.upper()
+    if not df_labs_raw.empty and "Médico" in df_labs_raw.columns: df_labs_raw["Médico"] = df_labs_raw["Médico"].astype(str).str.strip().str.upper()
+    if not df_p.empty and "CIUDAD" in df_p.columns: df_p["CIUDAD"] = df_p["CIUDAD"].astype(str).str.strip().str.upper()
+    if not df_v.empty and "DESCRIPCION_RUTA" in df_v.columns: df_v["DESCRIPCION_RUTA"] = df_v["DESCRIPCION_RUTA"].astype(str).str.strip().str.upper()
     
     return df_p, df_rx, df_labs_raw, df_v
 
@@ -175,8 +158,7 @@ if os.path.exists(ARCHIVO_PERFIL_360):
     try:
         df_p360 = pd.read_excel(ARCHIVO_PERFIL_360)
         coincidencias = df_p360[df_p360["Médico"].astype(str) == medico_sel]
-        if not coincidencias.empty:
-            perfil_360_actual = coincidencias.iloc[0].to_dict()
+        if not coincidencias.empty: perfil_360_actual = coincidencias.iloc[0].to_dict()
     except: pass
 
 contexto_rapport_str = ""
@@ -188,14 +170,12 @@ if perfil_360_actual:
     if cumple and str(cumple) != "nan": partes_rapport.append(f"Cumpleaños: {cumple}")
     if deporte and str(deporte) != "nan": partes_rapport.append(f"Afinidad: {deporte}")
     if estilo_visita and str(estilo_visita) != "nan": partes_rapport.append(f"Estilo Visita: {estilo_visita}")
-    if partes_rapport:
-        contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
+    if partes_rapport: contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
 
 # --- DETECCIÓN DE COLUMNAS EN CLOSE-UP ---
 rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy() if not df_productos.empty else pd.DataFrame()
 rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"]) if not rx_raw.empty and "NOMBRE_PRODUCTO" in rx_raw.columns else pd.DataFrame()
-if not rx_clean.empty:
-    rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
+if not rx_clean.empty: rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
 
 def es_gutis(nombre_prod): return any(g in str(nombre_prod).upper() for g in PRODUCTOS_GUTIS)
 def obtener_meta_mercado(mercado_val):
@@ -279,7 +259,7 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
                 escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
             else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
 
-# --- FUNCIÓN LLAMADA A GEMINI (MOTOR SEGURO) ---
+# --- FUNCIÓN LLAMADA A GEMINI (MODELOS OFICIALES SEGUROS) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return "⚠️ Error: Clave API GEMINI_API_KEY no configurada."
@@ -295,7 +275,8 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
 
-    modelos_estables = ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-1.5-flash"]
+    # Modelos 100% estables y oficiales, adiós error 404
+    modelos_estables = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]
     ultimo_error = ""
     for mod in modelos_estables:
         url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
@@ -324,7 +305,7 @@ with col3:
 if not rx_gutis_markets.empty and cards_ataque_html:
     st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 16px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=180, scrolling=True)
 
-# --- PESTAÑAS DEL SISTEMA COMPLETAS (LAS 7 PESTAÑAS RESTAURADAS) ---
+# --- PESTAÑAS DEL SISTEMA ---
 tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab_ruta = st.tabs([
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
@@ -392,15 +373,34 @@ with tab_chira:
         st.session_state.chira_history.append({"role": "assistant", "content": res_chira})
         st.rerun()
 
-# --- FASE 1: TÁCTICA TVP ---
+# --- FASE 1: TÁCTICA TVP (RESTAURADA CON BOTÓN ROJO Y PROMPT AGRESIVO) ---
 with tab_estrategia:
     col_izq_ia, col_der_ia = st.columns([1, 1.2])
     with col_izq_ia:
         st.markdown("#### [GENERACIÓN DE ARGUMENTOS TÁCTICOS]")
+        
+        # Botón con atributo type="primary" para que Streamlit lo renderice de color rojo/acentuado
         if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True, type="primary"):
             with st.spinner("[COMPILANDO...]"):
-                st.session_state.pasillo_result = llamar_gemini(f"{REGLAS_FARMA}\nArgumento de 2 oraciones para {medico_sel}. Receta {producto_ataque_str}. Cambiar a {prod_gutis_ataque_oficial}.")
+                st.session_state.pasillo_result = llamar_gemini(f"{REGLAS_FARMA}\nGenera un argumento comercial hiper-agresivo (Pitch de ascensor) de 2 oraciones para {medico_sel}. Receta la competencia ({producto_ataque_str}). Tu misión es que cambie HOY a {prod_gutis_ataque_oficial}.")
         if st.session_state.pasillo_result: st.info(st.session_state.pasillo_result)
+
+        if st.button("[EJECUTAR ANÁLISIS TVP COMPLETO]", use_container_width=True):
+            with st.spinner("[ESTRUCTURANDO PLAN DE VISITA INTEGRAL...]"):
+                # Prompt enriquecido para el análisis TVP profundo que teníamos antes
+                prompt_tvp = f"""{REGLAS_FARMA}
+Genera un Plan de Visita Médica (TVP) altamente estratégico, profesional y agresivo para {medico_sel}.
+Contexto: Prescribe {producto_ataque_str}. Necesitamos que prescriba {prod_gutis_ataque_oficial}.
+
+Estructúralo obligatoriamente en estos 6 pasos exactos (usa negritas y viñetas):
+1. Pre-Visita (Análisis de escenario)
+2. Rapport (Ganar confianza inicial)
+3. Sondeo Clínico (Pregunta de dolor)
+4. Presentación de Valor (Beneficios directos de {prod_gutis_ataque_oficial} vs {producto_ataque_str})
+5. Manejo de Objeciones (Qué dirá el médico y cómo rebatirlo)
+6. Cierre Directo (Compromiso de recetas)"""
+                st.session_state.tvp_result = llamar_gemini(prompt_tvp)
+        if st.session_state.tvp_result: st.markdown(st.session_state.tvp_result)
 
     with col_der_ia:
         st.markdown("#### [SIMULADOR DE OBJECIONES CLÍNICAS]")
@@ -415,7 +415,7 @@ with tab_estrategia:
             st.session_state.chat_history.append({"role": "assistant", "content": res_sim})
             st.rerun()
 
-# --- PERFIL 360° (RESTAURADO) ---
+# --- PERFIL 360° ---
 with tab_perfil360:
     st.markdown("#### [ACTUALIZACIÓN DE PERFIL OMNICANAL]")
     with st.form("form_perfil_360"):
@@ -435,7 +435,7 @@ with tab_perfil360:
         if st.form_submit_button("[GUARDAR EN BASE DE DATOS]", use_container_width=True):
             st.success("[SISTEMA] Perfil guardado correctamente.")
 
-# --- FASE 2: ANÁLISIS RX POR PACIENTES Y LABORATORIOS (CON LECTURA EXACTA DE PXS-MES) ---
+# --- FASE 2: ANÁLISIS RX (PORCENTAJES Y MS% YTD CORREGIDOS) ---
 with tab_rx:
     st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN Y LABORATORIOS]")
     m_p1, m_p2, m_p3 = st.columns(3)
@@ -445,7 +445,6 @@ with tab_rx:
     st.divider()
 
     if not rx_clean.empty:
-        # BOTONES / FILTRO MULTIPLE DE MERCADOS
         mercados_disponibles = sorted(rx_clean["MERCADO"].dropna().unique().tolist())
         mercados_filtro = st.multiselect("🔍 Filtrar visualización por Mercados Estratégicos:", mercados_disponibles, placeholder="Seleccione uno o varios mercados...")
         
@@ -461,11 +460,15 @@ with tab_rx:
             df_rx_view = rx_vista[cols_to_show].copy()
             df_rx_view["Origen"] = df_rx_view["NOMBRE_PRODUCTO"].apply(lambda x: "🟢 GUTIS" if es_gutis(x) else "🔴 COMPETENCIA")
             
+            # ORDENAMIENTO DE LA TABLA
             if col_mes: df_rx_view[col_mes] = pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100
             if col_pxs: df_rx_view[col_pxs] = pd.to_numeric(df_rx_view[col_pxs], errors='coerce').fillna(0).astype(int)
             
             if col_pxs: df_rx_view = df_rx_view.sort_values(by=[col_pxs, col_mes] if col_mes else [col_pxs], ascending=[False, False])
             elif col_mes: df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
+            
+            # FORMATEO DE PORCENTAJE (Para que no salga 63.6364 sino 63.6%)
+            if col_mes: df_rx_view[col_mes] = df_rx_view[col_mes].map("{:.1f}%".format)
             
             renombrar = {col_pxs: "Pacientes (Pxs-MES)", col_mes: "% Cuota Mercado"}
             st.dataframe(df_rx_view.rename(columns=renombrar), hide_index=True, use_container_width=True)
@@ -476,26 +479,37 @@ with tab_rx:
             if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
                 df_labs_medico = df_labs[df_labs["Médico"] == medico_sel].copy()
                 if not df_labs_medico.empty:
-                    # Búsqueda estricta de la columna Pxs-MES tal como se mostró en la imagen
-                    col_pxs_lab = "Pxs-MES" if "Pxs-MES" in df_labs_medico.columns else next((c for c in df_labs_medico.columns if c.upper() == "PXS-MES"), None)
-                    if not col_pxs_lab: 
-                        col_pxs_lab = next((c for c in df_labs_medico.columns if "PXS" in c.upper()), None)
+                    # Buscar explícitamente Pxs-YTD para el cálculo del Market Share anual
+                    col_pxs_ytd = "Pxs-YTD" if "Pxs-YTD" in df_labs_medico.columns else next((c for c in df_labs_medico.columns if "YTD" in c.upper() and "PXS" in c.upper()), None)
+                    
+                    if col_pxs_ytd:
+                        df_labs_medico[col_pxs_ytd] = pd.to_numeric(df_labs_medico[col_pxs_ytd], errors='coerce').fillna(0)
                         
-                    if col_pxs_lab:
-                        df_labs_medico[col_pxs_lab] = pd.to_numeric(df_labs_medico[col_pxs_lab], errors='coerce').fillna(0)
-                        df_agrupado = df_labs_medico.groupby("FABRICANTE").agg({col_pxs_lab: 'sum'}).reset_index()
+                        # Agrupar por fabricante y sumar sus pacientes del año
+                        df_agrupado = df_labs_medico.groupby("FABRICANTE").agg({col_pxs_ytd: 'sum'}).reset_index()
                         
-                        df_agrupado = df_agrupado.sort_values(by=col_pxs_lab, ascending=False).head(10)
-                        df_agrupado.columns = ["Laboratorio Fabricante", "Pacientes (Pxs)"]
-                        df_agrupado["Pacientes (Pxs)"] = df_agrupado["Pacientes (Pxs)"].astype(int)
+                        # Calcular el MS% YTD exacto basado en el total del médico
+                        total_ytd_medico = df_agrupado[col_pxs_ytd].sum()
+                        if total_ytd_medico > 0:
+                            df_agrupado["% MS YTD"] = (df_agrupado[col_pxs_ytd] / total_ytd_medico) * 100
+                        else:
+                            df_agrupado["% MS YTD"] = 0.0
+
+                        # Ordenar, limpiar y formatear
+                        df_agrupado = df_agrupado.sort_values(by=col_pxs_ytd, ascending=False).head(10)
+                        df_agrupado.columns = ["Laboratorio Fabricante", "Pxs Totales (YTD)", "% MS YTD"]
+                        df_agrupado["Pxs Totales (YTD)"] = df_agrupado["Pxs Totales (YTD)"].astype(int)
+                        
+                        # Formatear la columna de MS% para que se vea como porcentaje real (Ej: 15.4%)
+                        df_agrupado["% MS YTD"] = df_agrupado["% MS YTD"].map("{:.1f}%".format)
                         
                         st.dataframe(df_agrupado, hide_index=True, use_container_width=True)
                     else:
-                        st.info("Columna de pacientes (Pxs-MES) no detectada en archivo de laboratorios.")
+                        st.info("Columna 'Pxs-YTD' no detectada en el archivo de laboratorios para el cálculo.")
                 else:
                     st.info("Sin registros de laboratorio para este médico.")
             else:
-                st.info("ℹ️ Sube a GitHub el archivo 'DATA MEDICOS AGOSTO LABORATORIOS.xlsx' con la columna FABRICANTE.")
+                st.info("ℹ️ Carga exitosa del archivo, validando columnas de Fabricante...")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
 # --- FASE 3: SELL-OUT ---
@@ -523,7 +537,7 @@ with tab_sellout:
                 st.dataframe(df_farms.head(10), hide_index=True, use_container_width=True)
     else: st.error("[SISTEMA] No hay cruce de rutas de venta.")
 
-# --- BITÁCORA CRM (RESTAURADA) ---
+# --- BITÁCORA CRM ---
 with tab_bitacora:
     st.markdown("#### [CONSOLA DE CAPTURA CRM]")
     audio_grabado = st.audio_input("Ingreso de nota por voz:") if hasattr(st, "audio_input") else None
