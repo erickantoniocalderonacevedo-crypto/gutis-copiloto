@@ -259,7 +259,7 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
                 escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
             else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
 
-# --- FUNCIÓN LLAMADA A GEMINI (MOTORES BASE ÚNICAMENTE - CERO ERROR 404) ---
+# --- FUNCIÓN LLAMADA A GEMINI (DINAMIZADOR 100% BLINDADO CONTRA 404) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return "⚠️ Error: Clave API GEMINI_API_KEY no configurada."
@@ -275,10 +275,20 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
 
-    # LOS NOMBRES OFICIALES EXACTOS, SIN NINGÚN SUFIJO EXPERIMENTAL
-    modelos_estables = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    # Búsqueda dinámica automática de modelos disponibles en el tenant actual
+    modelos_a_probar = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    try:
+        r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=8)
+        if r_list.status_code == 200:
+            todos = r_list.json().get('models', [])
+            dinamicos = [m['name'].replace('models/', '') for m in todos if 'generateContent' in m.get('supportedGenerationMethods', [])]
+            for d in dinamicos:
+                if d not in modelos_a_probar and "flash" in d.lower():
+                    modelos_a_probar.insert(0, d)
+    except: pass
+
     ultimo_error = ""
-    for mod in modelos_estables:
+    for mod in modelos_a_probar:
         url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
         try:
             res = requests.post(url_post, headers=headers, json=payload, timeout=25)
@@ -286,11 +296,11 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
                 cands = res.json().get('candidates', [])
                 if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
                     return cands[0]['content']['parts'][0].get('text', '')
-            else: ultimo_error = f"HTTP {res.status_code} ({mod}): {res.text[:120]}"
+            else: ultimo_error = f"HTTP {res.status_code} ({mod}): {res.text[:100]}"
         except Exception as e:
             ultimo_error = str(e)
             continue
-    return f"⚠️ Error en servidores de Google: {ultimo_error}"
+    return f"⚠️ Error de conexión con Google: {ultimo_error}"
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
