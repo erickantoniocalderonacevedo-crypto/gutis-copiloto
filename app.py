@@ -61,18 +61,52 @@ REGLAS FARMACOLÓGICAS Y DE COMPETENCIA (ESTRICTO):
 8. PEDIATRÍA: PROHIBIDO sugerir GASTROALIVIO (solo existe adulto). Priorizar Talerdín, Biotos, Clembroxil o Ventilar.
 """
 
-# --- ESTILOS CSS SOBRIOS ---
+# --- ESTILOS CSS ELEGANTES Y PREMIUM ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f1f5f9; font-family: 'Segoe UI', Arial, sans-serif; }
-    h1, h2, h3 { color: #0f172a; font-weight: 600; letter-spacing: -0.5px; }
-    .metric-card { background-color: #ffffff; border-radius: 6px; padding: 18px; border-left: 5px solid #1e293b; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 12px; }
-    .metric-title { color: #475569; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.5px; }
-    .metric-value { color: #0f172a; font-size: 1.5rem; font-weight: 800; }
-    .stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid #cbd5e1; gap: 4px; }
-    .stTabs [data-baseweb="tab"] { font-size: 0.85rem; font-weight: 600; color: #64748b; padding: 10px 16px; border-radius: 4px 4px 0 0; }
-    .stTabs [aria-selected="true"] { color: #ffffff; background-color: #1e293b; border-bottom: none; }
-    .btn-exec { background-color: #1e293b; color: white; padding: 10px; border-radius: 4px; font-weight: 600; text-align: center; }
+    /* Fondo general más limpio */
+    .stApp { background-color: #f4f6f9; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    h1, h2, h3, h4, h5 { color: #0f172a; font-weight: 700; letter-spacing: -0.3px; }
+    
+    /* Tarjetas KPI con diseño Premium */
+    .metric-card { 
+        background-color: #ffffff; 
+        border-radius: 8px; 
+        padding: 22px; 
+        border-left: 6px solid #2563eb; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.04); 
+        margin-bottom: 15px; 
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.08);
+    }
+    .metric-title { color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.8px; }
+    .metric-value { color: #0f172a; font-size: 1.65rem; font-weight: 900; }
+    
+    /* Pestañas estilizadas */
+    .stTabs [data-baseweb="tab-list"] { border-bottom: 2px solid #e2e8f0; gap: 6px; padding-bottom: 0; }
+    .stTabs [data-baseweb="tab"] { 
+        font-size: 0.85rem; 
+        font-weight: 700; 
+        color: #64748b; 
+        padding: 12px 18px; 
+        border-radius: 6px 6px 0 0; 
+        background-color: #f8fafc;
+        transition: all 0.3s ease;
+        border: 1px solid transparent;
+        border-bottom: none;
+    }
+    .stTabs [aria-selected="true"] { 
+        color: #ffffff; 
+        background-color: #1e3a8a; /* Azul Índigo Elegante */
+        border-bottom: none; 
+        box-shadow: inset 0 -4px 0 #38bdf8; /* Línea celeste inferior */
+    }
+    
+    /* Cajas de texto y chat */
+    .stChatMessage { background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -110,18 +144,20 @@ def cargar_datos():
 
 df_panel, df_productos, df_ventas = cargar_datos()
 
-# --- INICIALIZACIÓN DE SESIÓN (INCLUYE CHIRA) ---
+# --- INICIALIZACIÓN DE SESIÓN ---
 if "chira_history" not in st.session_state: st.session_state.chira_history = []
 if "chat_history" not in st.session_state: st.session_state.chat_history = []
 if "gira_chat_history" not in st.session_state: st.session_state.gira_chat_history = []
 if "tvp_result" not in st.session_state: st.session_state.tvp_result = None
 if "pasillo_result" not in st.session_state: st.session_state.pasillo_result = None
 
-# --- ENCABEZADO CORPORATIVO ---
-st.markdown("""<div style='background-color:#1e293b; padding: 20px; border-radius: 6px; margin-bottom: 20px;'>
-    <h2 style='color: #f8fafc; margin: 0; font-size: 1.6rem; letter-spacing: 1px;'>[GUTIS BI] - PLATAFORMA DE INTELIGENCIA COMERCIAL</h2>
-    <p style='color: #94a3b8; margin: 0; font-size: 0.85rem; text-transform: uppercase;'>Sistema Integrado de Análisis Táctico y Gestión de Territorio</p>
-</div>""", unsafe_allow_html=True)
+# --- ENCABEZADO CORPORATIVO CON DEGRADADO ELEGANTE ---
+st.markdown("""
+<div style='background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); padding: 25px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 6px solid #38bdf8;'>
+    <h2 style='color: #ffffff; margin: 0; font-size: 1.8rem; letter-spacing: 0.5px; font-weight: 800;'>[GUTIS BI] - PLATAFORMA DE INTELIGENCIA COMERCIAL</h2>
+    <p style='color: #93c5fd; margin: 0; font-size: 0.85rem; text-transform: uppercase; font-weight: 600; margin-top: 6px; letter-spacing: 1px;'>Sistema Integrado de Análisis Táctico y Gestión de Territorio</p>
+</div>
+""", unsafe_allow_html=True)
 
 # --- MENÚ LATERAL ---
 st.sidebar.markdown("### [FILTROS OPERATIVOS]")
@@ -204,7 +240,6 @@ if not rx_gutis_markets.empty:
     mercados_unicos = rx_gutis_markets["MERCADO"].unique()
     num_mercados = len(mercados_unicos)
     
-    # Ordenamiento principal por volumen si existe, si no por porcentaje
     if col_volumen:
         rx_gutis_markets = rx_gutis_markets.sort_values(by=col_volumen, ascending=False)
     else:
@@ -224,14 +259,16 @@ if not rx_gutis_markets.empty:
         if mercado_principal_str == "[S/D]" and lider_share > 0:
             mercado_principal_str, producto_ataque_str, prod_gutis_ataque_oficial, share_lider = m, lider_nombre, prod_gutis_esperado, lider_share
 
-        vol_txt = f" | Rx: {int(lider_volumen)}" if col_volumen and str(lider_volumen) != "nan" else ""
+        vol_txt = f" | Rx: <b>{int(lider_volumen)}</b>" if col_volumen and str(lider_volumen) != "nan" else ""
 
         if lider_share > 0:
             if not lider_es_gutis:
                 total_amenazas += 1
-                cards_ataque_html += f"""<div style="background: #ffffff; border: 1px solid #cbd5e1; border-top: 4px solid #b91c1c; border-radius: 4px; padding: 10px; min-width: 200px; flex: 1 1 calc(25% - 15px);"><div style="font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase;">{m.replace('MR ', '')}</div><div style="font-size: 0.85rem; color: #0f172a; margin: 4px 0;">Líder: <b>{lider_nombre[:15]}</b></div><div style="font-size: 0.75rem; color: #64748b;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 5px; font-size: 0.75rem; font-weight: 700; color: #047857;">Obj: {prod_gutis_esperado}</div></div>"""
+                # Tarjeta roja elegante (Degradado sutil)
+                cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border: 1px solid #fecdd3; border-top: 4px solid #e11d48; border-radius: 6px; padding: 12px; min-width: 200px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #9f1239; text-transform: uppercase; letter-spacing: 0.5px;">{m.replace('MR ', '')}</div><div style="font-size: 0.9rem; color: #0f172a; margin: 6px 0;">Líder: <b style="color:#be123c;">{lider_nombre[:15]}</b></div><div style="font-size: 0.8rem; color: #475569;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 8px; font-size: 0.75rem; font-weight: 800; color: #0f172a; border-top: 1px dashed #cbd5e1; padding-top: 6px;">OBJETIVO: {prod_gutis_esperado}</div></div>"""
             else:
-                cards_ataque_html += f"""<div style="background: #ffffff; border: 1px solid #cbd5e1; border-top: 4px solid #047857; border-radius: 4px; padding: 10px; min-width: 200px; flex: 1 1 calc(25% - 15px);"><div style="font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase;">{m.replace('MR ', '')}</div><div style="font-size: 0.85rem; color: #0f172a; margin: 4px 0;">Dominio: <b>{prod_gutis_esperado}</b></div><div style="font-size: 0.75rem; color: #64748b;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 5px; font-size: 0.75rem; font-weight: 700; color: #047857;">[MANTENER]</div></div>"""
+                # Tarjeta verde elegante (Degradado sutil)
+                cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 12px; min-width: 200px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px;">{m.replace('MR ', '')}</div><div style="font-size: 0.9rem; color: #0f172a; margin: 6px 0;">Dominio: <b style="color:#047857;">{prod_gutis_esperado}</b></div><div style="font-size: 0.8rem; color: #475569;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 8px; font-size: 0.75rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 6px;">[ESTATUS: MANTENER]</div></div>"""
 
 # DATOS DE VENTAS Y CRUCE TÁCTICO
 df_farmacias_totales = pd.DataFrame()
@@ -302,12 +339,12 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
-with col1: st.markdown(f"<div class='metric-card'><div class='metric-title'>MÉDICO OBJETIVO</div><div class='metric-value'>{medico_sel}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px;'>{especialidad} | Categoría {categoria} | {ciudad}</div></div>", unsafe_allow_html=True)
-with col2: st.markdown(f"<div class='metric-card'><div class='metric-title'>FOCO ESTRATÉGICO ({mercado_principal_str})</div><div class='metric-value'>{producto_ataque_str[:15]}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px;'>Cuota Actual: {share_lider:.1f}% ({'Gutis' if es_gutis(producto_ataque_str) else 'Competencia'})</div></div>", unsafe_allow_html=True)
-with col3: st.markdown(f"<div class='metric-card'><div class='metric-title'>SELL-OUT TERRITORIAL ({total_puntos_venta} PDV)</div><div class='metric-value'>${total_sellout_zona:,.2f}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px;'>Disponibilidad Zonal</div></div>", unsafe_allow_html=True)
+with col1: st.markdown(f"<div class='metric-card'><div class='metric-title'>MÉDICO OBJETIVO</div><div class='metric-value'>{medico_sel}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>{especialidad} | Categoría {categoria} | {ciudad}</div></div>", unsafe_allow_html=True)
+with col2: st.markdown(f"<div class='metric-card' style='border-left-color: #0ea5e9;'><div class='metric-title'>FOCO ESTRATÉGICO ({mercado_principal_str})</div><div class='metric-value'>{producto_ataque_str[:15]}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Cuota Actual: {share_lider:.1f}% ({'Gutis' if es_gutis(producto_ataque_str) else 'Competencia'})</div></div>", unsafe_allow_html=True)
+with col3: st.markdown(f"<div class='metric-card' style='border-left-color: #8b5cf6;'><div class='metric-title'>SELL-OUT TERRITORIAL ({total_puntos_venta} PDV)</div><div class='metric-value'>${total_sellout_zona:,.2f}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Disponibilidad Zonal</div></div>", unsafe_allow_html=True)
 
 if not rx_gutis_markets.empty and cards_ataque_html:
-    html_completo = f"""<div style="background-color: #f8fafc; border-left: 4px solid #334155; padding: 15px; margin-bottom: 15px; border-radius: 4px;"><div style="font-size: 0.85rem; font-weight: 700; color: #1e293b; margin-bottom: 10px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 8px;">{cards_ataque_html}</div></div>"""
+    html_completo = f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e293b; padding: 18px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 12px;">{cards_ataque_html}</div></div>"""
     st.components.v1.html(html_completo, height=180, scrolling=True)
 
 # --- PESTAÑAS DEL SISTEMA ---
@@ -361,7 +398,7 @@ with tab_estrategia:
     with col_izq_ia:
         st.markdown("#### [GENERACIÓN DE ARGUMENTOS TÁCTICOS]")
         
-        if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True):
+        if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True, type="primary"):
             with st.spinner("[COMPILANDO...]"):
                 prompt_pasillo = f"{REGLAS_FARMA}\nGenera un argumento ejecutivo (Pitch de ascensor) de 2 oraciones para {medico_sel}. Receta {producto_ataque_str}. Misión: Cambiar a {prod_gutis_ataque_oficial}. {contexto_rapport_str}\nDirecto, clínico y comercial."
                 st.session_state.pasillo_result = llamar_gemini(prompt_pasillo)
@@ -408,14 +445,12 @@ with tab_perfil360:
             val_estilo_visita = st.selectbox("Estilo Visita:", opc_visita, index=idx_vis)
 
         if st.form_submit_button("[GUARDAR EN BASE DE DATOS]", use_container_width=True):
-            # Guardado temporal local (Se migrará a G-Sheets en Bloque 2)
             st.success("[SISTEMA] Perfil guardado localmente.")
 
 # --- FASE 2: ANÁLISIS RX POR VOLUMEN ---
 with tab_rx:
     st.markdown("#### [ANÁLISIS DE PRESCRIPCIÓN Y POSICIONAMIENTO]")
     if not rx_clean.empty:
-        # Extraer columna de laboratorios
         col_lab = "LABORATORIO" if "LABORATORIO" in rx_clean.columns else next((c for c in rx_clean.columns if "LAB" in c.upper() or "CORP" in c.upper()), None)
         
         col_r1, col_r2 = st.columns([2.5, 1])
@@ -428,11 +463,9 @@ with tab_rx:
             
             df_rx_view = rx_clean[cols_to_show].copy()
             
-            # Formato de porcentaje
             if col_mes: df_rx_view[col_mes] = pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100
             if col_volumen: df_rx_view[col_volumen] = pd.to_numeric(df_rx_view[col_volumen], errors='coerce').fillna(0)
             
-            # Ordenamiento principal por Volumen de recetas
             if col_volumen: df_rx_view = df_rx_view.sort_values(by=[col_volumen, col_mes], ascending=[False, False])
             else: df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
             
@@ -450,7 +483,7 @@ with tab_rx:
                 df_labs.columns = ["Laboratorio", "Presencia en Líneas"]
                 st.dataframe(df_labs.head(5), hide_index=True, use_container_width=True)
             else:
-                st.info("[INFO] Columna de Laboratorio corporativo no detectada en archivo fuente.")
+                st.info("[INFO] Columna de Laboratorio corporativo no detectada.")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
 # --- FASE 3: SELL-OUT ---
@@ -475,7 +508,6 @@ with tab_ruta:
     st.markdown("#### [ITINERARIO DE ZONA]")
     df_ruta_zona = df_panel[df_panel["CIUDAD"] == ciudad] if ciudad != "N/D" else df_panel
     
-    # Validación inteligente de columnas (Evita el KeyError si cambia el Excel)
     columnas_deseadas = ["Médico", "Especialidad", "CATEGORIA", "DIRECCION", "Dirección", "DIRECCIÓN", "CLINICA", "CIUDAD"]
     columnas_existentes = [col for col in columnas_deseadas if col in df_ruta_zona.columns]
     
