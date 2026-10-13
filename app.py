@@ -264,10 +264,10 @@ if not rx_gutis_markets.empty:
         if lider_share > 0:
             if not lider_es_gutis:
                 total_amenazas += 1
-                # Tarjeta roja elegante (Degradado sutil)
+                # Tarjeta roja elegante
                 cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border: 1px solid #fecdd3; border-top: 4px solid #e11d48; border-radius: 6px; padding: 12px; min-width: 200px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #9f1239; text-transform: uppercase; letter-spacing: 0.5px;">{m.replace('MR ', '')}</div><div style="font-size: 0.9rem; color: #0f172a; margin: 6px 0;">Líder: <b style="color:#be123c;">{lider_nombre[:15]}</b></div><div style="font-size: 0.8rem; color: #475569;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 8px; font-size: 0.75rem; font-weight: 800; color: #0f172a; border-top: 1px dashed #cbd5e1; padding-top: 6px;">OBJETIVO: {prod_gutis_esperado}</div></div>"""
             else:
-                # Tarjeta verde elegante (Degradado sutil)
+                # Tarjeta verde elegante
                 cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 12px; min-width: 200px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px;">{m.replace('MR ', '')}</div><div style="font-size: 0.9rem; color: #0f172a; margin: 6px 0;">Dominio: <b style="color:#047857;">{prod_gutis_esperado}</b></div><div style="font-size: 0.8rem; color: #475569;">MS: {lider_share:.1f}% {vol_txt}</div><div style="margin-top: 8px; font-size: 0.75rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 6px;">[ESTATUS: MANTENER]</div></div>"""
 
 # DATOS DE VENTAS Y CRUCE TÁCTICO
@@ -301,7 +301,7 @@ if os.path.exists(ARCHIVO_BITACORA):
         if not df_hist_med.empty: historial_crm = f"({str(df_hist_med.iloc[0]['Fecha'])[:10]}) {df_hist_med.iloc[0]['Compromiso']}"
     except: pass
 
-# --- FUNCIÓN LLAMADA GEMINI (RADAR OFICIAL) ---
+# --- FUNCIÓN LLAMADA GEMINI (RADAR BLINDADO) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return "[ERROR SISTEMA] Falla de autenticación API."
@@ -317,25 +317,19 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     
-    url_lista = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-    try:
-        r_list = requests.get(url_lista, timeout=15)
-        if r_list.status_code == 200:
-            todos_modelos = r_list.json().get('models', [])
-            compatibles = [m['name'].replace('models/', '') for m in todos_modelos if 'generateContent' in m.get('supportedGenerationMethods', [])]
-            if not compatibles: return "[ERROR] Sin modelos disponibles en el tenant."
-            
-            modelo_ideal = compatibles[0]
-            for m in compatibles:
-                if "flash" in m.lower():
-                    modelo_ideal = m
-                    break
-
-            url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_ideal}:generateContent?key={api_key}"
+    # Bucle robusto: prueba modelos garantizados hasta obtener un 200 OK
+    modelos_estables = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+    
+    for modelo in modelos_estables:
+        url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        try:
             res = requests.post(url_post, headers=headers, json=payload, timeout=25)
-            if res.status_code == 200: return res.json()['candidates'][0]['content']['parts'][0]['text']
-            else: return f"[ERROR HTTP {res.status_code}]"
-    except Exception as e: return f"[ERROR INTERNO] {str(e)}"
+            if res.status_code == 200:
+                return res.json()['candidates'][0]['content']['parts'][0]['text']
+        except Exception:
+            continue
+            
+    return "[ERROR DE CONEXIÓN] Los servidores de análisis no respondieron. Intente de nuevo."
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
@@ -352,7 +346,7 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA ---
+# --- MÓDULO CHIRA (AHORA CON MEMORIA DE PANEL COMPLETA) ---
 with tab_chira:
     st.markdown("### [CHIRA] - Consultor de Inteligencia Comercial Senior")
     st.caption("Módulo de análisis integral conectado al Panel, Auditoría Rx y Ventas de Territorio.")
@@ -366,7 +360,7 @@ with tab_chira:
         audio_chira = st.audio_input("Ingreso por voz:") if hasattr(st, "audio_input") else None
     with col_c1:
         if prompt_chira := st.chat_input("Consulte estrategias, rutas o análisis de panel..."):
-            pass # Handle text input below
+            pass 
 
     if prompt_chira or audio_chira:
         user_input = prompt_chira if prompt_chira else "Analiza el audio proporcionado y responde."
@@ -374,16 +368,25 @@ with tab_chira:
         with chat_container_chira.chat_message("user"): st.write(user_input)
         
         with st.spinner("[PROCESANDO DATA CORPORATIVA...]"):
+            # Extraer lista de médicos de la zona seleccionada para inyectarla en Chira
+            columnas_chira = ["Médico", "Especialidad", "CATEGORIA"]
+            columnas_chira_existentes = [c for c in columnas_chira if c in df_filtrado.columns]
+            datos_panel_chira = df_filtrado[columnas_chira_existentes].dropna(subset=["Médico"]).head(60).to_string(index=False)
+            
             prompt_sistema_chira = f"""
-            Eres CHIRA, la Analista Comercial Senior y estratega experta de Laboratorios Gutis para la zona de Nicaragua.
-            Asistes al representante Erick Calderón. Tienes acceso total a la data. Responde SIEMPRE de forma directa, ejecutiva y con datos precisos (nombres reales, cifras, sin inventar nada).
+            Eres CHIRA, la Analista Comercial Senior y estratega experta de Laboratorios Gutis para la zona de {ciudad}, Nicaragua.
+            Asistes al representante Erick Calderón. Tienes acceso total a la data. 
+            Responde SIEMPRE de forma directa, ejecutiva y con datos precisos. NUNCA inventes nombres de médicos ni hospitales; usa SOLO los que están en la base de datos a continuación.
+            
+            BASE DE DATOS (PANEL ACTUAL EN {ciudad}):
+            {datos_panel_chira}
             
             CONTEXTO ACTUAL:
-            - Médico en pantalla: {medico_sel} (Esp: {especialidad}, Cat: {categoria}, Zona: {ciudad})
+            - Médico seleccionado en pantalla: {medico_sel} (Esp: {especialidad}, Cat: {categoria})
             - Total de médicos en {ciudad}: {len(df_filtrado)}
             - Sell-Out en {ciudad}: ${total_sellout_zona:,.2f}
             
-            CONSULTA DEL USUARIO: {user_input}
+            CONSULTA DEL REPRESENTANTE: {user_input}
             """
             
             if audio_chira: res_chira = llamar_gemini(prompt_sistema_chira, audio_bytes=audio_chira)
