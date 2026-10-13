@@ -207,7 +207,7 @@ cards_ataque_html, num_mercados, mercado_principal_str, producto_ataque_str, sha
 prod_gutis_ataque_oficial = "Talerdín" if es_pediatra else "Gastroalivio"
 
 if not rx_gutis_markets.empty:
-    mercados_unicos = rx_gutis_markets["MERCADO"].unique()  # AQUÍ ESTABA EL ERROR DE SINTAXIS, YA CORREGIDO
+    mercados_unicos = rx_gutis_markets["MERCADO"].unique()
     num_mercados = len(mercados_unicos)
     
     def calc_score(row):
@@ -259,7 +259,7 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
                 escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
             else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
 
-# --- FUNCIÓN LLAMADA A GEMINI (MOTOR 100% SEGURO Y DEFINITIVO) ---
+# --- FUNCIÓN LLAMADA A GEMINI (MOTORES BASE ÚNICAMENTE - CERO ERROR 404) ---
 def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return "⚠️ Error: Clave API GEMINI_API_KEY no configurada."
@@ -275,8 +275,8 @@ def llamar_gemini(prompt_text, max_tok=4096, json_mode=False, audio_bytes=None):
     if json_mode: payload["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
 
-    # SOLO LOS MODELOS MÁS SEGUROS Y OFICIALES
-    modelos_estables = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"]
+    # LOS NOMBRES OFICIALES EXACTOS, SIN NINGÚN SUFIJO EXPERIMENTAL
+    modelos_estables = ["gemini-1.5-flash", "gemini-1.5-pro"]
     ultimo_error = ""
     for mod in modelos_estables:
         url_post = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
