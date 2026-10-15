@@ -17,7 +17,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Lectura segura desde Streamlit Secrets
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 ARCHIVO_BITACORA = "HISTORIAL_VISITAS.xlsx"
 ARCHIVO_PERFIL_360 = "PERFIL_360_MEDICOS.xlsx"
@@ -268,8 +267,7 @@ def llamar_gemini(prompt_text, max_tok=4096):
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
 
-    # Probar dinámicamente o con los modelos vigentes
-    modelos_a_probar = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash"]
     try:
         r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=5)
         if r_list.status_code == 200:
@@ -309,23 +307,27 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA: ANÁLISIS COMERCIAL REAL POR TERRITORIO Y MERCADO ---
+# --- MÓDULO CHIRA 2.0: MOTOR MULTIDIMENSIONAL (LABORATORIOS, ESPECIALIDADES, MÉDICOS Y SELL-OUT) ---
 with tab_chira:
-    st.markdown("### [CHIRA] - Consultor de Inteligencia Comercial Senior")
-    st.caption("Conectada en tiempo real a tu Panel, Auditoría de Pacientes (Pxs) y Sell-Out Zonal.")
+    st.markdown("### [CHIRA 2.0] - Consultor de Inteligencia Comercial Senior")
+    st.caption("Conectada en tiempo real a tu Panel, Auditoría de Fabricantes (YTD/Mes), Productos y Sell-Out Zonal.")
     
-    chat_container_chira = st.container(height=350)
+    chat_container_chira = st.container(height=380)
     for msg in st.session_state.chira_history:
         with chat_container_chira.chat_message(msg["role"]): st.write(msg["content"])
         
-    if prompt_chira := st.chat_input("Ej: regalame los 5 medicos mas importante para el mercado de talerdin en carazo"):
+    if prompt_chira := st.chat_input("Ej: Analiza mi panel de pediatras y dime los 5 laboratorios más recetados / Top médicos de Talerdín en Carazo"):
         st.session_state.chira_history.append({"role": "user", "content": prompt_chira})
         with chat_container_chira.chat_message("user"): st.write(prompt_chira)
         
-        with st.spinner("[CHIRA PROCESANDO AUDITORÍA EN TIEMPO REAL...]"):
+        with st.spinner("[CHIRA EJECUTANDO CRUCE RELACIONAL EN BASE DE DATOS...]"):
             texto_u = prompt_chira.upper()
             
-            # 1. Detección Segura de la Ciudad Consultada
+            # --- 1. DETECTOR DE NÚMERO TOP SOLICITADO (Ej. Top 5, Top 10) ---
+            match_num = re.search(r'\b(\d+)\b', texto_u)
+            top_n = int(match_num.group(1)) if match_num and 1 <= int(match_num.group(1)) <= 30 else 5
+
+            # --- 2. DETECTOR DE CIUDAD / TERRITORIO ---
             mapeo_ciudades = {
                 "CARAZO": ["CARAZO", "JINOTEPE", "DIRIAMBA", "SAN MARCOS"],
                 "GRANADA": ["GRANADA", "NANDAIME"],
@@ -333,7 +335,8 @@ with tab_chira:
                 "RIVAS": ["RIVAS", "SAN JORGE"],
                 "MANAGUA": ["MANAGUA"],
                 "BOACO": ["BOACO"],
-                "CHONTALES": ["CHONTALES", "JUIGALPA"]
+                "CHONTALES": ["CHONTALES", "JUIGALPA"],
+                "NUEVA GUINEA": ["NUEVA GUINEA"]
             }
             ciudad_detectada = None
             for c_clave, c_variantes in mapeo_ciudades.items():
@@ -341,105 +344,246 @@ with tab_chira:
                     ciudad_detectada = c_clave
                     break
             
-            if not ciudad_detectada:
-                ciudades_en_panel = [str(c).upper() for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]]
-                ciudad_detectada = next((c for c in ciudades_en_panel if c in texto_u), ciudad_filtro if ciudad_filtro != "TODAS" else ciudad)
+            # Si dice "MI PANEL" o "TODO MI PANEL" sin especificar ciudad, abarca TODO el panel de Erick
+            es_panel_global = any(k in texto_u for k in ["MI PANEL", "TODO EL PANEL", "TODOS MIS", "GLOBAL", "NICARAGUA", "TERRITORIO"])
+            if not ciudad_detectada and not es_panel_global and ciudad_filtro != "TODAS":
+                ciudad_detectada = ciudad_filtro
 
-            # Filtro blindado contra valores nulos (evita TypeError)
-            ciudad_str = str(ciudad_detectada or ciudad_filtro or ciudad or "").strip().upper()
-            if ciudad_str in ["", "TODAS", "NONE", "NAN"]:
-                variantes_zona = []
+            # Filtrar el Panel de Erick por ciudad si aplica
+            if ciudad_detectada:
+                variantes_z = mapeo_ciudades.get(ciudad_detectada, [ciudad_detectada])
+                patron_z = "|".join([re.escape(v) for v in variantes_z if v])
+                df_panel_target = df_panel[df_panel["CIUDAD"].astype(str).str.upper().str.contains(patron_z, na=False)].copy()
+                etiqueta_zona = ciudad_detectada
             else:
-                variantes_zona = [str(v).strip().upper() for v in mapeo_ciudades.get(ciudad_str, [ciudad_str]) if v and str(v).upper() not in ["NONE", "NAN", "TODAS", ""]]
+                df_panel_target = df_panel.copy()
+                etiqueta_zona = "TODO TU PANEL ASIGNADO"
 
-            if variantes_zona:
-                patron_z = "|".join([re.escape(v) for v in variantes_zona])
-                df_meds_zona = df_panel[df_panel["CIUDAD"].astype(str).str.upper().str.contains(patron_z, na=False)].copy()
-            else:
-                df_meds_zona = df_filtrado.copy()
-
-            if df_meds_zona.empty:
-                df_meds_zona = df_filtrado.copy()
-
-            # 2. Detección Inteligente del Mercado Consultado
-            mercado_detectado = None
-            producto_objetivo = "Talerdín"
-            for m_key, m_val in MERCADOS_PRIORITARIOS.items():
-                if any(k in texto_u for k in m_val["keywords"]):
-                    mercado_detectado = m_key
-                    producto_objetivo = m_val["producto"]
+            # --- 3. DETECTOR DE ESPECIALIDAD MÉDICA ---
+            mapeo_especialidades = {
+                "PEDIATRÍA": ["PEDIAT", "NIÑO", "INFANTIL"],
+                "GINECOLOGÍA": ["GINEC", "OBSTET"],
+                "MEDICINA INTERNA": ["INTERN", "MI "],
+                "MEDICINA GENERAL": ["GENER", "MG", "M.G"],
+                "OTORRINOLARINGOLOGÍA": ["OTORRIN", "ORL"],
+                "ORTOPEDIA / TRAUMATOLOGÍA": ["ORTOP", "TRAUMAT"],
+                "GASTROENTEROLOGÍA": ["GASTRO"],
+                "NEUMOLOGÍA": ["NEUMO"],
+                "DERMATOLOGÍA": ["DERMAT"],
+                "CIRUGÍA": ["CIRU"]
+            }
+            esp_detectada = None
+            patron_esp = None
+            for esp_nombre, esp_kws in mapeo_especialidades.items():
+                if any(k in texto_u for k in esp_kws):
+                    esp_detectada = esp_nombre
+                    patron_esp = "|".join(esp_kws)
                     break
 
-            # 3. Cálculo de Pacientes Reales por Médico en ese Mercado
-            ranking_medicos = []
-            if not df_productos.empty and "Médico" in df_productos.columns:
-                col_pxs_calc = next((c for c in df_productos.columns if c.upper() == "PXS-MES"), None)
-                if not col_pxs_calc: col_pxs_calc = next((c for c in df_productos.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS"])), None)
-                col_ms_calc = next((c for c in df_productos.columns if c.upper() == "%MS-MES"), None)
-                if not col_ms_calc: col_ms_calc = next((c for c in df_productos.columns if any(x in c.upper() for x in ["%MS-YTD", "%MS-TRIM"])), None)
-
-                for _, r_doc in df_meds_zona.dropna(subset=["Médico"]).iterrows():
-                    nom_doc = str(r_doc["Médico"]).strip()
-                    esp_doc = str(r_doc.get("Especialidad", "N/D")).strip()
-                    cat_doc = str(r_doc.get("CATEGORIA", "3")).strip()
-                    
-                    df_doc_rx = df_productos[df_productos["Médico"] == nom_doc]
-                    if df_doc_rx.empty: continue
-
-                    if mercado_detectado:
-                        kw_merc = mercado_detectado.replace("MR ", "").upper()
-                        df_merc_doc = df_doc_rx[df_doc_rx["MERCADO"].astype(str).str.upper().str.contains(kw_merc, na=False)].copy()
-                    else:
-                        df_merc_doc = df_doc_rx.copy()
-
-                    if not df_merc_doc.empty and col_pxs_calc:
-                        df_merc_doc[col_pxs_calc] = pd.to_numeric(df_merc_doc[col_pxs_calc], errors='coerce').fillna(0)
-                        pxs_totales_merc = int(df_merc_doc[col_pxs_calc].sum())
-                        
-                        if pxs_totales_merc > 0:
-                            df_merc_doc = df_merc_doc.sort_values(by=col_pxs_calc, ascending=False)
-                            lider_row = df_merc_doc.iloc[0]
-                            lider_nombre = str(lider_row.get("NOMBRE_PRODUCTO", "N/D")).strip()
-                            lider_pxs = int(lider_row[col_pxs_calc])
-                            lider_ms = (pd.to_numeric(lider_row[col_ms_calc], errors='coerce') * 100) if col_ms_calc else 0.0
-
-                            gutis_row = df_merc_doc[df_merc_doc["NOMBRE_PRODUCTO"].apply(es_gutis)]
-                            gutis_pxs = int(gutis_row[col_pxs_calc].sum()) if not gutis_row.empty else 0
-
-                            ranking_medicos.append({
-                                "nombre": nom_doc,
-                                "especialidad": esp_doc,
-                                "categoria": cat_doc,
-                                "pxs_totales": pxs_totales_merc,
-                                "lider_producto": lider_nombre,
-                                "lider_pxs": lider_pxs,
-                                "lider_ms": lider_ms,
-                                "es_gutis": es_gutis(lider_nombre),
-                                "gutis_pxs": gutis_pxs
-                            })
-
-            ranking_medicos = sorted(ranking_medicos, key=lambda x: x["pxs_totales"], reverse=True)
-
-            # 4. Construcción del Informe Real Exhaustivo
-            if ranking_medicos:
-                lineas_informe = [f"### [AUDITORÍA DE CLOSE-UP] Top Médicos para el Mercado de {producto_objetivo} en {ciudad_detectada}:\n"]
-                for idx, m_info in enumerate(ranking_medicos[:5], 1):
-                    origen_str = "🟢 GUTIS (Blindar cuota)" if m_info["es_gutis"] else "🔴 OPORTUNIDAD DE CONQUISTA (Competencia)"
-                    lineas_informe.append(
-                        f"**{idx}. Dr(a). {m_info['nombre']}** ({m_info['especialidad']} - Cat {m_info['categoria']}):\n"
-                        f"- **Volumen Total en Mercado:** {m_info['pxs_totales']} Pacientes (Pxs-MES).\n"
-                        f"- **Receta Dominante:** `{m_info['lider_producto']}` con **{m_info['lider_pxs']} Pxs** ({m_info['lider_ms']:.1f}% MS).\n"
-                        f"- **Situación Gutis:** {m_info['gutis_pxs']} Pxs actuales. Estrategia: {origen_str}.\n"
-                    )
-                lineas_informe.append(f"\n💡 **Acción Inmediata en Ruta:** Desplazar a `{ranking_medicos[0]['lider_producto']}` en el consultorio del Dr(a). {ranking_medicos[0]['nombre']} destacando la tolerabilidad gástrica y dosificación exacta de **{producto_objetivo}**.")
-                resultado_final = "\n".join(lineas_informe)
+            if esp_detectada and "Especialidad" in df_panel_target.columns:
+                df_panel_target = df_panel_target[df_panel_target["Especialidad"].astype(str).str.upper().str.contains(patron_esp, na=False)].copy()
+                etiqueta_esp = f"Especialidad: {esp_detectada}"
             else:
-                resultado_final = f"No se registraron prescripciones activas en el archivo de auditoría para el mercado de **{producto_objetivo}** en **{ciudad_detectada}**."
+                etiqueta_esp = "Todas las Especialidades"
 
-            # Si la API de Google responde, perfecciona el estilo manteniendo los números reales intactos
-            prompt_ia = f"{REGLAS_FARMA}\nEres CHIRA, estratega de Gutis. Con estos datos reales auditados de {ciudad_detectada}, entrega un resumen comercial ejecutivo a Erick Calderón:\n{resultado_final}"
+            medicos_validos_panel = set(df_panel_target["Médico"].dropna().unique())
+            total_medicos_segmento = len(medicos_validos_panel)
+
+            # --- 4. CLASIFICADOR DE INTENCIÓN (¿QUÉ PREGUNTÓ EL USUARIO?) ---
+            es_consulta_labs = any(k in texto_u for k in ["LABORATORIO", "LABORATORIOS", "FABRICANTE", "FABRICANTES", "CASA", "CASAS", "COMPETENCIA"])
+            es_consulta_sellout = any(k in texto_u for k in ["FARMACIA", "FARMACIAS", "SELL-OUT", "SELLOUT", "SELL OUT", "SUCURSAL", "PDV", "VENTA", "VENTAS"])
+
+            # =========================================================================
+            # MOTOR A: ANÁLISIS DE LABORATORIOS / FABRICANTES (Ej. Top 5 Labs en Pediatras)
+            # =========================================================================
+            if es_consulta_labs:
+                if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
+                    # Cruce estricto con los médicos del panel de Erick ya filtrados por especialidad y zona
+                    df_labs_seg = df_labs[df_labs["Médico"].isin(medicos_validos_panel)].copy()
+                    
+                    # Respaldo: Si en el panel algún nombre varía ligeramente y el cruce da vacío, filtrar por Especialidad directo en df_labs
+                    if df_labs_seg.empty and patron_esp and "Especialidad" in df_labs.columns:
+                        df_labs_seg = df_labs[df_labs["Especialidad"].astype(str).str.upper().str.contains(patron_esp, na=False)].copy()
+
+                    # Eliminar filas "Total" para no duplicar el universo
+                    df_labs_seg = df_labs_seg[~df_labs_seg["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+
+                    col_ytd = "Pxs-YTD" if "Pxs-YTD" in df_labs_seg.columns else next((c for c in df_labs_seg.columns if "YTD" in c.upper() and "PXS" in c.upper()), None)
+                    col_mes_l = "Pxs-MES" if "Pxs-MES" in df_labs_seg.columns else next((c for c in df_labs_seg.columns if "MES" in c.upper() and "PXS" in c.upper()), None)
+
+                    if not df_labs_seg.empty and (col_ytd or col_mes_l):
+                        if col_ytd: df_labs_seg[col_ytd] = pd.to_numeric(df_labs_seg[col_ytd], errors='coerce').fillna(0)
+                        if col_mes_l: df_labs_seg[col_mes_l] = pd.to_numeric(df_labs_seg[col_mes_l], errors='coerce').fillna(0)
+
+                        col_orden = col_ytd if col_ytd else col_mes_l
+                        
+                        # Agrupar por FABRICANTE: sumar Pxs y contar cuántos médicos del panel lo recetan
+                        agg_dict = {col_orden: 'sum', 'Médico': lambda x: len(set(x))}
+                        if col_mes_l and col_mes_l != col_orden:
+                            agg_dict[col_mes_l] = 'sum'
+
+                        df_rk_labs = df_labs_seg.groupby("FABRICANTE").agg(agg_dict).reset_index()
+                        df_rk_labs = df_rk_labs.rename(columns={"Médico": "Medicos_Prescriptores"})
+                        
+                        universo_ytd = df_rk_labs[col_orden].sum()
+                        df_rk_labs["MS_YTD"] = (df_rk_labs[col_orden] / universo_ytd * 100) if universo_ytd > 0 else 0.0
+                        
+                        if col_mes_l and col_mes_l in df_rk_labs.columns:
+                            universo_mes = df_rk_labs[col_mes_l].sum()
+                            df_rk_labs["MS_MES"] = (df_rk_labs[col_mes_l] / universo_mes * 100) if universo_mes > 0 else 0.0
+                        else:
+                            df_rk_labs["MS_MES"] = 0.0
+
+                        df_rk_labs = df_rk_labs.sort_values(by=col_orden, ascending=False).reset_index(drop=True)
+                        df_rk_labs["Posicion"] = df_rk_labs.index + 1
+
+                        #Construir reporte ejecutivo exacto
+                        lineas = [
+                            f"### 🔬 Auditoría de Fabricantes | {etiqueta_esp} ({etiqueta_zona})",
+                            f"**Universo Analizado:** {total_medicos_segmento} médicos en tu panel | **Volumen Acumulado (YTD):** {int(universo_ytd):,} Pacientes (Pxs).\n",
+                            f"#### 🏆 Top {top_n} Laboratorios Más Recetados:"
+                        ]
+
+                        for _, row_l in df_rk_labs.head(top_n).iterrows():
+                            es_g = "GUTIS" in str(row_l["FABRICANTE"]).upper()
+                            icono = "🟢 **[NUESTRO LAB]**" if es_g else "🏢"
+                            txt_mes = f" | **Mes actual:** {int(row_l[col_mes_l]):,} Pxs ({row_l['MS_MES']:.2f}% MS)" if col_mes_l else ""
+                            lineas.append(
+                                f"**{int(row_l['Posicion'])}. {row_l['FABRICANTE']}** {icono}\n"
+                                f"- **Acumulado YTD:** `{int(row_l[col_orden]):,} Pxs` (**{row_l['MS_YTD']:.2f}% MS YTD**){txt_mes}\n"
+                                f"- **Penetración en tu Panel:** Recetado activamente por **{int(row_l['Medicos_Prescriptores'])}** de tus {total_medicos_segmento} médicos.\n"
+                            )
+
+                        # Diagnóstico específico de GUTIS aunque no esté en el Top N
+                        fila_gutis = df_rk_labs[df_rk_labs["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)]
+                        if not fila_gutis.empty:
+                            g_row = fila_gutis.iloc[0]
+                            lider_row = df_rk_labs.iloc[0]
+                            brecha_pxs = int(lider_row[col_orden] - g_row[col_orden])
+                            lineas.append(
+                                f"---\n#### 🎯 Diagnóstico Estratégico para GUTIS en este Segmento:\n"
+                                f"- **Posición Actual de Gutis:** Puesto **#{int(g_row['Posicion'])}** del ranking general con **{int(g_row[col_orden]):,} Pxs YTD** (**{g_row['MS_YTD']:.2f}% MS YTD**).\n"
+                                f"- **Brecha contra el #1 ({lider_row['FABRICANTE']}):** Nos separan **{brecha_pxs:,} pacientes acumulados**.\n"
+                                f"- **Táctica de Ataque:**Enfocarse en los médicos de este segmento con **Talerdín, Biotos Inmune, Clembroxil y Ventilar** para capturar cuota directa de **{lider_row['FABRICANTE']}** y **{df_rk_labs.iloc[1]['FABRICANTE'] if len(df_rk_labs)>1 else ''}**."
+                            )
+                        resultado_final = "\n".join(lineas)
+                    else:
+                        resultado_final = f"No se encontraron registros de pacientes en `DATA MEDICOS AGOSTO LABORATORIOS` para el segmento **{etiqueta_esp}** en **{etiqueta_zona}**."
+                else:
+                    resultado_final = "⚠️ El archivo `DATA MEDICOS AGOSTO LABORATORIOS.xlsx` no está cargado o no contiene la columna `FABRICANTE`."
+
+            # =========================================================================
+            # MOTOR B: ANÁLISIS DE SELL-OUT / FARMACIAS
+            # =========================================================================
+            elif es_consulta_sellout:
+                if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
+                    df_v_seg = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(ciudad_detectada if ciudad_detectada else "", na=False)].copy()
+                    df_v_seg = df_v_seg[~df_v_seg["NOMBRE_CLIENTE_1"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+                    col_p_v = "VM4" if "VM4" in df_v_seg.columns else next((c for c in df_v_seg.columns if "PRODUCTO" in c.upper()), None)
+                    if col_p_v:
+                        df_v_seg = df_v_seg[~df_v_seg[col_p_v].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+                    
+                    if not df_v_seg.empty:
+                        rk_f = df_v_seg.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
+                        total_z = rk_f["Monto Real"].sum()
+                        lineas = [f"### 🏥 Auditoría de Sell-Out | Zona: {etiqueta_zona} (Total: ${total_z:,.2f})\n"]
+                        for idx, r_f in enumerate(rk_f.head(top_n).itertuples(), 1):
+                            peso_f = (r_f._2 / total_z * 100) if total_z > 0 else 0
+                            lineas.append(f"**{idx}. {r_f.NOMBRE_CLIENTE_1}:** `${r_f._2:,.2f}` ({peso_f:.1f}% del Sell-Out zonal)")
+                        resultado_final = "\n".join(lineas)
+                    else:
+                        resultado_final = f"No hay registros de Sell-Out para la zona **{etiqueta_zona}**."
+                else:
+                    resultado_final = "No se encontró información de rutas de venta cargada."
+
+            # =========================================================================
+            # MOTOR C: RANKING DE MÉDICOS PRESCRIPTORES (POR MERCADO Y/O ESPECIALIDAD)
+            # =========================================================================
+            else:
+                mercado_detectado = None
+                producto_objetivo = "Portafolio General Gutis"
+                for m_key, m_val in MERCADOS_PRIORITARIOS.items():
+                    if any(k in texto_u for k in m_val["keywords"]):
+                        mercado_detectado = m_key
+                        producto_objetivo = m_val["producto"]
+                        break
+
+                ranking_medicos = []
+                if not df_productos.empty and "Médico" in df_productos.columns:
+                    col_pxs_calc = next((c for c in df_productos.columns if c.upper() == "PXS-MES"), None)
+                    if not col_pxs_calc: col_pxs_calc = next((c for c in df_productos.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS"])), None)
+                    col_ms_calc = next((c for c in df_productos.columns if c.upper() == "%MS-MES"), None)
+                    if not col_ms_calc: col_ms_calc = next((c for c in df_productos.columns if any(x in c.upper() for x in ["%MS-YTD", "%MS-TRIM"])), None)
+
+                    for _, r_doc in df_panel_target.dropna(subset=["Médico"]).iterrows():
+                        nom_doc = str(r_doc["Médico"]).strip()
+                        esp_doc = str(r_doc.get("Especialidad", "N/D")).strip()
+                        cat_doc = str(r_doc.get("CATEGORIA", "3")).strip()
+                        ciu_doc = str(r_doc.get("CIUDAD", "N/D")).strip()
+                        
+                        df_doc_rx = df_productos[df_productos["Médico"] == nom_doc].copy()
+                        if df_doc_rx.empty: continue
+                        df_doc_rx = df_doc_rx[~df_doc_rx["NOMBRE_PRODUCTO"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+
+                        if mercado_detectado:
+                            kw_merc = mercado_detectado.replace("MR ", "").upper()
+                            df_merc_doc = df_doc_rx[df_doc_rx["MERCADO"].astype(str).str.upper().str.contains(kw_merc, na=False)].copy()
+                        else:
+                            df_merc_doc = df_doc_rx.copy()
+
+                        if not df_merc_doc.empty and col_pxs_calc:
+                            df_merc_doc[col_pxs_calc] = pd.to_numeric(df_merc_doc[col_pxs_calc], errors='coerce').fillna(0)
+                            pxs_totales_merc = int(df_merc_doc[col_pxs_calc].sum())
+                            
+                            if pxs_totales_merc > 0:
+                                df_merc_doc = df_merc_doc.sort_values(by=col_pxs_calc, ascending=False)
+                                lider_row = df_merc_doc.iloc[0]
+                                lider_nombre = str(lider_row.get("NOMBRE_PRODUCTO", "N/D")).strip()
+                                lider_pxs = int(lider_row[col_pxs_calc])
+                                lider_ms = (pd.to_numeric(lider_row[col_ms_calc], errors='coerce') * 100) if col_ms_calc else 0.0
+
+                                gutis_row = df_merc_doc[df_merc_doc["NOMBRE_PRODUCTO"].apply(es_gutis)]
+                                gutis_pxs = int(gutis_row[col_pxs_calc].sum()) if not gutis_row.empty else 0
+
+                                ranking_medicos.append({
+                                    "nombre": nom_doc,
+                                    "especialidad": esp_doc,
+                                    "categoria": cat_doc,
+                                    "ciudad": ciu_doc,
+                                    "pxs_totales": pxs_totales_merc,
+                                    "lider_producto": lider_nombre,
+                                    "lider_pxs": lider_pxs,
+                                    "lider_ms": lider_ms,
+                                    "es_gutis": es_gutis(lider_nombre),
+                                    "gutis_pxs": gutis_pxs
+                                })
+
+                ranking_medicos = sorted(ranking_medicos, key=lambda x: x["pxs_totales"], reverse=True)
+
+                if ranking_medicos:
+                    lineas_informe = [
+                        f"### 📋 Top {top_n} Médicos Prescriptores | {producto_objetivo}",
+                        f"**Filtro Aplicado:** {etiqueta_esp} | **Zona:** {etiqueta_zona}\n"
+                    ]
+                    for idx, m_info in enumerate(ranking_medicos[:top_n], 1):
+                        origen_str = "🟢 **DOMINIO GUTIS** (Blindar)" if m_info["es_gutis"] else "🔴 **OPORTUNIDAD DE CONQUISTA** (Atacar)"
+                        lineas_informe.append(
+                            f"**{idx}. Dr(a). {m_info['nombre']}** ({m_info['especialidad']} | Cat {m_info['categoria']} | {m_info['ciudad']})\n"
+                            f"- **Volumen en Mercado:** `{m_info['pxs_totales']} Pxs-MES` | **Receta Líder:** `{m_info['lider_producto']}` con **{m_info['lider_pxs']} Pxs** ({m_info['lider_ms']:.1f}% MS).\n"
+                            f"- **Pacientes Gutis:** {m_info['gutis_pxs']} Pxs | **Estatus:** {origen_str}\n"
+                        )
+                    resultado_final = "\n".join(lineas_informe)
+                else:
+                    resultado_final = f"No se encontraron prescripciones activas para **{producto_objetivo}** con el filtro **{etiqueta_esp}** en **{etiqueta_zona}**."
+
+            # Si Gemini está disponible, añade una conclusión estratégica al pie sin alterar ni una sola cifra del reporte
+            prompt_ia = f"""{REGLAS_FARMA}
+Eres CHIRA, Consultora Senior de BI de Laboratorios Gutis.
+Respeta ÍNTEGRAMENTE los datos matemáticos del siguiente reporte y agrega al final un breve párrafo titulado '⚡ Táctica Comercial Recomendada (Modo Argón)' con 2 acciones concretas de ataque para Erick Calderón:
+
+{resultado_final}"""
             respuesta_ia = llamar_gemini(prompt_ia)
-            if respuesta_ia and len(respuesta_ia.strip()) > 50:
+            if respuesta_ia and len(respuesta_ia.strip()) > 80:
                 resultado_final = respuesta_ia
 
         st.session_state.chira_history.append({"role": "assistant", "content": resultado_final})
@@ -456,7 +600,7 @@ with tab_estrategia:
                 prompt_flash = f"{REGLAS_FARMA}\nGenera un pitch de pasillo de 2 oraciones para {medico_sel}. Receta {producto_ataque_str}. Misión: Cambiar a {prod_gutis_ataque_oficial}."
                 res_f = llamar_gemini(prompt_flash)
                 if not res_f:
-                    res_f = f"Doctor {medico_sel}, ante los pacientes que hoy reciben {producto_ataque_str}, {prod_gutis_ataque_oficial} le ofrece una respuesta clínica superior libre de alcohol y con dosificación en gotas exactas para garantizar cero irritación gástrica y máxima adherencia."
+                    res_f = f"Doctor {medico_sel}, ante los pacientes que hoy reciben {producto_ataque_str}, {prod_gutis_ataque_oficial} le ofrece una respuesta clínica superior libre de alcohol y con dosificación exacta para garantizar máxima adherencia."
                 st.session_state.pasillo_result = res_f
         if st.session_state.pasillo_result: st.info(st.session_state.pasillo_result)
 
@@ -470,9 +614,9 @@ Contexto: Prescribe {producto_ataque_str} ({total_pxs_medico} Pxs). Debe prescri
                     res_tvp = f"""### Plan de Visita Médica Táctico (TVP) - {medico_sel}
 * **1. Pre-Visita (Análisis de escenario):** El especialista atiende en {ciudad} ({especialidad}). Su volumen activo es de {total_pxs_medico} pacientes donde predomina {producto_ataque_str}. Misión: Conquista con {prod_gutis_ataque_oficial}.
 * **2. Rapport (Ganar confianza inicial):** Conectar con un saludo ejecutivo reconociendo su alta demanda en consulta médica en {ciudad}.
-* **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor, con qué frecuencia sus pacientes experimentan intolerancia o rechazo al sabor y contenido alcohólico en las opciones actuales de {producto_ataque_str}?
-* **4. Presentación de Valor:** Introducir **{prod_gutis_ataque_oficial}**, destacando su fórmula 100% libre de alcohol, excelente perfil de tolerabilidad y dosificación exacta en gotas para garantizar el éxito terapéutico.
-* **5. Manejo de Objeciones:** Si el médico defiende su uso de {producto_ataque_str}, validar su criterio pero contrastar de inmediato la seguridad gástrica superior de {prod_gutis_ataque_oficial}.
+* **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor, con qué frecuencia sus pacientes experimentan intolerancia o baja adherencia con las opciones convencionales de {producto_ataque_str}?
+* **4. Presentación de Valor:** Introducir **{prod_gutis_ataque_oficial}**, destacando su perfil galénico superior, alta tolerabilidad y respaldo de Laboratorios Gutis.
+* **5. Manejo de Objeciones:** Si el médico defiende su uso de {producto_ataque_str}, validar su criterio pero contrastar la seguridad y eficacia comprobada de {prod_gutis_ataque_oficial}.
 * **6. Cierre Directo:** Comprometer al especialista a iniciar a sus próximos 5 pacientes de la semana con {prod_gutis_ataque_oficial} verificando disponibilidad en las farmacias clave de {ciudad}."""
                 st.session_state.tvp_result = res_tvp
         if st.session_state.tvp_result: st.markdown(st.session_state.tvp_result)
@@ -488,7 +632,7 @@ Contexto: Prescribe {producto_ataque_str} ({total_pxs_medico} Pxs). Debe prescri
             with st.spinner("[PROCESANDO...]"):
                 res_sim = llamar_gemini(f"{REGLAS_FARMA}\nEres {medico_sel} defendiendo {producto_ataque_str} ante {prod_gutis_ataque_oficial}. Objeción: {prompt_chat}")
                 if not res_sim:
-                    res_sim = f"Comprendo su punto colega, pero con {producto_ataque_str} tengo años de experiencia y mis pacientes ya están habituados. ¿Por qué arriesgarme a cambiar a {prod_gutis_ataque_oficial} si ya me funciona?"
+                    res_sim = f"Comprendo su punto colega, pero con {producto_ataque_str} tengo años de experiencia y mis pacientes ya están habituados. ¿Por qué cambiar a {prod_gutis_ataque_oficial}?"
             st.session_state.chat_history.append({"role": "assistant", "content": res_sim})
             st.rerun()
 
