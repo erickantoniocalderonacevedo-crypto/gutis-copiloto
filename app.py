@@ -29,7 +29,7 @@ MERCADOS_PRIORITARIOS = {
     "MR MOMETZONA": {"producto": "Mometzona", "peso": 2, "prioridad": 1, "keywords": ["MOMETZONA", "MOMETASONA", "NASONEX"]},
     "MR VENTILAR": {"producto": "Ventilar", "peso": 2, "prioridad": 1, "keywords": ["VENTILAR", "MONTELUKAST", "SINGULAIR", "AIRUM"]},
     "MR GASTROALIVIO": {"producto": "Gastroalivio", "peso": 2, "prioridad": 1, "keywords": ["GASTROALIVIO", "ESOMEPRAZOL", "CARBUM", "NEXIUM"]},
-    "MR DALIVIO": {"producto": "Dalivio", "peso": 2, "prioridad": 1, "keywords": ["DALIVIO", "DEXKETOPROFENO", "ENANTYUM", "STADIUM"]},
+    "MR DALIVIO": {"producto": "Dalivio", "peso": 2, "prioridad": 1, "keywords": ["DALIVIO", "DALIVIUM", "DEXKETOPROFENO", "ENANTYUM", "STADIUM"]},
     "MR VALERPAN": {"producto": "Valerpan", "peso": 1, "prioridad": 2, "keywords": ["VALERPAN", "BETAMETASONA"]},
     "MR CONFLEXIL": {"producto": "Conflexil", "peso": 1, "prioridad": 2, "keywords": ["CONFLEXIL", "TIZANIDINA", "MELOXICAM"]},
     "MR RENOVART": {"producto": "Renovart Platinum", "peso": 1, "prioridad": 2, "keywords": ["RENOVART", "COLAGENO", "GLUCOSAMINA"]},
@@ -117,6 +117,8 @@ if "chira_history" not in st.session_state: st.session_state.chira_history = []
 if "chat_history" not in st.session_state: st.session_state.chat_history = []
 if "tvp_result" not in st.session_state: st.session_state.tvp_result = None
 if "pasillo_result" not in st.session_state: st.session_state.pasillo_result = None
+if "perfiles_memoria" not in st.session_state: st.session_state.perfiles_memoria = {}
+if "bitacora_memoria" not in st.session_state: st.session_state.bitacora_memoria = []
 
 # --- ENCABEZADO CORPORATIVO ---
 st.markdown("""
@@ -152,12 +154,12 @@ especialidad = str(info_medico.get("Especialidad", "N/D")).strip().upper()
 categoria = str(info_medico.get("CATEGORIA", "N/D")).strip()
 es_pediatra = "PEDIAT" in especialidad
 
-# --- PERFIL OMNICANAL 360 ---
-perfil_360_actual = {}
-if os.path.exists(ARCHIVO_PERFIL_360):
+# --- PERFIL OMNICANAL 360 (CON MEMORIA ACTIVA) ---
+perfil_360_actual = st.session_state.perfiles_memoria.get(medico_sel, {})
+if not perfil_360_actual and os.path.exists(ARCHIVO_PERFIL_360):
     try:
         df_p360 = pd.read_excel(ARCHIVO_PERFIL_360)
-        coincidencias = df_p360[df_p360["Médico"].astype(str) == medico_sel]
+        coincidencias = df_p360[df_p360["Médico"].astype(str).str.upper() == medico_sel]
         if not coincidencias.empty: perfil_360_actual = coincidencias.iloc[0].to_dict()
     except: pass
 
@@ -167,10 +169,10 @@ if perfil_360_actual:
     deporte = perfil_360_actual.get("Deporte", "")
     estilo_visita = perfil_360_actual.get("Estilo_Visita", "")
     partes_rapport = []
-    if cumple and str(cumple) != "nan": partes_rapport.append(f"Cumpleaños: {cumple}")
-    if deporte and str(deporte) != "nan": partes_rapport.append(f"Afinidad: {deporte}")
-    if estilo_visita and str(estilo_visita) != "nan": partes_rapport.append(f"Estilo Visita: {estilo_visita}")
-    if partes_rapport: contexto_rapport_str = "\nDATOS DE RAPPORT:\n- " + "\n- ".join(partes_rapport)
+    if cumple and str(cumple) not in ["nan", ""]: partes_rapport.append(f"Cumpleaños: {cumple}")
+    if deporte and str(deporte) not in ["nan", ""]: partes_rapport.append(f"Afinidad/Hobby: {deporte}")
+    if estilo_visita and str(estilo_visita) not in ["nan", ""]: partes_rapport.append(f"Estilo de Visita Preferido: {estilo_visita}")
+    if partes_rapport: contexto_rapport_str = " | ".join(partes_rapport)
 
 # --- DETECCIÓN DE COLUMNAS EN CLOSE-UP ---
 rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy() if not df_productos.empty else pd.DataFrame()
@@ -191,6 +193,7 @@ if not rx_clean.empty:
 
 col_pxs = next((c for c in rx_clean.columns if c.upper() == "PXS-MES"), None) if not rx_clean.empty else None
 if not col_pxs and not rx_clean.empty: col_pxs = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS", "TRX", "RECETAS"])), None)
+col_pxs_ytd_prod = next((c for c in rx_clean.columns if c.upper() == "PXS-YTD"), None) if not rx_clean.empty else None
 col_mes = next((c for c in rx_clean.columns if c.upper() == "%MS-MES"), None) if not rx_clean.empty else None
 if not col_mes and not rx_clean.empty: col_mes = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["%MS-YTD", "%MS-TRIM", "%MS-TAM"])), None)
 
@@ -205,6 +208,7 @@ comp_pxs_medico = total_pxs_medico - gutis_pxs_medico
 
 cards_ataque_html, num_mercados, mercado_principal_str, producto_ataque_str, share_lider = "", 0, "[S/D]", "[N/D]", 0.0
 prod_gutis_ataque_oficial = "Talerdín" if es_pediatra else "Gastroalivio"
+opciones_mercados_medico = []
 
 if not rx_gutis_markets.empty:
     mercados_unicos = rx_gutis_markets["MERCADO"].unique()
@@ -229,6 +233,14 @@ if not rx_gutis_markets.empty:
         lider_ms = (lider[col_mes] * 100) if col_mes else 0.0
         lider_pxs = int(lider[col_pxs]) if col_pxs and not pd.isna(lider[col_pxs]) else 0
 
+        opciones_mercados_medico.append({
+            "mercado": m,
+            "lider_actual": lider_nombre,
+            "prod_gutis": prod_gutis_esperado,
+            "pxs": lider_pxs,
+            "ms": lider_ms
+        })
+
         if mercado_principal_str == "[S/D]" and (lider_pxs > 0 or lider_ms > 0):
             mercado_principal_str, producto_ataque_str, prod_gutis_ataque_oficial, share_lider = m, lider_nombre, prod_gutis_esperado, lider_ms
 
@@ -239,25 +251,22 @@ if not rx_gutis_markets.empty:
             else:
                 cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 12px; min-width: 210px; flex: 1 1 calc(25% - 15px); box-shadow: 0 2px 4px rgba(0,0,0,0.02);"><div style="font-size: 0.65rem; font-weight: 800; color: #065f46; text-transform: uppercase;">{m.replace('MR ', '')}</div><div style="font-size: 0.88rem; color: #0f172a; margin: 5px 0;">Dominio: <b style="color:#047857;">{prod_gutis_esperado}</b></div><div style="font-size: 0.78rem; color: #475569;">Fidelidad: {lider_ms:.1f}% {pxs_txt}</div><div style="margin-top: 6px; font-size: 0.75rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 5px;">[BLINDAR RECETARIO]</div></div>"""
 
-# DATOS DE VENTAS Y CRUCE TÁCTICO
+# DATOS DE VENTAS Y TOP FARMACIAS ZONALES PARA CONECTAR CON EL TVP
 ventas_producto_lider_zona, total_sellout_zona, total_puntos_venta = 0.0, 0.0, 0
-escenario_tactico = "[ZONA SIN COBERTURA]"
+top_farmacias_ciudad_str = "principales farmacias de la zona"
 
 if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
-    ventas_zona_global = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(ciudad, na=False)].copy()
+    ventas_zona_global = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(re.escape(ciudad), na=False)].copy()
     if not ventas_zona_global.empty:
         ventas_zona_global = ventas_zona_global[~ventas_zona_global["NOMBRE_CLIENTE_1"].str.upper().isin(["TOTAL", "NAN", ""])]
-        df_farmacias_totales = ventas_zona_global.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index()
+        col_pv_global = "VM4" if "VM4" in ventas_zona_global.columns else next((c for c in ventas_zona_global.columns if "PRODUCTO" in c.upper()), None)
+        if col_pv_global:
+            ventas_zona_global = ventas_zona_global[~ventas_zona_global[col_pv_global].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+        df_farmacias_totales = ventas_zona_global.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
         total_sellout_zona = df_farmacias_totales["Monto Real"].sum()
         total_puntos_venta = len(df_farmacias_totales)
-        
-        col_prod_ventas = "VM4" if "VM4" in ventas_zona_global.columns else next((c for c in ventas_zona_global.columns if c.upper() in ["NOMBRE_PRODUCTO", "PRODUCTO"]), None)
-        if col_prod_ventas and producto_ataque_str != "[N/D]":
-            palabra_clave = prod_gutis_ataque_oficial.upper().split()[0]
-            ventas_producto_lider_zona = ventas_zona_global[ventas_zona_global[col_prod_ventas].astype(str).str.upper().str.contains(palabra_clave, na=False)]["Monto Real"].sum()
-            if es_gutis(producto_ataque_str):
-                escenario_tactico = f"[ALERTA DE FUGA] Prescribe {producto_ataque_str} con {share_lider:.1f}% MS, pero Sell-Out es bajo (${ventas_producto_lider_zona:.2f})." if ventas_producto_lider_zona < 150 else f"[ESTADO SEGURO] Fidelidad respaldada en Sell-Out."
-            else: escenario_tactico = f"[ESCENARIO CONQUISTA] Liderazgo en competencia ({producto_ataque_str}). Requiere contraataque con {prod_gutis_ataque_oficial}."
+        if not df_farmacias_totales.empty:
+            top_farmacias_ciudad_str = ", ".join(df_farmacias_totales["NOMBRE_CLIENTE_1"].head(3).tolist())
 
 # --- FUNCIÓN DE LLAMADA API A GOOGLE GEMINI ---
 def llamar_gemini(prompt_text, max_tok=4096):
@@ -294,10 +303,10 @@ col1, col2, col3 = st.columns(3)
 with col1: 
     st.markdown(f"""<div class='metric-card'><div class='metric-title'>MÉDICO OBJETIVO</div><div class='metric-value'>{medico_sel}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>{especialidad} | Categoría {categoria} | {ciudad}</div></div>""", unsafe_allow_html=True)
 with col2: 
-    sub_potencial = f"Pacientes Totales: <b>{total_pxs_medico}</b> (Gutis: {gutis_pxs_medico} | Comp: {comp_pxs_medico})" if total_pxs_medico > 0 else f"Cuota: {share_lider:.1f}%"
+    sub_potencial = f"Pacientes Mes: <b>{total_pxs_medico}</b> (Gutis: {gutis_pxs_medico} | Comp: {comp_pxs_medico})" if total_pxs_medico > 0 else f"Cuota: {share_lider:.1f}%"
     st.markdown(f"""<div class='metric-card' style='border-left-color: #0ea5e9;'><div class='metric-title'>FOCO ESTRATÉGICO ({mercado_principal_str})</div><div class='metric-value'>{producto_ataque_str[:15]}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>{sub_potencial}</div></div>""", unsafe_allow_html=True)
 with col3: 
-    st.markdown(f"""<div class='metric-card' style='border-left-color: #8b5cf6;'><div class='metric-title'>SELL-OUT TERRITORIAL ({total_puntos_venta} PDV)</div><div class='metric-value'>${total_sellout_zona:,.2f}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Disponibilidad Zonal</div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class='metric-card' style='border-left-color: #8b5cf6;'><div class='metric-title'>SELL-OUT TERRITORIAL ({total_puntos_venta} PDV)</div><div class='metric-value'>${total_sellout_zona:,.2f}</div><div style='color: #475569; font-size: 0.85rem; margin-top:5px; font-weight:600;'>Líderes: {top_farmacias_ciudad_str[:38]}...</div></div>""", unsafe_allow_html=True)
 
 if not rx_gutis_markets.empty and cards_ataque_html:
     st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 16px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);"><div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: 0.5px;">[SINOPSIS DE MERCADOS ACTIVOS - {num_mercados} REGISTROS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=180, scrolling=True)
@@ -307,27 +316,43 @@ tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab
     "[ASISTENTE CHIRA]", "Fase 1: Táctica Comercial", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Bitácora CRM", "Itinerario de Ruta"
 ])
 
-# --- MÓDULO CHIRA 2.0: MOTOR MULTIDIMENSIONAL (LABORATORIOS, ESPECIALIDADES, MÉDICOS Y SELL-OUT) ---
+# ==============================================================================
+# PESTAÑA 1: CHIRA 2.0 CON BOTONES DE 1-CLIC Y MOTOR PARETO 80/20
+# ==============================================================================
 with tab_chira:
     st.markdown("### [CHIRA 2.0] - Consultor de Inteligencia Comercial Senior")
-    st.caption("Conectada en tiempo real a tu Panel, Auditoría de Fabricantes (YTD/Mes), Productos y Sell-Out Zonal.")
+    st.caption("Ejecuta cruces en vivo sobre Laboratorios (YTD/Mes), Especialidades, Pareto 80/20 y Sell-Out Farmacéutico.")
     
-    chat_container_chira = st.container(height=380)
+    # Botones ejecutivos de 1-Clic para presentaciones en vivo
+    st.markdown("**⚡ Consultas Ejecutivas Rápidas (1-Clic):**")
+    qb1, qb2, qb3, qb4 = st.columns(4)
+    quick_prompt = None
+    if qb1.button("🔬 Top 5 Labs en Pediatría", use_container_width=True):
+        quick_prompt = "Analiza mi panel de pediatras y dime cuáles son los 5 laboratorios más recetados por mi panel de pediatras"
+    if qb2.button(f"📊 Pareto 80/20 Médicos ({ciudad})", use_container_width=True):
+        quick_prompt = f"Hazme el Pareto 80/20 de los 10 médicos con más pacientes en {ciudad}"
+    if qb3.button(f"🎯 Top 5 Talerdín ({ciudad})", use_container_width=True):
+        quick_prompt = f"Dame los 5 médicos más importantes para el mercado de Talerdín en {ciudad}"
+    if qb4.button(f"🏥 Top 5 Farmacias ({ciudad})", use_container_width=True):
+        quick_prompt = f"Cuáles son las 5 farmacias con mayor venta sell-out en {ciudad}"
+
+    chat_container_chira = st.container(height=360)
     for msg in st.session_state.chira_history:
         with chat_container_chira.chat_message(msg["role"]): st.write(msg["content"])
         
-    if prompt_chira := st.chat_input("Ej: Analiza mi panel de pediatras y dime los 5 laboratorios más recetados / Top médicos de Talerdín en Carazo"):
-        st.session_state.chira_history.append({"role": "user", "content": prompt_chira})
-        with chat_container_chira.chat_message("user"): st.write(prompt_chira)
+    input_chat_chira = st.chat_input("Ej: Analiza mi panel de pediatras y dime los 5 laboratorios más recetados / Top médicos de Biotos en Rivas")
+    prompt_activo = quick_prompt if quick_prompt else input_chat_chira
+
+    if prompt_activo:
+        st.session_state.chira_history.append({"role": "user", "content": prompt_activo})
+        with chat_container_chira.chat_message("user"): st.write(prompt_activo)
         
         with st.spinner("[CHIRA EJECUTANDO CRUCE RELACIONAL EN BASE DE DATOS...]"):
-            texto_u = prompt_chira.upper()
+            texto_u = prompt_activo.upper()
             
-            # --- 1. DETECTOR DE NÚMERO TOP SOLICITADO (Ej. Top 5, Top 10) ---
             match_num = re.search(r'\b(\d+)\b', texto_u)
             top_n = int(match_num.group(1)) if match_num and 1 <= int(match_num.group(1)) <= 30 else 5
 
-            # --- 2. DETECTOR DE CIUDAD / TERRITORIO ---
             mapeo_ciudades = {
                 "CARAZO": ["CARAZO", "JINOTEPE", "DIRIAMBA", "SAN MARCOS"],
                 "GRANADA": ["GRANADA", "NANDAIME"],
@@ -344,12 +369,10 @@ with tab_chira:
                     ciudad_detectada = c_clave
                     break
             
-            # Si dice "MI PANEL" o "TODO MI PANEL" sin especificar ciudad, abarca TODO el panel de Erick
             es_panel_global = any(k in texto_u for k in ["MI PANEL", "TODO EL PANEL", "TODOS MIS", "GLOBAL", "NICARAGUA", "TERRITORIO"])
             if not ciudad_detectada and not es_panel_global and ciudad_filtro != "TODAS":
                 ciudad_detectada = ciudad_filtro
 
-            # Filtrar el Panel de Erick por ciudad si aplica
             if ciudad_detectada:
                 variantes_z = mapeo_ciudades.get(ciudad_detectada, [ciudad_detectada])
                 patron_z = "|".join([re.escape(v) for v in variantes_z if v])
@@ -359,7 +382,6 @@ with tab_chira:
                 df_panel_target = df_panel.copy()
                 etiqueta_zona = "TODO TU PANEL ASIGNADO"
 
-            # --- 3. DETECTOR DE ESPECIALIDAD MÉDICA ---
             mapeo_especialidades = {
                 "PEDIATRÍA": ["PEDIAT", "NIÑO", "INFANTIL"],
                 "GINECOLOGÍA": ["GINEC", "OBSTET"],
@@ -389,23 +411,16 @@ with tab_chira:
             medicos_validos_panel = set(df_panel_target["Médico"].dropna().unique())
             total_medicos_segmento = len(medicos_validos_panel)
 
-            # --- 4. CLASIFICADOR DE INTENCIÓN (¿QUÉ PREGUNTÓ EL USUARIO?) ---
-            es_consulta_labs = any(k in texto_u for k in ["LABORATORIO", "LABORATORIOS", "FABRICANTE", "FABRICANTES", "CASA", "CASAS", "COMPETENCIA"])
+            es_consulta_labs = any(k in texto_u for k in ["LABORATORIO", "LABORATORIOS", "FABRICANTE", "FABRICANTES", "CASA", "CASAS"])
             es_consulta_sellout = any(k in texto_u for k in ["FARMACIA", "FARMACIAS", "SELL-OUT", "SELLOUT", "SELL OUT", "SUCURSAL", "PDV", "VENTA", "VENTAS"])
 
-            # =========================================================================
-            # MOTOR A: ANÁLISIS DE LABORATORIOS / FABRICANTES (Ej. Top 5 Labs en Pediatras)
-            # =========================================================================
+            # MOTOR A: ANÁLISIS DE LABORATORIOS / FABRICANTES
             if es_consulta_labs:
                 if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
-                    # Cruce estricto con los médicos del panel de Erick ya filtrados por especialidad y zona
                     df_labs_seg = df_labs[df_labs["Médico"].isin(medicos_validos_panel)].copy()
-                    
-                    # Respaldo: Si en el panel algún nombre varía ligeramente y el cruce da vacío, filtrar por Especialidad directo en df_labs
                     if df_labs_seg.empty and patron_esp and "Especialidad" in df_labs.columns:
                         df_labs_seg = df_labs[df_labs["Especialidad"].astype(str).str.upper().str.contains(patron_esp, na=False)].copy()
 
-                    # Eliminar filas "Total" para no duplicar el universo
                     df_labs_seg = df_labs_seg[~df_labs_seg["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
 
                     col_ytd = "Pxs-YTD" if "Pxs-YTD" in df_labs_seg.columns else next((c for c in df_labs_seg.columns if "YTD" in c.upper() and "PXS" in c.upper()), None)
@@ -416,11 +431,8 @@ with tab_chira:
                         if col_mes_l: df_labs_seg[col_mes_l] = pd.to_numeric(df_labs_seg[col_mes_l], errors='coerce').fillna(0)
 
                         col_orden = col_ytd if col_ytd else col_mes_l
-                        
-                        # Agrupar por FABRICANTE: sumar Pxs y contar cuántos médicos del panel lo recetan
                         agg_dict = {col_orden: 'sum', 'Médico': lambda x: len(set(x))}
-                        if col_mes_l and col_mes_l != col_orden:
-                            agg_dict[col_mes_l] = 'sum'
+                        if col_mes_l and col_mes_l != col_orden: agg_dict[col_mes_l] = 'sum'
 
                         df_rk_labs = df_labs_seg.groupby("FABRICANTE").agg(agg_dict).reset_index()
                         df_rk_labs = df_rk_labs.rename(columns={"Médico": "Medicos_Prescriptores"})
@@ -431,13 +443,11 @@ with tab_chira:
                         if col_mes_l and col_mes_l in df_rk_labs.columns:
                             universo_mes = df_rk_labs[col_mes_l].sum()
                             df_rk_labs["MS_MES"] = (df_rk_labs[col_mes_l] / universo_mes * 100) if universo_mes > 0 else 0.0
-                        else:
-                            df_rk_labs["MS_MES"] = 0.0
+                        else: df_rk_labs["MS_MES"] = 0.0
 
                         df_rk_labs = df_rk_labs.sort_values(by=col_orden, ascending=False).reset_index(drop=True)
                         df_rk_labs["Posicion"] = df_rk_labs.index + 1
 
-                        #Construir reporte ejecutivo exacto
                         lineas = [
                             f"### 🔬 Auditoría de Fabricantes | {etiqueta_esp} ({etiqueta_zona})",
                             f"**Universo Analizado:** {total_medicos_segmento} médicos en tu panel | **Volumen Acumulado (YTD):** {int(universo_ytd):,} Pacientes (Pxs).\n",
@@ -451,57 +461,53 @@ with tab_chira:
                             lineas.append(
                                 f"**{int(row_l['Posicion'])}. {row_l['FABRICANTE']}** {icono}\n"
                                 f"- **Acumulado YTD:** `{int(row_l[col_orden]):,} Pxs` (**{row_l['MS_YTD']:.2f}% MS YTD**){txt_mes}\n"
-                                f"- **Penetración en tu Panel:** Recetado activamente por **{int(row_l['Medicos_Prescriptores'])}** de tus {total_medicos_segmento} médicos.\n"
+                                f"- **Penetración en Panel:** Recetado activamente por **{int(row_l['Medicos_Prescriptores'])}** de tus {total_medicos_segmento} médicos.\n"
                             )
 
-                        # Diagnóstico específico de GUTIS aunque no esté en el Top N
                         fila_gutis = df_rk_labs[df_rk_labs["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)]
                         if not fila_gutis.empty:
                             g_row = fila_gutis.iloc[0]
                             lider_row = df_rk_labs.iloc[0]
                             brecha_pxs = int(lider_row[col_orden] - g_row[col_orden])
                             lineas.append(
-                                f"---\n#### 🎯 Diagnóstico Estratégico para GUTIS en este Segmento:\n"
-                                f"- **Posición Actual de Gutis:** Puesto **#{int(g_row['Posicion'])}** del ranking general con **{int(g_row[col_orden]):,} Pxs YTD** (**{g_row['MS_YTD']:.2f}% MS YTD**).\n"
+                                f"---\n#### 🎯 Diagnóstico Estratégico para GUTIS:\n"
+                                f"- **Posición Actual de Gutis:** Puesto **#{int(g_row['Posicion'])}** con **{int(g_row[col_orden]):,} Pxs YTD** (**{g_row['MS_YTD']:.2f}% MS YTD**).\n"
                                 f"- **Brecha contra el #1 ({lider_row['FABRICANTE']}):** Nos separan **{brecha_pxs:,} pacientes acumulados**.\n"
-                                f"- **Táctica de Ataque:**Enfocarse en los médicos de este segmento con **Talerdín, Biotos Inmune, Clembroxil y Ventilar** para capturar cuota directa de **{lider_row['FABRICANTE']}** y **{df_rk_labs.iloc[1]['FABRICANTE'] if len(df_rk_labs)>1 else ''}**."
+                                f"- **Táctica de Ataque:** Desplazar cuota de **{lider_row['FABRICANTE']}** impulsando Talerdín, Biotos Inmune, Clembroxil y Ventilar en este segmento."
                             )
                         resultado_final = "\n".join(lineas)
                     else:
-                        resultado_final = f"No se encontraron registros de pacientes en `DATA MEDICOS AGOSTO LABORATORIOS` para el segmento **{etiqueta_esp}** en **{etiqueta_zona}**."
+                        resultado_final = f"No se encontraron registros en el archivo de laboratorios para **{etiqueta_esp}** en **{etiqueta_zona}**."
                 else:
-                    resultado_final = "⚠️ El archivo `DATA MEDICOS AGOSTO LABORATORIOS.xlsx` no está cargado o no contiene la columna `FABRICANTE`."
+                    resultado_final = "⚠️ Verifica que el archivo `DATA MEDICOS AGOSTO LABORATORIOS.xlsx` esté cargado en el repositorio."
 
-            # =========================================================================
             # MOTOR B: ANÁLISIS DE SELL-OUT / FARMACIAS
-            # =========================================================================
             elif es_consulta_sellout:
                 if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
-                    df_v_seg = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(ciudad_detectada if ciudad_detectada else "", na=False)].copy()
+                    df_v_seg = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(re.escape(ciudad_detectada) if ciudad_detectada else "", na=False)].copy()
                     df_v_seg = df_v_seg[~df_v_seg["NOMBRE_CLIENTE_1"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
                     col_p_v = "VM4" if "VM4" in df_v_seg.columns else next((c for c in df_v_seg.columns if "PRODUCTO" in c.upper()), None)
-                    if col_p_v:
-                        df_v_seg = df_v_seg[~df_v_seg[col_p_v].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+                    if col_p_v: df_v_seg = df_v_seg[~df_v_seg[col_p_v].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
                     
                     if not df_v_seg.empty:
                         rk_f = df_v_seg.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
                         total_z = rk_f["Monto Real"].sum()
-                        lineas = [f"### 🏥 Auditoría de Sell-Out | Zona: {etiqueta_zona} (Total: ${total_z:,.2f})\n"]
+                        lineas = [f"### 🏥 Auditoría de Sell-Out | Zona: {etiqueta_zona} (Total Acumulado: ${total_z:,.2f})\n"]
+                        acum_f = 0.0
                         for idx, r_f in enumerate(rk_f.head(top_n).itertuples(), 1):
                             peso_f = (r_f._2 / total_z * 100) if total_z > 0 else 0
-                            lineas.append(f"**{idx}. {r_f.NOMBRE_CLIENTE_1}:** `${r_f._2:,.2f}` ({peso_f:.1f}% del Sell-Out zonal)")
+                            acum_f += peso_f
+                            lineas.append(f"**{idx}. {r_f.NOMBRE_CLIENTE_1}:** `${r_f._2:,.2f}` (**{peso_f:.1f}%** del Sell-Out | Pareto Acum: {acum_f:.1f}%)")
                         resultado_final = "\n".join(lineas)
                     else:
                         resultado_final = f"No hay registros de Sell-Out para la zona **{etiqueta_zona}**."
                 else:
                     resultado_final = "No se encontró información de rutas de venta cargada."
 
-            # =========================================================================
-            # MOTOR C: RANKING DE MÉDICOS PRESCRIPTORES (POR MERCADO Y/O ESPECIALIDAD)
-            # =========================================================================
+            # MOTOR C: RANKING DE MÉDICOS Y PARETO 80/20
             else:
                 mercado_detectado = None
-                producto_objetivo = "Portafolio General Gutis"
+                producto_objetivo = "Portafolio General (Pareto 80/20)"
                 for m_key, m_val in MERCADOS_PRIORITARIOS.items():
                     if any(k in texto_u for k in m_val["keywords"]):
                         mercado_detectado = m_key
@@ -559,24 +565,27 @@ with tab_chira:
                                 })
 
                 ranking_medicos = sorted(ranking_medicos, key=lambda x: x["pxs_totales"], reverse=True)
+                universo_pxs_med = sum(x["pxs_totales"] for x in ranking_medicos)
 
                 if ranking_medicos:
                     lineas_informe = [
                         f"### 📋 Top {top_n} Médicos Prescriptores | {producto_objetivo}",
-                        f"**Filtro Aplicado:** {etiqueta_esp} | **Zona:** {etiqueta_zona}\n"
+                        f"**Filtro Aplicado:** {etiqueta_esp} | **Zona:** {etiqueta_zona} | **Volumen Segmento:** {universo_pxs_med:,} Pxs-MES\n"
                     ]
+                    acum_pareto = 0.0
                     for idx, m_info in enumerate(ranking_medicos[:top_n], 1):
-                        origen_str = "🟢 **DOMINIO GUTIS** (Blindar)" if m_info["es_gutis"] else "🔴 **OPORTUNIDAD DE CONQUISTA** (Atacar)"
+                        peso_med = (m_info["pxs_totales"] / universo_pxs_med * 100) if universo_pxs_med > 0 else 0
+                        acum_pareto += peso_med
+                        origen_str = "🟢 **DOMINIO GUTIS** (Blindar)" if m_info["es_gutis"] else "🔴 **CONQUISTA** (Atacar)"
                         lineas_informe.append(
                             f"**{idx}. Dr(a). {m_info['nombre']}** ({m_info['especialidad']} | Cat {m_info['categoria']} | {m_info['ciudad']})\n"
-                            f"- **Volumen en Mercado:** `{m_info['pxs_totales']} Pxs-MES` | **Receta Líder:** `{m_info['lider_producto']}` con **{m_info['lider_pxs']} Pxs** ({m_info['lider_ms']:.1f}% MS).\n"
-                            f"- **Pacientes Gutis:** {m_info['gutis_pxs']} Pxs | **Estatus:** {origen_str}\n"
+                            f"- **Volumen:** `{m_info['pxs_totales']} Pxs-MES` ({peso_med:.1f}% del total | **Pareto Acum: {acum_pareto:.1f}%**)\n"
+                            f"- **Receta Líder:** `{m_info['lider_producto']}` ({m_info['lider_pxs']} Pxs, {m_info['lider_ms']:.1f}% MS) | **Pxs Gutis:** {m_info['gutis_pxs']} | {origen_str}\n"
                         )
                     resultado_final = "\n".join(lineas_informe)
                 else:
                     resultado_final = f"No se encontraron prescripciones activas para **{producto_objetivo}** con el filtro **{etiqueta_esp}** en **{etiqueta_zona}**."
 
-            # Si Gemini está disponible, añade una conclusión estratégica al pie sin alterar ni una sola cifra del reporte
             prompt_ia = f"""{REGLAS_FARMA}
 Eres CHIRA, Consultora Senior de BI de Laboratorios Gutis.
 Respeta ÍNTEGRAMENTE los datos matemáticos del siguiente reporte y agrega al final un breve párrafo titulado '⚡ Táctica Comercial Recomendada (Modo Argón)' con 2 acciones concretas de ataque para Erick Calderón:
@@ -589,111 +598,174 @@ Respeta ÍNTEGRAMENTE los datos matemáticos del siguiente reporte y agrega al f
         st.session_state.chira_history.append({"role": "assistant", "content": resultado_final})
         st.rerun()
 
-# --- FASE 1: TÁCTICA TVP ---
+# ==============================================================================
+# PESTAÑA 2: FASE 1 - TÁCTICA COMERCIAL (CON SELECTOR DE MERCADO Y CRUCE PDV)
+# ==============================================================================
 with tab_estrategia:
-    col_izq_ia, col_der_ia = st.columns([1, 1.2])
+    col_izq_ia, col_der_ia = st.columns([1.1, 1.1])
     with col_izq_ia:
         st.markdown("#### [GENERACIÓN DE ARGUMENTOS TÁCTICOS]")
         
+        # MEJORA: Permitir elegir cuál de los mercados del médico atacar hoy
+        if opciones_mercados_medico:
+            etiquetas_m = [f"{o['mercado']} (Líder: {o['lider_actual'][:15]} -> Atacar con {o['prod_gutis']})" for o in opciones_mercados_medico]
+            idx_m_sel = st.selectbox("🎯 Seleccionar Mercado del Médico a Atacar Hoy:", range(len(etiquetas_m)), format_func=lambda i: etiquetas_m[i])
+            merc_tactico = opciones_mercados_medico[idx_m_sel]["mercado"]
+            competidor_tactico = opciones_mercados_medico[idx_m_sel]["lider_actual"]
+            gutis_tactico = opciones_mercados_medico[idx_m_sel]["prod_gutis"]
+        else:
+            merc_tactico, competidor_tactico, gutis_tactico = mercado_principal_str, producto_ataque_str, prod_gutis_ataque_oficial
+
         if st.button("[EJECUTAR ANÁLISIS FLASH - 30s]", use_container_width=True, type="primary"):
             with st.spinner("[COMPILANDO ARGUMENTO GALÉNICO...]"):
-                prompt_flash = f"{REGLAS_FARMA}\nGenera un pitch de pasillo de 2 oraciones para {medico_sel}. Receta {producto_ataque_str}. Misión: Cambiar a {prod_gutis_ataque_oficial}."
+                prompt_flash = f"{REGLAS_FARMA}\nGenera un pitch de pasillo de 2 oraciones para {medico_sel} ({especialidad}). Receta {competidor_tactico}. Misión: Cambiar hoy a {gutis_tactico} respaldado en {top_farmacias_ciudad_str}."
                 res_f = llamar_gemini(prompt_flash)
                 if not res_f:
-                    res_f = f"Doctor {medico_sel}, ante los pacientes que hoy reciben {producto_ataque_str}, {prod_gutis_ataque_oficial} le ofrece una respuesta clínica superior libre de alcohol y con dosificación exacta para garantizar máxima adherencia."
+                    res_f = f"Doctor(a) {medico_sel}, para los pacientes en los que hoy prescribe {competidor_tactico}, **{gutis_tactico}** le ofrece superioridad galénica comprobada, máxima tolerabilidad y disponibilidad inmediata garantizada en {top_farmacias_ciudad_str}."
                 st.session_state.pasillo_result = res_f
         if st.session_state.pasillo_result: st.info(st.session_state.pasillo_result)
 
         if st.button("[EJECUTAR ANÁLISIS TVP COMPLETO]", use_container_width=True):
             with st.spinner("[ESTRUCTURANDO PLAN DE VISITA INTEGRAL...]"):
+                rapport_nota = f"Integrar datos de Perfil 360: {contexto_rapport_str}." if contexto_rapport_str else "Apertura ejecutiva enfocada en su prestigio clínico en la zona."
                 prompt_tvp = f"""{REGLAS_FARMA}
-Genera un Plan de Visita Médica (TVP) en 6 pasos exactos para {medico_sel}. Especialidad: {especialidad}, Ciudad: {ciudad}.
-Contexto: Prescribe {producto_ataque_str} ({total_pxs_medico} Pxs). Debe prescribir {prod_gutis_ataque_oficial}."""
+Genera un Plan de Visita Médica (TVP) en 6 pasos exactos para {medico_sel} ({especialidad}, Cat {categoria}, {ciudad}).
+Contexto: En el mercado {merc_tactico} prescribe {competidor_tactico}. Debe cambiar a {gutis_tactico}.
+{rapport_nota}
+En el Cierre Directo menciona disponibilidad activa en las farmacias líderes de su zona: {top_farmacias_ciudad_str}."""
                 res_tvp = llamar_gemini(prompt_tvp)
                 if not res_tvp:
                     res_tvp = f"""### Plan de Visita Médica Táctico (TVP) - {medico_sel}
-* **1. Pre-Visita (Análisis de escenario):** El especialista atiende en {ciudad} ({especialidad}). Su volumen activo es de {total_pxs_medico} pacientes donde predomina {producto_ataque_str}. Misión: Conquista con {prod_gutis_ataque_oficial}.
-* **2. Rapport (Ganar confianza inicial):** Conectar con un saludo ejecutivo reconociendo su alta demanda en consulta médica en {ciudad}.
-* **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor, con qué frecuencia sus pacientes experimentan intolerancia o baja adherencia con las opciones convencionales de {producto_ataque_str}?
-* **4. Presentación de Valor:** Introducir **{prod_gutis_ataque_oficial}**, destacando su perfil galénico superior, alta tolerabilidad y respaldo de Laboratorios Gutis.
-* **5. Manejo de Objeciones:** Si el médico defiende su uso de {producto_ataque_str}, validar su criterio pero contrastar la seguridad y eficacia comprobada de {prod_gutis_ataque_oficial}.
-* **6. Cierre Directo:** Comprometer al especialista a iniciar a sus próximos 5 pacientes de la semana con {prod_gutis_ataque_oficial} verificando disponibilidad en las farmacias clave de {ciudad}."""
+* **1. Pre-Visita (Análisis de escenario):** Especialista en **{especialidad}** (Cat {categoria}) en **{ciudad}**. En el mercado `{merc_tactico}`, su prescripción actual la lidera `{competidor_tactico}`. Objetivo: Conversión directa hacia **{gutis_tactico}**.
+* **2. Rapport (Apertura 360°):** {rapport_nota}
+* **3. Sondeo Clínico (Pregunta de dolor):** ¿Doctor(a), qué relevancia tiene para la adherencia de sus pacientes contar con una formulación de alta pureza galénica que reduzca los efectos adversos asociados a opciones convencionales como `{competidor_tactico}`?
+* **4. Presentación de Valor:** Posicionar **{gutis_tactico}** destacando sus ventajas diferenciales (tecnología galénica superior, dosificación exacta y respaldo centroamericano de Laboratorios Gutis).
+* **5. Manejo de Objeciones:** Si menciona hábito prescriptivo con `{competidor_tactico}`, validar su experiencia pero contrastar la rapidez de acción y seguridad superior de **{gutis_tactico}**.
+* **6. Cierre Directo (Cruzado con Sell-Out):** Solicitar el compromiso para sus próximos 5 pacientes de esta semana, confirmándole inventario completo de **{gutis_tactico}** en **{top_farmacias_ciudad_str}**."""
                 st.session_state.tvp_result = res_tvp
         if st.session_state.tvp_result: st.markdown(st.session_state.tvp_result)
 
     with col_der_ia:
         st.markdown("#### [SIMULADOR DE OBJECIONES CLÍNICAS]")
-        chat_container = st.container(height=300)
+        chat_container = st.container(height=320)
         for msg in st.session_state.chat_history:
             with chat_container.chat_message(msg["role"]): st.write(msg["content"])
-        if prompt_chat := st.chat_input("Ingrese refutación clínica..."):
+        if prompt_chat := st.chat_input("Ingrese refutación clínica al médico..."):
             st.session_state.chat_history.append({"role": "user", "content": prompt_chat})
             with chat_container.chat_message("user"): st.write(prompt_chat)
             with st.spinner("[PROCESANDO...]"):
-                res_sim = llamar_gemini(f"{REGLAS_FARMA}\nEres {medico_sel} defendiendo {producto_ataque_str} ante {prod_gutis_ataque_oficial}. Objeción: {prompt_chat}")
+                res_sim = llamar_gemini(f"{REGLAS_FARMA}\nEres {medico_sel} defendiendo {competidor_tactico} ante {gutis_tactico}. Responde en 2 líneas a este argumento del visitador: {prompt_chat}")
                 if not res_sim:
-                    res_sim = f"Comprendo su punto colega, pero con {producto_ataque_str} tengo años de experiencia y mis pacientes ya están habituados. ¿Por qué cambiar a {prod_gutis_ataque_oficial}?"
+                    res_sim = f"Interesante su punto sobre {gutis_tactico}, colega. Si me garantiza que hay inventario constante en {top_farmacias_ciudad_str} y no me cambian la receta en mostrador, lo pondré a prueba esta semana."
             st.session_state.chat_history.append({"role": "assistant", "content": res_sim})
             st.rerun()
 
-# --- PERFIL 360° ---
+# ==============================================================================
+# PESTAÑA 3: PERFIL 360° (CON GUARDADO REAL EN EXCEL Y MEMORIA)
+# ==============================================================================
 with tab_perfil360:
-    st.markdown("#### [ACTUALIZACIÓN DE PERFIL OMNICANAL]")
+    st.markdown(f"#### [ACTUALIZACIÓN DE PERFIL OMNICANAL - {medico_sel}]")
+    st.caption("Los datos guardados aquí se inyectan automáticamente en el Paso 2 (Rapport) del Análisis TVP.")
     with st.form("form_perfil_360"):
         c1, c2, c3 = st.columns(3)
         with c1: 
-            val_minsa = st.text_input("MINSA:", value=str(perfil_360_actual.get("MINSA", "")) if str(perfil_360_actual.get("MINSA", "")) != "nan" else "")
-            val_cel = st.text_input("Celular:", value=str(perfil_360_actual.get("Celular", "")) if str(perfil_360_actual.get("Celular", "")) != "nan" else "")
+            val_minsa = st.text_input("Código MINSA:", value=str(perfil_360_actual.get("MINSA", "")) if str(perfil_360_actual.get("MINSA", "")) != "nan" else "")
+            val_cel = st.text_input("Celular / WhatsApp:", value=str(perfil_360_actual.get("Celular", "")) if str(perfil_360_actual.get("Celular", "")) != "nan" else "")
         with c2: 
-            val_correo = st.text_input("Correo:", value=str(perfil_360_actual.get("Correo", "")) if str(perfil_360_actual.get("Correo", "")) != "nan" else "")
-            val_cumple = st.text_input("Cumpleaños:", value=str(perfil_360_actual.get("Cumpleaños", "")) if str(perfil_360_actual.get("Cumpleaños", "")) != "nan" else "")
+            val_correo = st.text_input("Correo Electrónico:", value=str(perfil_360_actual.get("Correo", "")) if str(perfil_360_actual.get("Correo", "")) != "nan" else "")
+            val_cumple = st.text_input("Fecha de Cumpleaños:", value=str(perfil_360_actual.get("Cumpleaños", "")) if str(perfil_360_actual.get("Cumpleaños", "")) != "nan" else "")
         with c3: 
-            val_deporte = st.text_input("Afinidad/Hobby:", value=str(perfil_360_actual.get("Deporte", "")) if str(perfil_360_actual.get("Deporte", "")) != "nan" else "")
+            val_deporte = st.text_input("Afinidad / Hobby / Familia:", value=str(perfil_360_actual.get("Deporte", "")) if str(perfil_360_actual.get("Deporte", "")) != "nan" else "")
             opc_visita = ["Ultra-ejecutiva", "Discusión científica", "Casos clínicos"]
             idx_vis = opc_visita.index(perfil_360_actual.get("Estilo_Visita", opc_visita[0])) if perfil_360_actual.get("Estilo_Visita") in opc_visita else 0
-            val_estilo_visita = st.selectbox("Estilo Visita:", opc_visita, index=idx_vis)
+            val_estilo_visita = st.selectbox("Estilo de Visita Preferido:", opc_visita, index=idx_vis)
 
-        if st.form_submit_button("[GUARDAR EN BASE DE DATOS]", use_container_width=True):
-            st.success("[SISTEMA] Perfil guardado correctamente.")
+        if st.form_submit_button("💾 [GUARDAR EN BASE DE DATOS E INYECTAR AL TVP]", use_container_width=True, type="primary"):
+            nuevo_registro = {
+                "Médico": medico_sel, "MINSA": val_minsa, "Celular": val_cel,
+                "Correo": val_correo, "Cumpleaños": val_cumple, "Deporte": val_deporte,
+                "Estilo_Visita": val_estilo_visita, "Ultima_Actualizacion": datetime.now().strftime("%Y-%m-%d %H:%M")
+            }
+            st.session_state.perfiles_memoria[medico_sel] = nuevo_registro
+            try:
+                if os.path.exists(ARCHIVO_PERFIL_360):
+                    df_p_save = pd.read_excel(ARCHIVO_PERFIL_360)
+                    df_p_save = df_p_save[df_p_save["Médico"].astype(str).str.upper() != medico_sel]
+                    df_p_save = pd.concat([df_p_save, pd.DataFrame([nuevo_registro])], ignore_index=True)
+                else:
+                    df_p_save = pd.DataFrame([nuevo_registro])
+                df_p_save.to_excel(ARCHIVO_PERFIL_360, index=False)
+            except: pass
+            st.success(f"✅ Perfil 360° de {medico_sel} guardado y sincronizado con el generador TVP.")
 
-# --- FASE 2: ANÁLISIS RX ---
+# ==============================================================================
+# PESTAÑA 4: FASE 2 - ANÁLISIS RX (CON BARRAS VISUALES Y PXS-YTD)
+# ==============================================================================
 with tab_rx:
     st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN Y LABORATORIOS]")
     m_p1, m_p2, m_p3 = st.columns(3)
-    with m_p1: st.metric("Pacientes Totales (Pxs)", total_pxs_medico)
-    with m_p2: st.metric("Pacientes Gutis", gutis_pxs_medico)
-    with m_p3: st.metric("Oportunidad Conquista", comp_pxs_medico)
+    with m_p1: st.metric("Pacientes Mes (Pxs-MES)", total_pxs_medico)
+    with m_p2: st.metric("Pacientes Gutis (Mes)", gutis_pxs_medico)
+    with m_p3: st.metric("Oportunidad Conquista (Competencia)", comp_pxs_medico)
     st.divider()
 
     if not rx_clean.empty:
-        mercados_disponibles = sorted(rx_clean["MERCADO"].dropna().unique().tolist())
-        mercados_filtro = st.multiselect("🔍 Filtrar visualización por Mercados Estratégicos:", mercados_disponibles, placeholder="Seleccione uno o varios mercados...")
+        col_f1, col_f2 = st.columns([3, 1])
+        with col_f1:
+            mercados_disponibles = sorted(rx_clean["MERCADO"].dropna().unique().tolist())
+            mercados_filtro = st.multiselect("🔍 Filtrar visualización por Mercados Estratégicos:", mercados_disponibles, placeholder="Seleccione uno o varios mercados...")
+        with col_f2:
+            ocultar_ceros = st.checkbox("Ocultar productos con 0 Pxs", value=False)
         
-        rx_vista = rx_clean[rx_clean["MERCADO"].isin(mercados_filtro)] if mercados_filtro else rx_clean.copy()
+        rx_vista = rx_clean[rx_clean["MERCADO"].isin(mercados_filtro)].copy() if mercados_filtro else rx_clean.copy()
 
-        col_r1, col_r2 = st.columns([2.3, 1.2])
+        col_r1, col_r2 = st.columns([2.2, 1.3])
         with col_r1:
-            st.markdown("##### 📋 Priorización por Pacientes Reales (Pxs-MES)")
+            st.markdown("##### 📋 Priorización por Pacientes Reales (Mes y Acumulado YTD)")
             cols_to_show = ["NOMBRE_PRODUCTO", "MERCADO"]
             if col_pxs: cols_to_show.append(col_pxs)
+            if col_pxs_ytd_prod and col_pxs_ytd_prod not in cols_to_show: cols_to_show.append(col_pxs_ytd_prod)
             if col_mes: cols_to_show.append(col_mes)
             
             df_rx_view = rx_vista[cols_to_show].copy()
             df_rx_view["Origen"] = df_rx_view["NOMBRE_PRODUCTO"].apply(lambda x: "🟢 GUTIS" if es_gutis(x) else "🔴 COMPETENCIA")
             
-            if col_mes: df_rx_view[col_mes] = pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100
+            if col_mes: df_rx_view[col_mes] = (pd.to_numeric(df_rx_view[col_mes], errors='coerce').fillna(0) * 100).round(2)
             if col_pxs: df_rx_view[col_pxs] = pd.to_numeric(df_rx_view[col_pxs], errors='coerce').fillna(0).astype(int)
+            if col_pxs_ytd_prod: df_rx_view[col_pxs_ytd_prod] = pd.to_numeric(df_rx_view[col_pxs_ytd_prod], errors='coerce').fillna(0).astype(int)
             
-            if col_pxs: df_rx_view = df_rx_view.sort_values(by=[col_pxs, col_mes] if col_mes else [col_pxs], ascending=[False, False])
-            elif col_mes: df_rx_view = df_rx_view.sort_values(by=col_mes, ascending=False)
+            if ocultar_ceros and col_pxs:
+                df_rx_view = df_rx_view[df_rx_view[col_pxs] > 0]
+
+            sort_cols = [c for c in [col_pxs, col_pxs_ytd_prod, col_mes] if c]
+            if sort_cols:
+                df_rx_view = df_rx_view.sort_values(by=sort_cols, ascending=[False]*len(sort_cols))
             
-            if col_mes: df_rx_view[col_mes] = df_rx_view[col_mes].map("{:.1f}%".format)
+            renombrar = {
+                "NOMBRE_PRODUCTO": "Producto",
+                "MERCADO": "Mercado",
+                col_pxs: "Pxs-MES",
+                col_pxs_ytd_prod: "Pxs-YTD",
+                col_mes: "% Cuota Mercado"
+            }
+            df_rx_view = df_rx_view.rename(columns=renombrar)
             
-            renombrar = {col_pxs: "Pacientes (Pxs-MES)", col_mes: "% Cuota Mercado"}
-            st.dataframe(df_rx_view.rename(columns=renombrar), hide_index=True, use_container_width=True)
+            st.dataframe(
+                df_rx_view,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "% Cuota Mercado": st.column_config.ProgressColumn(
+                        "% Cuota Mercado",
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=100
+                    )
+                }
+            )
 
         with col_r2:
-            st.markdown("##### 🔬 [RADAR DE FABRICANTES]")
+            st.markdown("##### 🔬 [RADAR DE FABRICANTES (YTD & MES)]")
             
             if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
                 df_labs_medico = df_labs[df_labs["Médico"] == medico_sel].copy()
@@ -701,31 +773,54 @@ with tab_rx:
                 
                 if not df_labs_medico.empty:
                     col_pxs_ytd = "Pxs-YTD" if "Pxs-YTD" in df_labs_medico.columns else next((c for c in df_labs_medico.columns if "YTD" in c.upper() and "PXS" in c.upper()), None)
+                    col_pxs_m_lab = "Pxs-MES" if "Pxs-MES" in df_labs_medico.columns else next((c for c in df_labs_medico.columns if "MES" in c.upper() and "PXS" in c.upper()), None)
                     
                     if col_pxs_ytd:
                         df_labs_medico[col_pxs_ytd] = pd.to_numeric(df_labs_medico[col_pxs_ytd], errors='coerce').fillna(0)
-                        df_agrupado = df_labs_medico.groupby("FABRICANTE").agg({col_pxs_ytd: 'sum'}).reset_index()
+                        agg_l = {col_pxs_ytd: 'sum'}
+                        if col_pxs_m_lab:
+                            df_labs_medico[col_pxs_m_lab] = pd.to_numeric(df_labs_medico[col_pxs_m_lab], errors='coerce').fillna(0)
+                            agg_l[col_pxs_m_lab] = 'sum'
+
+                        df_agrupado = df_labs_medico.groupby("FABRICANTE").agg(agg_l).reset_index()
                         
                         total_ytd_medico = df_agrupado[col_pxs_ytd].sum()
-                        if total_ytd_medico > 0: df_agrupado["% MS YTD"] = (df_agrupado[col_pxs_ytd] / total_ytd_medico) * 100
-                        else: df_agrupado["% MS YTD"] = 0.0
+                        df_agrupado["% MS YTD"] = ((df_agrupado[col_pxs_ytd] / total_ytd_medico) * 100).round(2) if total_ytd_medico > 0 else 0.0
 
-                        df_agrupado = df_agrupado.sort_values(by=col_pxs_ytd, ascending=False).head(10)
-                        df_agrupado.columns = ["Laboratorio Fabricante", "Pxs Totales (YTD)", "% MS YTD"]
-                        df_agrupado["Pxs Totales (YTD)"] = df_agrupado["Pxs Totales (YTD)"].astype(int)
-                        df_agrupado["% MS YTD"] = df_agrupado["% MS YTD"].map("{:.2f}%".format)
+                        df_agrupado = df_agrupado.sort_values(by=col_pxs_ytd, ascending=False).head(12)
+                        df_agrupado["FABRICANTE"] = df_agrupado["FABRICANTE"].apply(lambda x: f"🟢 {x}" if "GUTIS" in str(x).upper() else str(x))
+                        df_agrupado[col_pxs_ytd] = df_agrupado[col_pxs_ytd].astype(int)
+                        if col_pxs_m_lab: df_agrupado[col_pxs_m_lab] = df_agrupado[col_pxs_m_lab].astype(int)
+
+                        ren_labs = {"FABRICANTE": "Laboratorio", col_pxs_ytd: "Pxs YTD"}
+                        if col_pxs_m_lab: ren_labs[col_pxs_m_lab] = "Pxs MES"
+                        df_agrupado = df_agrupado.rename(columns=ren_labs)
                         
-                        st.dataframe(df_agrupado, hide_index=True, use_container_width=True)
+                        st.dataframe(
+                            df_agrupado,
+                            hide_index=True,
+                            use_container_width=True,
+                            column_config={
+                                "% MS YTD": st.column_config.ProgressColumn(
+                                    "% MS YTD",
+                                    format="%.2f%%",
+                                    min_value=0,
+                                    max_value=100
+                                )
+                            }
+                        )
                     else: st.info("Columna 'Pxs-YTD' no detectada.")
                 else: st.info("Sin registros de laboratorio para este médico.")
             else: st.info("ℹ️ Sube a GitHub el archivo de Laboratorios.")
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
-# --- FASE 3: SELL-OUT CON SUCURSALES SELECCIONABLES ---
+# ==============================================================================
+# PESTAÑA 5: FASE 3 - SELL-OUT (FORMATO $2 DECIMALES, TENDENCIA Δ Q3 vs Q2 E IA REAL)
+# ==============================================================================
 with tab_sellout:
     st.markdown("#### [INTELIGENCIA DE SELL-OUT Y TENDENCIAS TRIMESTRALES]")
     if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
-        ventas_zona = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(ciudad, na=False)].copy()
+        ventas_zona = df_ventas[df_ventas["DESCRIPCION_RUTA"].str.contains(re.escape(ciudad), na=False)].copy()
         
         if not ventas_zona.empty:
             col_prod_v = "VM4" if "VM4" in ventas_zona.columns else next((c for c in ventas_zona.columns if "PRODUCTO" in c.upper()), None)
@@ -735,74 +830,209 @@ with tab_sellout:
                 ventas_zona = ventas_zona[~ventas_zona[col_prod_v].str.upper().isin(["TOTAL", "NAN", ""])]
             ventas_zona = ventas_zona[~ventas_zona["NOMBRE_CLIENTE_1"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
 
-            farmacias_disp = sorted(ventas_zona["NOMBRE_CLIENTE_1"].dropna().unique().tolist())
-            farm_sel = st.multiselect("🏥 Seleccione Farmacia(s) para ver el detalle de productos:", farmacias_disp, placeholder="Mostrando todas las farmacias de la zona...")
+            # Filtros combinados: Farmacia + Producto/Línea
+            cf_s1, cf_s2 = st.columns(2)
+            with cf_s1:
+                farmacias_disp = sorted(ventas_zona["NOMBRE_CLIENTE_1"].dropna().unique().tolist())
+                farm_sel = st.multiselect("🏥 Seleccione Farmacia(s):", farmacias_disp, placeholder="Todas las farmacias de la zona...")
+            with cf_s2:
+                prods_disp_v = sorted(ventas_zona[col_prod_v].dropna().unique().tolist()) if col_prod_v else []
+                prod_v_sel = st.multiselect("💊 Filtrar por Línea / Producto:", prods_disp_v, placeholder="Todos los productos...")
             
-            df_v_mostrar = ventas_zona[ventas_zona["NOMBRE_CLIENTE_1"].isin(farm_sel)] if farm_sel else ventas_zona
+            df_v_mostrar = ventas_zona.copy()
+            if farm_sel: df_v_mostrar = df_v_mostrar[df_v_mostrar["NOMBRE_CLIENTE_1"].isin(farm_sel)]
+            if prod_v_sel and col_prod_v: df_v_mostrar = df_v_mostrar[df_v_mostrar[col_prod_v].isin(prod_v_sel)]
 
-            if col_prod_v and "Trimestre" in df_v_mostrar.columns:
+            if col_prod_v and "Trimestre" in df_v_mostrar.columns and not df_v_mostrar.empty:
+                df_pivot = pd.pivot_table(
+                    df_v_mostrar,
+                    values="Monto Real",
+                    index=["NOMBRE_CLIENTE_1", col_prod_v],
+                    columns=["Trimestre"],
+                    aggfunc="sum",
+                    fill_value=0.0
+                ).reset_index()
+                
+                for q_col in ["Q1", "Q2", "Q3"]:
+                    if q_col not in df_pivot.columns:
+                        df_pivot[q_col] = 0.0
+                    df_pivot[q_col] = df_pivot[q_col].round(2)
+
+                df_pivot["Venta Total"] = (df_pivot["Q1"] + df_pivot["Q2"] + df_pivot["Q3"]).round(2)
+
+                # Cálculo de Variación Trimestral Q3 vs Q2 y Estado Táctico
+                def evaluar_tendencia(row):
+                    q2, q3 = row["Q2"], row["Q3"]
+                    if q2 <= 0 and q3 > 0: return "🚀 Nuevo / Explosión (+100%)"
+                    if q2 <= 0 and q3 <= 0: return "⚪ Sin Movimiento"
+                    var_pct = ((q3 - q2) / q2) * 100
+                    if var_pct >= 10: return f"🟢 Creciendo (+{var_pct:.1f}%)"
+                    elif var_pct <= -15: return f"🔴 Alerta Caída ({var_pct:.1f}%)"
+                    else: return f"🟡 Estable ({var_pct:+.1f}%)"
+
+                df_pivot["Tendencia Q3 vs Q2"] = df_pivot.apply(evaluar_tendencia, axis=1)
+                df_pivot = df_pivot.sort_values(by="Venta Total", ascending=False)
+
+                # Tarjetas KPI Dinámicas de la Selección Actual
+                tot_q1, tot_q2, tot_q3 = df_pivot["Q1"].sum(), df_pivot["Q2"].sum(), df_pivot["Q3"].sum()
+                tot_general = df_pivot["Venta Total"].sum()
+                var_global_q3 = ((tot_q3 - tot_q2) / tot_q2 * 100) if tot_q2 > 0 else 0.0
+
+                ks1, ks2, ks3, ks4 = st.columns(4)
+                ks1.metric("Venta Q1", f"${tot_q1:,.2f}")
+                ks2.metric("Venta Q2", f"${tot_q2:,.2f}")
+                ks3.metric("Venta Q3", f"${tot_q3:,.2f}", f"{var_global_q3:+.1f}% vs Q2")
+                ks4.metric("Acumulado Selección", f"${tot_general:,.2f}")
+
                 st.markdown("##### Detalle de Ventas por Farmacia, Trimestre y Producto")
-                df_pivot = pd.pivot_table(df_v_mostrar, values="Monto Real", index=["NOMBRE_CLIENTE_1", col_prod_v], columns=["Trimestre"], aggfunc="sum", fill_value=0).reset_index()
+                df_mostrar_sellout = df_pivot[["NOMBRE_CLIENTE_1", col_prod_v, "Q1", "Q2", "Q3", "Venta Total", "Tendencia Q3 vs Q2"]].rename(
+                    columns={"NOMBRE_CLIENTE_1": "Punto de Venta / Farmacia", col_prod_v: "Línea / Producto"}
+                )
+
+                # Configuración de columnas numéricas a 2 decimales exactos con signo $
+                st.dataframe(
+                    df_mostrar_sellout,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "Q1": st.column_config.NumberColumn("Q1", format="$%.2f"),
+                        "Q2": st.column_config.NumberColumn("Q2", format="$%.2f"),
+                        "Q3": st.column_config.NumberColumn("Q3", format="$%.2f"),
+                        "Venta Total": st.column_config.NumberColumn("Venta Total", format="$%.2f"),
+                    }
+                )
                 
-                columnas_trim = [c for c in df_pivot.columns if c in ["Q1", "Q2", "Q3"]]
-                if columnas_trim:
-                    df_pivot["Venta Total"] = df_pivot[columnas_trim].sum(axis=1)
-                    df_pivot = df_pivot.sort_values(by="Venta Total", ascending=False)
-                
-                renombrar_v = {"NOMBRE_CLIENTE_1": "Punto de Venta / Farmacia", col_prod_v: "Línea / Producto"}
-                st.dataframe(df_pivot.rename(columns=renombrar_v).head(30), hide_index=True, use_container_width=True)
-                
+                # MOTOR DE IA Y DIAGNÓSTICO MATEMÁTICO DE SELL-OUT
                 st.markdown("#### [ANÁLISIS IA DE SELL-OUT]")
-                if st.button("[EJECUTAR ANÁLISIS DE VENTAS]", use_container_width=True):
-                    with st.spinner("Analizando tendencias de venta..."):
-                         prompt_ventas = f"Analiza este Sell-Out de {ciudad} y danos una sugerencia táctica:\n{df_pivot.head(20).to_string(index=False)}"
-                         res_v = llamar_gemini(prompt_ventas)
-                         if not res_v:
-                             res_v = f"En la zona de {ciudad}, la mayor concentración de Sell-Out se encuentra en los puntos de mayor rotación de la cadena. Se recomienda asegurar inventario de las líneas prioritarias para cubrir la prescripción generada en los consultorios aledaños."
-                         st.info(res_v)
+                if st.button("⚡ [EJECUTAR ANÁLISIS DE VENTAS Y DETECCIÓN DE FUGAS]", use_container_width=True, type="primary"):
+                    with st.spinner("Ejecutando auditoría matemática de Trade Marketing..."):
+                        en_caida = df_pivot[df_pivot["Tendencia Q3 vs Q2"].str.contains("🔴")].copy()
+                        en_alza = df_pivot[df_pivot["Tendencia Q3 vs Q2"].str.contains("🟢|🚀")].copy()
+                        top_fila = df_pivot.iloc[0]
+
+                        lineas_so = [
+                            f"### 📊 Diagnóstico de Sell-Out y Trade Marketing ({ciudad})",
+                            f"- **Líder de Facturación en Selección:** `{top_fila['NOMBRE_CLIENTE_1']}` con la línea **{top_fila[col_prod_v]}** (`${top_fila['Venta Total']:,.2f}` acumulados: Q1 `${top_fila['Q1']:,.2f}` | Q2 `${top_fila['Q2']:,.2f}` | Q3 `${top_fila['Q3']:,.2f}`).",
+                            f"- **Desempeño Trimestral Consolidado:** El bloque pasó de `${tot_q2:,.2f}` en Q2 a `${tot_q3:,.2f}` en Q3 (**{var_global_q3:+.1f}%**)."
+                        ]
+                        if not en_alza.empty:
+                            top_crec = ", ".join([f"**{r[col_prod_v]}** en {r['NOMBRE_CLIENTE_1']} (${r['Q2']:,.2f} ➔${r['Q3']:,.2f})" for _, r in en_alza.head(3).iterrows()])
+                            lineas_so.append(f"- **🟢 Motores de Crecimiento (Q3):** Excelente tracción en {top_crec}. Asegurar stock de seguridad.")
+                        if not en_caida.empty:
+                            top_fuga = ", ".join([f"**{r[col_prod_v]}** en {r['NOMBRE_CLIENTE_1']} (cayó de ${r['Q2']:,.2f} a${r['Q3']:,.2f})" for _, r in en_caida.head(3).iterrows()])
+                            lineas_so.append(f"- **🔴 Alerta de Fuga / Desabasto en Q3:** Revisar inventario y empuje de dependientes en {top_fuga}. Cruzar con la receta de **{medico_sel}** para blindar el punto de venta.")
+
+                        reporte_base_so = "\n".join(lineas_so)
+                        prompt_ventas = f"{REGLAS_FARMA}\nCon base en este diagnóstico exacto de Sell-Out en {ciudad}, agrega 2 recomendaciones de Trade Marketing para Erick Calderón:\n{reporte_base_so}"
+                        res_v = llamar_gemini(prompt_ventas)
+                        st.info(res_v if (res_v and len(res_v) > 60) else reporte_base_so)
             else:
-                df_farms = df_v_mostrar.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
-                st.dataframe(df_farms.head(10), hide_index=True, use_container_width=True)
+                st.info("No hay datos para la combinación de filtros seleccionada.")
     else: st.error("[SISTEMA] No hay cruce de rutas de venta.")
 
-# --- BITÁCORA CRM ---
+# ==============================================================================
+# PESTAÑA 6: FASE 4 - BITÁCORA CRM FUNCIONAL CON DESCARGA EXCEL
+# ==============================================================================
 with tab_bitacora:
-    st.markdown("#### [CONSOLA DE CAPTURA CRM]")
-    audio_grabado = st.audio_input("Ingreso de nota por voz:") if hasattr(st, "audio_input") else None
-    if st.button("[PROCESAR ACUERDO A BASE DE DATOS]"):
-        st.warning("[SISTEMA] Módulo listo para conexión con Google Sheets.")
+    st.markdown(f"#### [CONSOLA DE CAPTURA CRM - {medico_sel}]")
+    with st.form("form_bitacora_crm"):
+        cb1, cb2, cb3 = st.columns(3)
+        with cb1:
+            prod_promovido = st.selectbox("Producto Principal Promovido:", [m["producto"] for m in MERCADOS_PRIORITARIOS.values()])
+        with cb2:
+            compromiso_rx = st.number_input("Compromiso de Recetas Semanales:", min_value=0, max_value=100, value=5)
+        with cb3:
+            farmacia_aliada = st.text_input("Farmacia de Referencia:", value=top_farmacias_ciudad_str.split(",")[0] if top_farmacias_ciudad_str else "")
+        
+        notas_visita = st.text_area("Acuerdos Clínicos / Objeciones Detectadas en Visita:", placeholder="Ej: Aceptó iniciar Talerdín gotas en pacientes pediátricos; solicitó muestras adicionales...")
+        
+        if st.form_submit_button("✅ [REGISTRAR VISITA EN BITÁCORA CRM]", use_container_width=True, type="primary"):
+            nueva_visita = {
+                "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Ciudad": ciudad,
+                "Médico": medico_sel,
+                "Especialidad": especialidad,
+                "Categoría": categoria,
+                "Producto_Promovido": prod_promovido,
+                "Compromiso_Rx": compromiso_rx,
+                "Farmacia_Referencia": farmacia_aliada,
+                "Acuerdos_Notas": notas_visita
+            }
+            st.session_state.bitacora_memoria.append(nueva_visita)
+            try:
+                if os.path.exists(ARCHIVO_BITACORA):
+                    df_bit_old = pd.read_excel(ARCHIVO_BITACORA)
+                    df_bit_new = pd.concat([df_bit_old, pd.DataFrame([nueva_visita])], ignore_index=True)
+                else:
+                    df_bit_new = pd.DataFrame([nueva_visita])
+                df_bit_new.to_excel(ARCHIVO_BITACORA, index=False)
+            except: pass
+            st.success(f"Visita a {medico_sel} registrada exitosamente en el historial CRM.")
 
-# --- RUTA ---
+    # Mostrar historial guardado
+    df_hist_crm = pd.DataFrame(st.session_state.bitacora_memoria)
+    if os.path.exists(ARCHIVO_BITACORA):
+        try: df_hist_crm = pd.read_excel(ARCHIVO_BITACORA)
+        except: pass
+    if not df_hist_crm.empty:
+        st.markdown("##### 📂 Historial de Visitas Registradas")
+        st.dataframe(df_hist_crm.tail(20), hide_index=True, use_container_width=True)
+        csv_crm = df_hist_crm.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("⬇️ Descargar Bitácora CRM (CSV/Excel)", data=csv_crm, file_name=f"Bitacora_CRM_Gutis_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+
+# ==============================================================================
+# PESTAÑA 7: ITINERARIO DE RUTA INTELIGENTE (CON OPORTUNIDAD DE ROBO DE PXS)
+# ==============================================================================
 with tab_ruta:
-    st.markdown("#### [ITINERARIO INTELIGENTE POR MERCADO]")
-    st.caption("Selecciona los mercados que vas a auditar hoy para filtrar a los médicos más importantes de tu ruta.")
+    st.markdown("#### [ITINERARIO INTELIGENTE POR MERCADO, ESPECIALIDAD Y POTENCIAL DE CONQUISTA]")
+    st.caption("Filtra tu ruta por mercado, especialidad o categoría para atacar primero los consultorios donde la competencia tiene más pacientes.")
     
-    df_ruta_zona = df_panel[df_panel["CIUDAD"] == ciudad] if ciudad != "N/D" else df_panel
+    df_ruta_zona = df_panel[df_panel["CIUDAD"] == ciudad].copy() if ciudad != "N/D" and ciudad_filtro != "TODAS" else df_panel.copy()
+    
+    cr1, cr2, cr3 = st.columns([2, 1.2, 1])
+    with cr1:
+        mercados_ruta_disp = sorted(df_productos["MERCADO"].dropna().unique().tolist()) if not df_productos.empty and "MERCADO" in df_productos.columns else []
+        mercados_ruta_sel = st.multiselect("🎯 1. Filtrar por Mercados Estratégicos:", mercados_ruta_disp, placeholder="Todos los mercados...")
+    with cr2:
+        esps_ruta_disp = sorted(df_ruta_zona["Especialidad"].dropna().unique().tolist()) if "Especialidad" in df_ruta_zona.columns else []
+        esps_ruta_sel = st.multiselect("🩺 2. Filtrar por Especialidad:", esps_ruta_disp, placeholder="Todas...")
+    with cr3:
+        cats_ruta_disp = sorted([str(c) for c in df_ruta_zona["CATEGORIA"].dropna().unique().tolist()]) if "CATEGORIA" in df_ruta_zona.columns else []
+        cats_ruta_sel = st.multiselect("⭐ 3. Categoría:", cats_ruta_disp, placeholder="Todas...")
+
+    if esps_ruta_sel and "Especialidad" in df_ruta_zona.columns:
+        df_ruta_zona = df_ruta_zona[df_ruta_zona["Especialidad"].isin(esps_ruta_sel)]
+    if cats_ruta_sel and "CATEGORIA" in df_ruta_zona.columns:
+        df_ruta_zona = df_ruta_zona[df_ruta_zona["CATEGORIA"].astype(str).isin(cats_ruta_sel)]
+
     columnas_deseadas = ["Médico", "Especialidad", "CATEGORIA", "DIRECCION", "Dirección", "CLINICA", "CIUDAD"]
     columnas_existentes = [col for col in columnas_deseadas if col in df_ruta_zona.columns]
-    
     df_mostrar = df_ruta_zona[columnas_existentes].dropna(subset=["Médico"]).copy() if "Médico" in columnas_existentes else df_ruta_zona.copy()
 
-    if not df_productos.empty and "MERCADO" in df_productos.columns:
-        mercados_ruta_disp = sorted(df_productos["MERCADO"].dropna().unique().tolist())
-        mercados_ruta_sel = st.multiselect("🎯 Filtrar Ruta por Mercados Estratégicos (Puedes elegir varios):", mercados_ruta_disp, placeholder="Seleccione mercados...")
-
-        if mercados_ruta_sel and "Médico" in df_mostrar.columns:
-            rx_ruta = df_productos[df_productos["MERCADO"].isin(mercados_ruta_sel)].copy()
-            col_pxs_ruta = next((c for c in rx_ruta.columns if c.upper() == "PXS-MES"), None)
-            if not col_pxs_ruta: col_pxs_ruta = next((c for c in rx_ruta.columns if "PXS" in c.upper() or "TRX" in c.upper()), None)
+    if not df_productos.empty and "Médico" in df_mostrar.columns:
+        rx_ruta = df_productos[df_productos["MERCADO"].isin(mercados_ruta_sel)].copy() if mercados_ruta_sel else df_productos.copy()
+        rx_ruta = rx_ruta[~rx_ruta["NOMBRE_PRODUCTO"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+        col_pxs_ruta = next((c for c in rx_ruta.columns if c.upper() == "PXS-MES"), None)
+        if not col_pxs_ruta: col_pxs_ruta = next((c for c in rx_ruta.columns if "PXS" in c.upper() or "TRX" in c.upper()), None)
+        
+        if col_pxs_ruta and not rx_ruta.empty:
+            rx_ruta[col_pxs_ruta] = pd.to_numeric(rx_ruta[col_pxs_ruta], errors='coerce').fillna(0)
+            rx_ruta["Es_G"] = rx_ruta["NOMBRE_PRODUCTO"].apply(es_gutis)
             
-            if col_pxs_ruta:
-                rx_ruta[col_pxs_ruta] = pd.to_numeric(rx_ruta[col_pxs_ruta], errors='coerce').fillna(0)
-                volumen_por_medico = rx_ruta.groupby("Médico")[col_pxs_ruta].sum().reset_index()
-                volumen_por_medico.columns = ["Médico", "Pxs en Mercados Seleccionados"]
-                
-                df_mostrar = pd.merge(df_mostrar, volumen_por_medico, on="Médico", how="inner")
-                df_mostrar["Pxs en Mercados Seleccionados"] = df_mostrar["Pxs en Mercados Seleccionados"].astype(int)
-                df_mostrar = df_mostrar.sort_values(by="Pxs en Mercados Seleccionados", ascending=False)
-                st.success(f"Mostrando solo médicos que recetan en los mercados seleccionados, ordenados por pacientes.")
-            else:
-                medicos_en_mercado = rx_ruta["Médico"].unique()
-                df_mostrar = df_mostrar[df_mostrar["Médico"].isin(medicos_en_mercado)]
+            tot_med = rx_ruta.groupby("Médico")[col_pxs_ruta].sum().reset_index().rename(columns={col_pxs_ruta: "Pxs Totales"})
+            gut_med = rx_ruta[rx_ruta["Es_G"]].groupby("Médico")[col_pxs_ruta].sum().reset_index().rename(columns={col_pxs_ruta: "Pxs Gutis"})
+            
+            resumen_r = pd.merge(tot_med, gut_med, on="Médico", how="left").fillna(0)
+            resumen_r["Pxs Competencia (Oportunidad)"] = (resumen_r["Pxs Totales"] - resumen_r["Pxs Gutis"]).astype(int)
+            resumen_r["Pxs Totales"] = resumen_r["Pxs Totales"].astype(int)
+            resumen_r["Pxs Gutis"] = resumen_r["Pxs Gutis"].astype(int)
+
+            how_merge = "inner" if mercados_ruta_sel else "left"
+            df_mostrar = pd.merge(df_mostrar, resumen_r, on="Médico", how=how_merge).fillna(0)
+            for c_int in ["Pxs Totales", "Pxs Gutis", "Pxs Competencia (Oportunidad)"]:
+                if c_int in df_mostrar.columns: df_mostrar[c_int] = df_mostrar[c_int].astype(int)
+            df_mostrar = df_mostrar.sort_values(by=["Pxs Competencia (Oportunidad)", "Pxs Totales"], ascending=[False, False])
 
     st.dataframe(df_mostrar, hide_index=True, use_container_width=True)
+    csv_ruta = df_mostrar.to_csv(index=False).encode('utf-8-sig')
+    st.download_button("⬇️ Exportar Hoja de Ruta Filtrada (CSV/Excel)", data=csv_ruta, file_name=f"Hoja_De_Ruta_{ciudad}.csv", mime="text/csv")
