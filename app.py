@@ -218,8 +218,6 @@ REGLAS FARMACOLÓGICAS Y METODOLOGÍA OFICIAL TVP GUTIS (ESTRICTO):
    - DESCUBRIR NECESIDADES: Técnica del Embudo (Circunstancias -> Necesidad -> Necesidad detrás de la Necesidad: Finanzas, Desempeño o Imagen) con Sondeos de Valor Mutuo (Comparar, Analizar, Suponer, Reflexionar, Contrastar, Evaluar).
    - APOYO/STORYTELLING: Comprensión + Característica/Beneficio + Love Brands + Confirmación.
    - CIERRE/PUENTE: Resumen + Compromiso bilateral + Puente natural a 2do y 3er producto.
-   - MANEJO DE LA INDIFERENCIA (Médicos amarrados o conformes con competencia): 1) Demostrar comprensión sin dar la razón absoluta, 2) Pedir permiso con agenda limitada, 3) Sondear para crear conciencia en un nicho de falla del competidor (beneficio exclusivo), 4) Apoyar.
-   - MANEJO DE PEDIDOS TRANSACCIONALES (Congresos, Muestras, Apoyos): Aplicar Condicionalidad Invertida (exigir primero masa crítica de pacientes auditables en Close-Up/Sell-Out para justificar ante Dirección Médica) y posicionar muestras únicamente como dosis de arranque de 48h para no canibalizar la farmacia.
 """
 
 # --- ESTILOS CSS EJECUTIVOS ---
@@ -396,7 +394,7 @@ def diagnosticar_escala_adopcion(pxs_gutis_m, pxs_tot_m, ms_gutis_m):
         return f"4. Adopción ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (>50% MS)", "Consolidar la marca como primera opción en más del 50% de sus pacientes meta."
     return f"5. Lealtad ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (Blindaje)", "Blindar lealtad y convertirlo en líder de opinión / promotor de la marca."
 
-# --- RECONOCIMIENTO COGNITIVO DE MÉDICOS EN TEXTO LIBRE (ENTITY RECOGNITION) ---
+# --- RECONOCIMIENTO COGNITIVO DE MÉDICOS EN TEXTO LIBRE ---
 def detectar_medico_en_texto(texto_usuario):
     t_norm = normalizar_txt(texto_usuario)
     palabras_ignorar = {
@@ -405,7 +403,8 @@ def detectar_medico_en_texto(texto_usuario):
         "PEDIATRIA", "PEDIATRAS", "GINECOLOGIA", "INTERNA", "GENERAL", "OTORRINO", "ORTOPEDIA",
         "GUTIS", "TALERDIN", "BIOTOS", "GASTROALIVIO", "DALIVIO", "MOMETZONA", "VENTILAR", "CLEMBROXIL",
         "VALERPAN", "CONFLEXIL", "RENOVART", "LABORATORIO", "COMPETENCIA", "COMPRADA", "COMPRADO",
-        "PANEL", "VISITA", "PLAN", "TVP", "CONGRESO", "MUESTRAS", "FARMACIA", "TOP", "LOS", "LAS", "DEL", "POR"
+        "PANEL", "VISITA", "PLAN", "TVP", "CONGRESO", "MUESTRAS", "FARMACIA", "TOP", "LOS", "LAS", "DEL", "POR",
+        "TIENE", "COMPROMISO", "NOSOTROS", "MARCAS", "PERO", "ESTA", "COMPARTIENDO", "MUCHO", "RECETA", "OTROS", "CREES", "PASE"
     }
     tokens_usr = [w for w in re.split(r'[^A-Z0-9Ñ]+', t_norm) if len(w) >= 3 and w not in palabras_ignorar]
     if not tokens_usr:
@@ -427,13 +426,12 @@ def detectar_medico_en_texto(texto_usuario):
     if max_coincidencias >= 2:
         return mejor_medico
     if max_coincidencias == 1:
-        # Si mencionó un apellido poco común junto con palabras de trato personal ("dr", "dra", "analiza a", "comprada", "abordar", "pide")
-        indicadores_persona = ["DR ", "DRA ", "DRA.", "DR.", "DOCTOR", "DOCTORA", "ANALIZA A", "ABORDO A", "ABORDAR A", "COMPRAD", "CASAD", "AMARR", "PIDE", "OBJECION", "VISITAR A"]
+        indicadores_persona = ["DR ", "DRA ", "DRA.", "DR.", "DOCTOR", "DOCTORA", "ANALIZA A", "ABORDO A", "ABORDAR A", "COMPRAD", "CASAD", "AMARR", "PIDE", "OBJECION", "VISITAR A", "COMPROMISO"]
         if any(ind in t_norm for ind in indicadores_persona):
             return mejor_medico
     return None
 
-# --- EXTRACTOR COMPLETO DE EXPEDIENTE DE CUALQUIER MÉDICO PARA CHIRA ---
+# --- EXTRACTOR COMPLETO DE EXPEDIENTE DE CUALQUIER MÉDICO ---
 def extraer_dossier_medico(nombre_med):
     en_panel = False
     esp_m, ciu_m, cat_m = "ESPECIALISTA", "NICARAGUA", "S/C"
@@ -464,11 +462,13 @@ def extraer_dossier_medico(nombre_med):
 
     mercados_doc = []
     pxs_mes_tot_doc, pxs_ytd_tot_doc, pxs_gut_doc, pxs_comp_doc = 0, 0, 0, 0
+    pxs_gut_ytd_doc = 0
 
     if not rx_m.empty and col_p_mes:
         pxs_mes_tot_doc = int(rx_m[col_p_mes].sum())
         pxs_ytd_tot_doc = int(rx_m[col_p_ytd].sum()) if col_p_ytd else 0
         pxs_gut_doc = int(rx_m[rx_m["Es_Gutis"]][col_p_mes].sum())
+        pxs_gut_ytd_doc = int(rx_m[rx_m["Es_Gutis"]][col_p_ytd].sum()) if col_p_ytd else 0
         pxs_comp_doc = pxs_mes_tot_doc - pxs_gut_doc
 
         for m_nom, df_g in rx_m.groupby("MERCADO"):
@@ -476,6 +476,7 @@ def extraer_dossier_medico(nombre_med):
             p_m = int(df_g[col_p_mes].sum())
             p_y = int(df_g[col_p_ytd].sum()) if col_p_ytd else 0
             p_gut = int(df_g[df_g["Es_Gutis"]][col_p_mes].sum())
+            p_gut_y = int(df_g[df_g["Es_Gutis"]][col_p_ytd].sum()) if col_p_ytd else 0
             p_cmp = p_m - p_gut
             ms_g = (p_gut / p_m * 100) if p_m > 0 else 0.0
             if p_m <= 0 and p_y <= 0:
@@ -485,18 +486,29 @@ def extraer_dossier_medico(nombre_med):
             lid_nom = str(lid_row["NOMBRE_PRODUCTO"]).strip()
             lid_px = int(lid_row[col_p_mes])
             lid_ytd = int(lid_row[col_p_ytd]) if col_p_ytd else 0
+
+            # Detectar principal competidor no-Gutis en este mercado
+            df_no_g = df_g_ord[~df_g_ord["Es_Gutis"]]
+            if not df_no_g.empty:
+                comp_row = df_no_g.iloc[0]
+                comp_nom_m = str(comp_row["NOMBRE_PRODUCTO"]).strip()
+                comp_px_m = int(comp_row[col_p_mes])
+                comp_ytd_m = int(comp_row[col_p_ytd]) if col_p_ytd else 0
+            else:
+                comp_nom_m, comp_px_m, comp_ytd_m = "Sin competidor activo", 0, 0
+
             esc_act, esc_meta, obj_esc = diagnosticar_escala_adopcion(p_gut, p_m, ms_g)
 
             mercados_doc.append({
                 "mercado": m_nom, "prioridad": meta_i["prioridad"], "categoria_mercado": meta_i["categoria_mercado"],
                 "prod_gutis": meta_i["producto"], "lider_actual": lid_nom, "lider_pxs_mes": lid_px, "lider_pxs_ytd": lid_ytd,
+                "comp_principal": comp_nom_m, "comp_pxs_mes": comp_px_m, "comp_pxs_ytd": comp_ytd_m,
                 "lider_es_gutis": bool(lid_row["Es_Gutis"]), "pxs_mes": p_m, "pxs_ytd": p_y,
-                "pxs_gutis": p_gut, "pxs_comp": p_cmp, "ms_gutis": ms_g,
+                "pxs_gutis": p_gut, "pxs_gutis_ytd": p_gut_y, "pxs_comp": p_cmp, "ms_gutis": ms_g,
                 "escala_actual": esc_act, "escala_meta": esc_meta, "meta_info": meta_i
             })
         mercados_doc = sorted(mercados_doc, key=lambda x: (-x["pxs_mes"], x["prioridad"], -x["pxs_ytd"]))
 
-    # Top Laboratorios del Médico
     labs_doc = []
     if not df_labs.empty and "Médico" in df_labs.columns and "FABRICANTE" in df_labs.columns:
         sub_l = df_labs[(df_labs["Médico"] == nombre_med) & (~df_labs["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""]))].copy()
@@ -520,7 +532,6 @@ def extraer_dossier_medico(nombre_med):
                         "ms_ytd": round(ms_l, 2)
                     })
 
-    # Farmacias Aliadas de la Ciudad del Médico
     farmacias_doc_str = "principales farmacias de la zona"
     sellout_ciudad_doc = 0.0
     if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns and ciu_m != "NICARAGUA":
@@ -535,12 +546,40 @@ def extraer_dossier_medico(nombre_med):
     return {
         "nombre": nombre_med, "en_panel": en_panel, "especialidad": esp_m, "ciudad": ciu_m, "categoria": cat_m,
         "pxs_mes_total": pxs_mes_tot_doc, "pxs_ytd_total": pxs_ytd_tot_doc,
-        "pxs_gutis_mes": pxs_gut_doc, "pxs_comp_mes": pxs_comp_doc,
+        "pxs_gutis_mes": pxs_gut_doc, "pxs_gutis_ytd": pxs_gut_ytd_doc, "pxs_comp_mes": pxs_comp_doc,
         "mercados": mercados_doc, "labs": labs_doc,
         "farmacias_aliadas": farmacias_doc_str, "sellout_zona": sellout_ciudad_doc
     }
 
-# --- MOTOR COGNITIVO DE CONSULTORÍA TÁCTICA PARA ESCENARIOS CALLEJEROS ---
+# --- LLAMADA API GEMINI CON DESCUBRIMIENTO DINÁMICO DE MODELOS ---
+def llamar_gemini(prompt_text, max_tok=4096):
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
+    if not api_key: return None
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.25}}
+    modelos_a_probar = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"]
+    try:
+        r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=4)
+        if r_list.status_code == 200:
+            todos = r_list.json().get('models', [])
+            dinamicos = [m['name'].replace('models/', '') for m in todos if 'generateContent' in m.get('supportedGenerationMethods', [])]
+            for d in dinamicos:
+                if d not in modelos_a_probar and "flash" in d.lower():
+                    modelos_a_probar.insert(0, d)
+    except: pass
+
+    for mod in modelos_a_probar:
+        try:
+            url_p = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
+            res = requests.post(url_p, headers=headers, json=payload, timeout=18)
+            if res.status_code == 200:
+                cands = res.json().get('candidates', [])
+                if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
+                    return cands[0]['content']['parts'][0].get('text', '')
+        except: continue
+    return None
+
+# --- MOTOR COGNITIVO CONVERSACIONAL: RESPONDE DIRECTAMENTE A LA PREGUNTA DE ERICK ---
 def construir_respuesta_cognitiva_medico(dossier, pregunta_usuario):
     t_norm = normalizar_txt(pregunta_usuario)
     nom = dossier["nombre"]
@@ -549,137 +588,129 @@ def construir_respuesta_cognitiva_medico(dossier, pregunta_usuario):
     cat = dossier["categoria"]
     farmacias = dossier["farmacias_aliadas"]
 
-    if dossier["mercados"]:
+    ms_global_mes = (dossier["pxs_gutis_mes"] / dossier["pxs_mes_total"] * 100) if dossier["pxs_mes_total"] > 0 else 0.0
+    ms_global_ytd = (dossier["pxs_gutis_ytd"] / dossier["pxs_ytd_total"] * 100) if dossier["pxs_ytd_total"] > 0 else 0.0
+
+    # Detectar si el usuario mencionó marcas específicas en su pregunta (ej. Talerdin, Clembroxil, Biotos, Ventilar, Mometzona)
+    mercados_mencionados = []
+    for m_item in dossier["mercados"]:
+        p_norm = normalizar_txt(m_item["prod_gutis"].split()[0])
+        m_clean = normalizar_txt(m_item["mercado"].replace("MR ", ""))
+        if p_norm in t_norm or m_clean in t_norm or any(normalizar_txt(k) in t_norm for k in m_item["meta_info"]["keywords"]):
+            mercados_mencionados.append(m_item)
+
+    mercados_foco = mercados_mencionados if mercados_mencionados else dossier["mercados"][:5]
+
+    if mercados_foco:
+        m1 = mercados_foco[0]
+        m2 = mercados_foco[1] if len(mercados_foco) > 1 else (dossier["mercados"][1] if len(dossier["mercados"]) > 1 else None)
+    elif dossier["mercados"]:
         m1 = dossier["mercados"][0]
-        # Si el usuario mencionó un producto específico en la pregunta, priorizar ese mercado como M1
-        for m_item in dossier["mercados"]:
-            if normalizar_txt(m_item["prod_gutis"].split()[0]) in t_norm or normalizar_txt(m_item["lider_actual"].split()[0]) in t_norm:
-                m1 = m_item
-                break
         m2 = dossier["mercados"][1] if len(dossier["mercados"]) > 1 else None
-        m3 = dossier["mercados"][2] if len(dossier["mercados"]) > 2 else None
     else:
         meta_fb = obtener_meta_mercado("MR TALERDIN" if "PEDIAT" in esp else "MR GASTROALIVIO")
         m1 = {
             "mercado": "MR PRINCIPAL", "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
-            "prod_gutis": meta_fb["producto"], "lider_actual": "Competencia tradicional",
-            "lider_pxs_mes": 0, "lider_pxs_ytd": 0, "lider_es_gutis": False,
-            "pxs_mes": 0, "pxs_ytd": 0, "pxs_gutis": 0, "pxs_comp": 0, "ms_gutis": 0.0,
-            "escala_actual": "2. Consciente", "escala_meta": "3. Prueba (2-5 Pxs)", "meta_info": meta_fb
+            "prod_gutis": meta_fb["producto"], "lider_actual": "Competencia",
+            "lider_pxs_mes": 0, "lider_pxs_ytd": 0, "comp_principal": "Competencia", "comp_pxs_mes": 0, "comp_pxs_ytd": 0,
+            "lider_es_gutis": False, "pxs_mes": 0, "pxs_ytd": 0, "pxs_gutis": 0, "pxs_gutis_ytd": 0,
+            "pxs_comp": 0, "ms_gutis": 0.0, "escala_actual": "2. Consciente", "escala_meta": "3. Prueba", "meta_info": meta_fb
         }
-        m2, m3 = None, None
+        m2 = None
 
-    prod1 = m1["prod_gutis"]
-    comp1 = m1["lider_actual"]
-    meta1 = m1["meta_info"]
-    prod2 = m2["prod_gutis"] if m2 else "Valerpan / Conflexil"
-    comp2 = m2["lider_actual"] if m2 else "Competencia secundaria"
+    prod1, comp1, meta1 = m1["prod_gutis"], m1["comp_principal"], m1["meta_info"]
+    prod2 = m2["prod_gutis"] if m2 else "Biotos / Clembroxil"
 
-    # Resumen de Laboratorios Top del Médico
-    labs_txt = " | ".join([f"**#{i+1} {l['fabricante']}** ({l['pxs_ytd']} Pxs YTD - {l['ms_ytd']}%)" for i, l in enumerate(dossier["labs"][:4])]) if dossier["labs"] else "Sin desglose de fabricantes"
-    mercados_txt = "\n".join([
-        f"  - **[P{m['prioridad']}] {m['mercado']}:** Mes `{m['pxs_mes']} Pxs` (🔷 Gutis: {m['pxs_gutis']} | ⚔️ Comp: **{m['pxs_comp']}**) | YTD: `{m['pxs_ytd']} Pxs` | Líder actual: **`{m['lider_actual']}`** ({m['lider_pxs_mes']} Mes / {m['lider_pxs_ytd']} YTD) ➔ Atacar con **{m['prod_gutis']}** *(Escala: {m['escala_actual']})*"
-        for m in dossier["mercados"][:5]
-    ]) if dossier["mercados"] else "  - _Sin prescripciones registradas en el corte actual._"
+    labs_txt = " | ".join([f"**#{i+1} {l['fabricante']}** (`{l['pxs_ytd']} Pxs YTD` - {l['ms_ytd']}%)" for i, l in enumerate(dossier["labs"][:5])]) if dossier["labs"] else "Sin desglose de fabricantes"
+    
+    desglose_mercados_foco = "\n".join([
+        f"* **{m['prod_gutis']} (`{m['mercado']}`):** Volumen Mes `{m['pxs_mes']} Pxs` (🔷 **Gutis:** `{m['pxs_gutis']} Pxs` [{m['ms_gutis']:.1f}% MS] vs. ⚔️ **Fuga a Competencia:** `{m['pxs_comp']} Pxs` — Principal rival: **`{m['comp_principal']}`** con {m['comp_pxs_mes']} Mes / {m['comp_pxs_ytd']} YTD)."
+        for m in mercados_foco
+    ]) if mercados_foco else "* _Sin registros en los mercados consultados._"
 
-    # CLASIFICACIÓN COGNITIVA DEL ESCENARIO PLANTEADO POR ERICK
-    es_comprado_fidelizado = any(k in t_norm for k in ["COMPRAD", "AMARRAD", "CASAD", "FIDELIZAD", "COMPROMIS", "PATROCIN", "LEAL", "SOLO RECETA", "PREFIERE A", "NO SUELTA"])
-    es_pedido_quid_pro_quo = any(k in t_norm for k in ["PIDE", "PEDIR", "PIDIO", "A CAMBIO", "CONGRESO", "INSCRIPCION", "MUESTRA", "REGALO", "APOYO", "PATROCINIO", "CONDICION", "TRANSACCIONAL", "INTERESAD", "DINERO", "EQUIPO"])
-    es_objecion_precio_esceptico = any(k in t_norm for k in ["PRECIO", "CARO", "COSTO", "ECONOMICO", "GENERICO", "ESCEPTIC", "BIOEQUIVALEN", "ESTUDIO", "DUDA", "NO CREE", "IGUALES", "MISMO", "OBJECION"])
-    es_pasillo_sin_tiempo = any(k in t_norm for k in ["PASILLO", "RAPIDO", "SEGUNDOS", "SIN TIEMPO", "APURAD", "QUIROFANO", "SALIENDO", "BREVE", "1 MINUTO"])
+    # CLASIFICACIÓN PRECISA DE LA INTENCIÓN DE ERICK
+    es_dilucion_compromiso_gutis = (
+        any(k in t_norm for k in ["COMPARTIENDO", "COMPARTE", "DILUY", "DIVID", "CON NOSOTROS", "CON GUTIS", "QUE CREES QUE PASE", "QUE PASA", "POR QUE RECETA OTROS", "FUGA"])
+        and not any(k in t_norm for k in ["COMPRADA POR", "COMPRADO POR", "CASADA CON MEGALABS"])
+    )
+    es_comprado_competencia = any(k in t_norm for k in ["COMPRAD", "AMARRAD", "CASAD", "FIDELIZAD", "NO SUELTA", "SOLO RECETA A"]) and not es_dilucion_compromiso_gutis
+    es_pedido_quid_pro_quo = any(k in t_norm for k in ["PIDE", "PEDIR", "PIDIO", "A CAMBIO", "CONGRESO", "INSCRIPCION", "MUESTRA", "REGALO", "APOYO", "PATROCINIO", "CONDICION", "TRANSACCIONAL"])
+    es_objecion_precio_esceptico = any(k in t_norm for k in ["PRECIO", "CARO", "COSTO", "ECONOMICO", "GENERICO", "ESCEPTIC", "BIOEQUIVALEN", "ESTUDIO", "DUDA", "NO CREE", "IGUALES", "OBJECION"])
 
-    # Construcción del Bloque de Estrategia según el Escenario Detectado
-    if es_comprado_fidelizado:
-        titulo_escenario = f"🔒 ESTRATEGIA DE FLANQUEO TVP: MÉDICO COMPROMETIDO / FIDELIZADO CON LA COMPETENCIA (`{comp1}`)"
-        estrategia_bloque = f"""
-#### 🧠 2. Diagnóstico Psico-Comercial (Manual TVP Gutis — Unidad 7: Manejo de la Indiferencia y Barreras de Lealtad)
-* **Qué está pasando en su consultorio:** El/La **Dr(a). {nom}** concentra **{m1['pxs_comp']} Pxs mensuales** (`{m1['pxs_ytd']} Pxs YTD`) en `{comp1}`. Cuando un médico está "comprado" o comprometido con un laboratorio competidor, **el ataque frontal está prohibido**: si le pides que deje de recetar `{comp1}` o criticas a ese laboratorio, activarás su mecanismo de defensa y protegerá a su proveedor actual.
-* **La Maniobra Ganadora (El Flanqueo por Nicho de Falla + Caballo de Troya):**
-  1. **No compitas por su paciente estándar:** Dale por ganado su esquema general para bajarle la guardia (*Unidad 7, Paso 1: Demostrar comprensión sin convalidar*).
-  2. **Entra por la "Grieta Clínica" de `{comp1}`:** Ningún medicamento competidor es perfecto para el 100% de los pacientes. Vamos a pedirle únicamente los casos donde `{comp1}` genera quejas: **{meta1.get('nicho_flanqueo', meta1['paciente_meta'])}**.
-  3. **Abre el Segundo Frente (Mercado P2 — `{prod2}`):** A menudo el compromiso del médico con la otra casa es solo en un producto (`{comp1}`), pero tiene libre el mercado de **`{prod2}`** (donde hoy prescribe `{comp2}`).
+    if es_dilucion_compromiso_gutis:
+        respuesta_base = f"""### 🔍 Diagnóstico Consultivo: ¿Por qué el Dr(a). {nom} está compartiendo la receta teniendo compromiso con Gutis?
 
-#### 🗣️ 3. Guion Quirúrgico Paso a Paso para el Consultorio
-* **Paso 1 — Apertura de Desarme Psicológico (Bajar la guardia sin mencionar marca):**  
-  > *«Doctor(a) {nom}, conozco perfectamente su amplia experiencia con su esquema habitual en estos casos y sé que tiene una relación muy consolidada allí; mi objetivo hoy no es pedirle que cambie lo que le está funcionando en su paciente estándar.»*
-* **Paso 2 — Sondeo de Agenda Limitada (Crear conciencia de la grieta — Unidad 7):**  
-  > *«Solo permítame hacerle una pregunta clínica puntual: dentro de sus pacientes de **{esp}**, cuando se le presenta ese subgrupo específico de **{meta1.get('nicho_flanqueo', meta1['paciente_meta']).lower()}**, ¿cómo está evitando que abandonen el tratamiento en los primeros días?»*
-* **Paso 3 — Apoyo con Beneficio Exclusivo (`{prod1}` como solución de nicho):**  
-  > *«Exactamente para ese perfil crítico donde el tratamiento convencional incomoda al paciente es que quiero que cuente con **{prod1}**. Al tener **{meta1['caracteristica'].lower()}**, le asegura **{meta1['beneficio'].lower()}**. Así usted protege su prestigio clínico en los casos más delicados.»*
-* **Paso 4 — Cierre de "Compromiso Mínimo Viable" + Puente a `{prod2}`:**  
-  > *«Doctor(a), no le pido hoy su recetario general. Déjeme **{prod1}** como su **opción de rescate para los próximos 2 a 3 pacientes** con esta condición específica. Además, para sus casos de `{m2['mercado'].replace('MR ','') if m2 else 'inflamación y dolor'}`, apóyese en mí con **{prod2}**, que ya está disponible en **{farmacias}**. ¿Le parece un trato justo?»*
-"""
-    elif es_pedido_quid_pro_quo:
-        titulo_escenario = f"💼 PROTOCOLO DE NEGOCIACIÓN CONSULTIVA: MANEJO DE PEDIDOS A CAMBIO DE RECETAS (LA GRAN DIVISIÓN)"
-        estrategia_bloque = f"""
-#### 🧠 2. Auditoría de Rentabilidad (ROI) y Reglas de Negociación TVP
-* **Evaluación Fría del Potencial del Médico:** El/La **Dr(a). {nom}** mueve actualmente **{dossier['pxs_mes_total']} Pxs/Mes** y **{dossier['pxs_ytd_total']} Pxs YTD** en total (Gutis capta hoy **{dossier['pxs_gutis_mes']} Pxs/Mes**).
-* **El Peligro Transaccional (Manual TVP Pág. 8 — La Gran División):** Si entregas un patrocinio, congreso o volumen masivo de muestras *por adelantado* sin compromiso medible, te conviertes en un visitador transaccional. Si mañana otro laboratorio le ofrece algo mayor, perderás la receta al instante.
-* **Las 3 Reglas de Oro para Responderle Hoy:**
-  1. **Condicionalidad Invertida:** El médico primero demuestra tracción en recetas auditables (Close-Up / Sell-Out en **{farmacias}**) y con ese respaldo numérico tú gestionas el apoyo ante Gerencia.
-  2. **El Escudo de Dirección Médica:** Nunca digas *"No quiero"*; posiciónate como su aliado diciendo que el Comité de Gerencia exige una meta de pacientes activos para liberar el presupuesto.
-  3. **Muestras = Arranque de 48h (Cero Canibalización):** Si pide muestras, se entregan como dosis de inicio para que el paciente compre la caja completa en **{farmacias}**.
+Analizando los números reales de Close-Up del **Dr(a). {nom}** ({esp}, Cat {cat}, {ciu}), él/ella mueve un volumen alto de **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} Pxs-YTD`), de los cuales **Gutis capta `{dossier['pxs_gutis_mes']} Pxs-MES` ({ms_global_mes:.1f}% de cuota)**, mientras que **`{dossier['pxs_comp_mes']} Pxs-MES` se están fugando hacia otros laboratorios**.
 
-#### 🗣️ 3. Guion Ejecutivo de Reencuadre y Condicionamiento
-* **Paso 1 — Validación sin Sumisión:**  
-  > *«Doctor(a) {nom}, cuente conmigo como su principal aliado para gestionar apoyos que impulsen su práctica profesional en {ciu}; para Gutis un especialista de Categoría {cat} con un universo de {dossier['pxs_ytd_total']} pacientes anuales es prioritario.»*
-* **Paso 2 — Aplicar el Escudo de Gerencia y Condicionalidad Invertida:**  
-  > *«Para que nuestra Gerencia y Dirección Médica me aprueben formalmente esta solicitud, el sistema me audita la relación de soporte clínico en la zona. Hoy nuestro reporte refleja solo **{dossier['pxs_gutis_mes']} pacientes mensuales** con nuestras líneas frente a **{dossier['pxs_comp_mes']} en otras marcas**.»*
-* **Paso 3 — El Pacto Bilateral Medible (Objetivo SMART):**  
-  > *«Hagamos una alianza ganadora de 30 días: iniciemos esta misma semana con **5 pacientes semanales en {prod1}** (aprovechando que tiene *{meta1['caracteristica'].lower()}*) y **3 pacientes en {prod2}**, direccionados hacia **{farmacias}**. En cuanto ese movimiento se refleje en el corte de farmacia y prescripción de este ciclo, yo presento su expediente con números verdes ante Gerencia para respaldar su solicitud. ¿Arrancamos con los primeros pacientes esta semana?»*
-"""
-    elif es_objecion_precio_esceptico:
-        titulo_escenario = f"🔬 PROTOCOLO UNIDAD 8 TVP: MANEJO DE ESCEPTICISMO, MALENTENDIDO O DESVENTAJA DE PRECIO"
-        estrategia_bloque = f"""
-#### 🧠 2. Clasificación Oficial de la Objeción (Unidad 8 — Págs. 80 a 85 del Manual Gutis)
-* **1. Si es ESCEPTICISMO** *(Duda de la eficacia/bioequivalencia de `{prod1}` frente a `{comp1}`)*: No discutas con opiniones; presenta evidencia galénica comprobable (*{meta1['caracteristica']}*).
-* **2. Si es MALENTENDIDO** *(Cree erróneamente que `{prod1}` no cubre cierto síntoma o perfil)*: Confirma la necesidad subyacente con un sondeo cerrado y describe el beneficio directo (*{meta1['beneficio']}*).
-* **3. Si es DESVENTAJA REAL** *(Precio frente a un genérico barato)*: Aplica la regla de la Pág. 85: **Reenfocar desde una perspectiva más amplia** (el costo de una recaída o abandono terapéutico es mucho más caro para el paciente que ahorrar unos córdobas en la caja inicial).
-
-#### 🗣️ 3. Guion en 4 Pasos (Clarificar $\rightarrow$ Comprender $\rightarrow$ Manejar $\rightarrow$ Confirmar)
-* **1. Sondear para Clarificar:**  
-  > *«Doctor(a) {nom}, para comprender a fondo su punto: cuando evalúa el uso de **{prod1}** frente a `{comp1}`, ¿su inquietud principal radica en la velocidad de respuesta clínica o en la inversión total que realiza el paciente?»*
-* **2. Demostrar Comprensión:**  
-  > *«Comprendo perfectamente su postura; en su práctica de **{esp}** usted cuida tanto la economía de la familia como el prestigio de su diagnóstico.»*
-* **3. Manejar la Objeción (Reencuadre Galénico y Costo-Beneficio):**  
-  > *«Precisamente por eso **{prod1}** marca la diferencia: gracias a que cuenta con **{meta1['caracteristica'].lower()}**, logramos **{meta1['beneficio'].lower()}**. Eso evita que el paciente abandone el tratamiento a mitad de camino o tenga que pagar una segunda consulta y otro medicamento de rescate.»*
-* **4. Confirmar Aceptación:**  
-  > *«Viendo el tratamiento completo desde esta perspectiva de eficacia desde la primera toma, ¿no le brinda mayor seguridad iniciar con **{prod1}** en sus próximos 3 pacientes esta semana?»*
-"""
-    else:
-        titulo_escenario = f"🎯 AUDITORÍA 360° Y PLAN DE ATAQUE TVP PERSONALIZADO"
-        estrategia_bloque = f"""
-#### 🧠 2. Diagnóstico Estratégico de Cartera y Oportunidad de Conversión
-* **Situación en la Escala de Adopción:** En su mercado principal (`{m1['mercado']}`), el/la Dr(a). {nom} se encuentra en **{m1['escala_actual']}**. La meta inmediata de esta visita es ascenderlo(a) a **{m1['escala_meta']}**.
-* **Dónde está el dinero / Las recetas hoy:** El médico entrega **{dossier['pxs_comp_mes']} pacientes mensuales** a la competencia (principalmente a `{comp1}`).
-* **Respaldo Territorial (Sell-Out):** Tu argumento de cierre en **{ciu}** está respaldado por una facturación zonal de **${dossier['sellout_zona']:,.2f}**, con disponibilidad garantizada en **{farmacias}**.
-
-#### 🗣️ 3. Hoja de Ruta TVP Paso a Paso para Abordar al Dr(a). {nom}
-* **1️⃣ Apertura con Agenda Centrada en el Paciente (Unidad 3 — Sin nombrar marca):**  
-  > *«Doctor(a) {nom}, qué gusto saludarlo(a). En los pacientes de **{esp}** aquí en {ciu} estamos viendo cuadros donde el apego y la rapidez de alivio definen el éxito clínico. Quería proponerle revisar en dos minutos cómo optimizar la respuesta en **{meta1['paciente_meta'].lower()}**, para asegurarles alivio desde el primer día. ¿Le parece bien?»*
-* **2️⃣ Sondeo de Valor Mutuo (Unidad 4 — Técnica del Embudo):**  
-  > *«Actualmente, en los casos donde suele indicar `{comp1}`, al **comparar** y **evaluar** la evolución de sus pacientes en las primeras 48 horas, ¿qué aspecto considera prioritario mejorar para evitar recaídas o molestias gástricas? Entonces, ¿para usted es clave contar con **{meta1['beneficio'].lower()}**?»*
-* **3️⃣ Apoyo & Storytelling Love Brand (Unidad 5):**  
-  > *«Coincido totalmente con usted, Doctor(a). Por eso en Gutis diseñamos **{prod1}**, cuya ventaja exclusiva es **{meta1['caracteristica'].lower()}**, lo que se traduce directamente en **{meta1['beneficio'].lower()}**. *{meta1['love_brand']}* ¿No es exactamente ese el estándar que busca para sus pacientes?»*
-* **4️⃣ Cierre Bilateral + Puente Multi-Mercado P1 $\rightarrow$ P2 (Unidad 6):**  
-  > *«Doctor(a) {nom}, cuando reciba esta semana a sus próximos **3 a 5 pacientes** con este cuadro, ¿contamos con que inicie con **{prod1}** mientras yo me encargo hoy mismo de blindar el stock en **{farmacias}**? Y haciendo el puente hacia el cuidado integral de sus pacientes, recuerde que para sus casos de `{m2['mercado'].replace('MR ','') if m2 else 'dolor e inflamación'}` cuenta también con **{prod2}** listo en las mismas farmacias.»*
-"""
-
-    reporte_completo = f"""### 🧬 Expediente Cognitivo & Consultoría TVP: Dr(a). {nom}
-**Especialidad:** `{esp}` | **Categoría:** `{cat}` | **Territorio:** `{ciu}` | **Estatus:** `{'En Panel Asignado' if dossier['en_panel'] else '🔭 Fuera de Panel (Oportunidad de Incorporación)'}`
-
-#### 📊 1. Radiografía Matemática en Close-Up y Sell-Out
-* **Volumen Prescriptivo Total:** `{dossier['pxs_mes_total']} Pxs-MES` | **Acumulado Anual:** `{dossier['pxs_ytd_total']} Pxs-YTD` (🔷 **Gutis:** `{dossier['pxs_gutis_mes']} Pxs` vs. ⚔️ **Competencia:** `{dossier['pxs_comp_mes']} Pxs`).
-* **Ranking de Casas Farmacéuticas que domina su recetario:**  
-  {labs_txt}
-* **Desglose por Prioridad de Mercado (P1, P2, P3):**
-{mercados_txt}
+#### 🧠 ¿Qué está pasando realmente en su consultorio? (Las 3 Causas de la Dilución)
+1. **El Síndrome del "Cumplimiento Moral Fraccionado":** Cuando un médico de alto volumen acuerda apoyarnos en **múltiples marcas a la vez ({', '.join([m['prod_gutis'] for m in mercados_foco])})**, siente que al darte **{dossier['pxs_gutis_mes']} recetas mensuales repartidas** entre esas líneas *«ya te está cumpliendo el compromiso»*. En la Escala de Adopción de Gutis se estacionó en **Adopción Parcial ({ms_global_mes:.1f}%)** y no en **Lealtad (>50%)**.
+2. **Segmentación Oculta por Patología o Presentación:** El médico te asignó un "nicho pequeño" para tus marcas y le dejó el grueso a la competencia. Mira exactamente con quién nos está compartiendo la receta en cada marca que mencionaste:
+{desglose_mercados_foco}
+3. **Sustitución en Mostrador o Presión de Visitadores Rivales ({ciu}):** En su recetario global pesan fuerte: {labs_txt}. La competencia detectó que él/ella tiene compromiso contigo y lo están atacando con muestras de inicio o promociones en las farmacias de {ciu} (**{farmacias}**).
 
 ---
-### {titulo_escenario}
-{estrategia_bloque}
+
+#### ♟️ Cómo Reclamar y Blindar tu Cuota sin Confrontarlo (Estrategia TVP en 3 Pasos)
+* **1. Prohibido reclamarle "por qué receta a otros":** Si le dices *«Doctor, vi que está recetando a la competencia»*, se sentirá auditado y se pondrá a la defensiva. En el Modelo TVP se aborda validando primero las **{dossier['pxs_gutis_mes']} recetas** que sí nos da.
+* **2. Sondeo de Descubrimiento por Perfil Clínico (Unidad 4 — Aislar dónde nos cambia):**  
+  > *«Doctor(a) {nom}, antes que nada quiero agradecerle su respaldo y confianza en nuestro portafolio respiratorio. Precisamente revisando la evolución de sus pacientes aquí en {ciu}, noté que en ciertos casos específicos usa **`{prod1}`**, pero en otro grupo de pacientes prefiere alternar con `{comp1}`. Al **comparar** ambos perfiles, ¿en qué tipo de pacientito siente que todavía prefiere usar la otra opción?»*
+* **3. Cierre de "Migración de Nicho" (Pasar de Adopción a Lealtad >50%):**  
+  > *«Doctor(a), ya que usted mismo ha comprobado la respuesta de **{prod1}** (*{meta1['caracteristica'].lower()}*) y de **{prod2}**, mi propuesta hoy no es abrir más marcas, sino consolidar su confianza: para esos **{m1['pxs_comp']} pacientes mensuales** donde aún alterna con `{comp1}`, démosles el beneficio completo de **{prod1}**. Yo me encargo personalmente de que en **{farmacias}** no le fallen ni un solo día con el inventario. ¿Hacemos ese ajuste esta semana?»*
 """
-    return reporte_completo
+    elif es_comprado_competencia:
+        respuesta_base = f"""### 🔒 Estrategia de Flanqueo TVP: Cómo abordar al Dr(a). {nom} cuando está fidelizado(a) con la competencia
+
+En la auditoría de Close-Up ({ciu}), el/la **Dr(a). {nom}** ({esp}, Cat {cat}) registra **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} YTD`), entregando **{dossier['pxs_comp_mes']} Pxs a la competencia** y solo **{dossier['pxs_gutis_mes']} Pxs a Gutis**. Sus laboratorios dominantes son: {labs_txt}.
+
+#### 📊 Estado de sus Mercados Principales:
+{desglose_mercados_foco}
+
+#### 🧠 Táctica Unidad 7 TVP (Flanqueo por Grieta Clínica)
+* **No ataques de frente su compromiso con `{comp1}`:** Si le pides que abandone de golpe a ese laboratorio, se cerrará.
+* **Entra por el subgrupo de pacientes donde `{comp1}` falla:** Pídele únicamente los pacientes con **{meta1.get('nicho_flanqueo', meta1['paciente_meta']).lower()}**.
+* **Guion Quirúrgico de Consultorio:**  
+  > *«Doctor(a) {nom}, respeto totalmente su experiencia con su esquema habitual; hoy no busco que cambie el manejo de su paciente estándar. Solo quiero pedirle que en aquellos casos puntuales de **{meta1.get('nicho_flanqueo', meta1['paciente_meta']).lower()}**, donde se requiere **{meta1['caracteristica'].lower()}**, ponga a prueba **{prod1}** en sus próximos **2 a 3 pacientes de rescate**, con stock garantizado en **{farmacias}**. ¿Le parece bien?»*
+"""
+    elif es_pedido_quid_pro_quo:
+        respuesta_base = f"""### 💼 Protocolo de Negociación Consultiva (La Gran División): Dr(a). {nom}
+
+#### 📊 1. Evaluación de Retorno de Inversión (ROI) del Médico
+* **Potencial Real Auditado:** El/La **Dr(a). {nom}** ({esp}, Cat {cat}, {ciu}) genera **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} Pxs-YTD`). Actualmente Gutis recibe **{dossier['pxs_gutis_mes']} Pxs-MES ({ms_global_mes:.1f}%)** y la competencia se lleva **{dossier['pxs_comp_mes']} Pxs-MES**.
+* **Mercados en juego:**
+{desglose_mercados_foco}
+
+#### 🧠 2. Cómo Manejar su Solicitud sin Ceder por Adelantado (Condicionalidad Invertida)
+* **Usa el Escudo de Dirección Médica:** Posiciónate como su aliado, pero explica que Gerencia audita la masa crítica de pacientes en Close-Up y la rotación en **{farmacias}** para liberar el patrocinio.
+* **Guion Exacto de Negociación:**  
+  > *«Doctor(a) {nom}, cuente conmigo para gestionar este apoyo ante la compañía; usted tiene un potencial de {dossier['pxs_ytd_total']} pacientes anuales que para Gutis es estratégico. Para que Dirección Médica me apruebe la solicitud este ciclo, me piden demostrar que subimos nuestra participación actual de **{dossier['pxs_gutis_mes']} pacientes mensuales** captando al menos **15 pacientes adicionales** de los {dossier['pxs_comp_mes']} que hoy van a otras marcas en **{prod1}** y **{prod2}**. Iniciemos esta semana direccionando esas recetas hacia **{farmacias}** y con ese corte en mano yo defiendo su solicitud en gerencia. ¿Trato hecho?»*
+"""
+    elif es_objecion_precio_esceptico:
+        respuesta_base = f"""### 🔬 Manejo de Objeciones TVP (Unidad 8): Dr(a). {nom}
+
+#### 📊 Radiografía del Especialista ({esp} | {ciu}):
+{desglose_mercados_foco}
+
+#### 🗣️ Guion en 4 Pasos (Clarificar $\rightarrow$ Comprender $\rightarrow$ Reencuadrar $\rightarrow$ Confirmar)
+* **1. Clarificar:** *«Doctor(a) {nom}, cuando evalúa **{prod1}** frente a `{comp1}`, ¿su duda principal está en la respuesta galénica o en el costo para el paciente?»*
+* **2. Comprender:** *«Entiendo perfectamente; en **{esp}** cuidar el bolsillo y la adherencia de la familia es clave.»*
+* **3. Manejar con Valor Galénico:** *«Justamente por eso **{prod1}** ofrece **{meta1['caracteristica'].lower()}**, asegurando **{meta1['beneficio'].lower()}**. Eso evita que el paciente abandone el tratamiento al segundo día o gaste doble por recaídas.»*
+* **4. Confirmar:** *«Viendo ese beneficio integral, ¿le parece iniciarlo en sus próximos 3 pacientes con respaldo en **{farmacias}**?»*
+"""
+    else:
+        respuesta_base = f"""### 🧬 Análisis Estratégico & Plan TVP: Dr(a). {nom}
+**Especialidad:** `{esp}` | **Categoría:** `{cat}` | **Territorio:** `{ciu}` | **Volumen:** `{dossier['pxs_mes_total']} Pxs-MES` (`{dossier['pxs_ytd_total']} YTD`) — **Gutis:** `{dossier['pxs_gutis_mes']} Pxs ({ms_global_mes:.1f}%)` vs. **Competencia:** `{dossier['pxs_comp_mes']} Pxs`
+
+#### 📊 1. Desglose por Mercados y Competidor a Derribar:
+{desglose_mercados_foco}
+* **Ranking de Laboratorios en su Recetario:** {labs_txt}
+
+#### 🗣️ 2. Abordaje TVP Paso a Paso para esta Visita:
+* **Apertura (Sin marca):** *«Doctor(a) {nom}, quería proponerle revisar en dos minutos cómo optimizar el apego y rapidez de respuesta en {meta1['paciente_meta'].lower()}. ¿Le parece bien?»*
+* **Sondeo de Valor Mutuo:** *«En los casos donde hoy indica `{comp1}`, al **evaluar** las primeras 48 horas, ¿qué considera prioritario mejorar en tolerabilidad y eficacia?»*
+* **Apoyo Love Brand (`{prod1}`):** *«Con **{prod1}** usted cuenta con **{meta1['caracteristica'].lower()}**, logrando **{meta1['beneficio'].lower()}**.»*
+* **Cierre Bilateral + Puente (`{prod2}`):** *«¿Iniciamos con **{prod1}** en sus próximos 3 a 5 pacientes esta semana mientras verifico el stock en **{farmacias}**? Y como puente clínico, recuerde que también tiene disponible **{prod2}** para sus casos complementarios.»*
+"""
+    return respuesta_base
 
 # --- MOTOR MACRO 1: MATRIZ DE PENETRACIÓN POR ESPECIALIDAD ---
 @st.cache_data
@@ -963,24 +994,6 @@ if not df_ventas.empty and "DESCRIPCION_RUTA" in df_ventas.columns:
         total_puntos_venta = len(df_farmacias_totales)
         if not df_farmacias_totales.empty:
             top_farmacias_ciudad_str = ", ".join(df_farmacias_totales["NOMBRE_CLIENTE_1"].head(3).tolist())
-
-# --- LLAMADA API GEMINI ---
-def llamar_gemini(prompt_text, max_tok=4096):
-    api_key = st.secrets.get("GEMINI_API_KEY", "")
-    if not api_key: return None
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.25}}
-    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash"]
-    for mod in modelos_a_probar:
-        try:
-            url_p = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={api_key}"
-            res = requests.post(url_p, headers=headers, json=payload, timeout=18)
-            if res.status_code == 200:
-                cands = res.json().get('candidates', [])
-                if cands and 'content' in cands[0] and 'parts' in cands[0]['content']:
-                    return cands[0]['content']['parts'][0].get('text', '')
-        except: continue
-    return None
 
 # --- TICKER SUPERIOR COMPACTO ---
 escala_ticker = opciones_mercados_medico[0]["escala_actual"].split("(")[0] if opciones_mercados_medico else "2. Consciente"
@@ -1291,15 +1304,15 @@ with nucleo_micro:
 """)
 
         with st.expander("⚔️ [ENTRENADOR DE OBJECIONES TVP: ESCEPTICISMO, MALENTENDIDO, DESVENTAJA E INDIFERENCIA]"):
-            st.caption("Escribe tu argumento frente a una objeción del médico y recibe feedback inmediato según las Unidades 7 y 8 del Manual Gutis.")
+            st.caption("Practica tu respuesta ante cualquier objeción clínica y recibe retroalimentación basada en el Manual TVP.")
             chat_container = st.container(height=230)
             for msg in st.session_state.chat_history:
                 with chat_container.chat_message(msg["role"]): st.write(msg["content"])
-            if prompt_chat := st.chat_input(f"Rebate la objeción del Dr(a). {medico_sel} sobre {prod1}..."):
+            if prompt_chat := st.chat_input(f"Escribe tu argumento clínico para el Dr(a). {medico_sel}..."):
                 st.session_state.chat_history.append({"role": "user", "content": prompt_chat})
                 with chat_container.chat_message("user"): st.write(prompt_chat)
                 with st.spinner("Evaluando técnica TVP..."):
-                    prompt_sim = f"{REGLAS_FARMA}\nEntrena a Erick Calderón frente al Dr(a). {medico_sel}. Producto: {prod1} vs {comp1}. Erick dijo: '{prompt_chat}'. Responde en 2 bloques breves: 1) Respuesta realista del médico, 2) Coaching TVP (clasificando en Escepticismo, Malentendido, Desventaja o Quid Pro Quo)."
+                    prompt_sim = f"{REGLAS_FARMA}\nEntrena a Erick Calderón frente al Dr(a). {medico_sel}. Producto: {prod1} vs {comp1}. Erick dijo: '{prompt_chat}'. Responde en 2 bloques breves: 1) Respuesta realista del médico, 2) Coaching TVP."
                     res_sim = llamar_gemini(prompt_sim)
                     if not res_sim:
                         res_sim = f"**🩺 Dr(a). {medico_sel}:** «Ya conozco `{comp1}` y me da resultados aceptables; además el paciente ya lo ubica.»\n\n**🛡️ Coaching TVP:** Clasificación: **Indiferencia / Hábito**. Aplica Unidad 7: 1) Demuestra comprensión sin ceder, 2) Pide permiso para 1 pregunta de agenda limitada sobre el beneficio exclusivo de **{prod1}** (*{meta1['caracteristica']}*)."
@@ -1383,7 +1396,7 @@ with nucleo_micro:
                 val_minsa = st.text_input("Código MINSA:", value=str(perfil_360_actual.get("MINSA", "")) if str(perfil_360_actual.get("MINSA", "")) != "nan" else "")
                 val_cel = st.text_input("Celular / WhatsApp:", value=str(perfil_360_actual.get("Celular", "")) if str(perfil_360_actual.get("Celular", "")) != "nan" else "")
                 val_cumple = st.text_input("Fecha de Cumpleaños:", value=str(perfil_360_actual.get("Cumpleaños", "")) if str(perfil_360_actual.get("Cumpleaños", "")) != "nan" else "")
-                val_deporte = st.text_input("Contexto de Campo / Afinidad / Barreras:", value=str(perfil_360_actual.get("Deporte", "")) if str(perfil_360_actual.get("Deporte", "")) != "nan" else "")
+                val_deporte = st.text_input("Contexto de Campo / Afinidad / Notas:", value=str(perfil_360_actual.get("Deporte", "")) if str(perfil_360_actual.get("Deporte", "")) != "nan" else "")
                 opc_visita = ["Ultra-ejecutiva", "Discusión científica", "Casos clínicos"]
                 idx_vis = opc_visita.index(perfil_360_actual.get("Estilo_Visita", opc_visita[0])) if perfil_360_actual.get("Estilo_Visita") in opc_visita else 0
                 val_estilo_visita = st.selectbox("Estilo de Visita:", opc_visita, index=idx_vis)
@@ -1412,8 +1425,8 @@ with nucleo_copiloto:
     col_chira_main, col_crm_post = st.columns([1.48, 0.97])
 
     with col_chira_main:
-        st.markdown("##### ♟️ [COPILOTO COGNITIVO CHIRA 3.0 — RAZONAMIENTO TÁCTICO DE MÉDICOS, BARRERAS Y TERRITORIO]")
-        st.caption("Háblale sobre cualquier médico por nombre (ej. *'La Dra. Arlen Aburto está comprada por Megalabs'*, *'El Dr. Zavala me pide un congreso a cambio de recetar'*) o usa los botones macro.")
+        st.markdown("##### ♟️ [COPILOTO COGNITIVO CHIRA 3.0 — CONSULTORÍA DE ESPECIALISTAS, MERCADOS Y TERRITORIO]")
+        st.caption("Consulta estrategias por médico, diagnóstico de mercados (P1, P2, P3), sincronía Rx vs. Sell-Out o planes tácticos TVP.")
         
         with st.container(border=True):
             p_c1, p_c2, p_c3, p_c4 = st.columns([1.2, 1.2, 1.2, 0.7])
@@ -1435,7 +1448,7 @@ with nucleo_copiloto:
         for msg in st.session_state.chira_history:
             with chat_container_chira.chat_message(msg["role"]): st.write(msg["content"])
             
-        input_chat_chira = st.chat_input("Háblale a Chira (ej: La Dra. Arlen Aburto está comprada por Megalabs, ¿cómo la manejo? / Me pide un congreso para recetar)...")
+        input_chat_chira = st.chat_input("Escribe tu consulta estratégica o análisis de caso...")
 
         if accion_consola or input_chat_chira:
             prio_target = None
@@ -1454,13 +1467,13 @@ with nucleo_copiloto:
                 match_num = re.search(r'\b(\d+)\b', texto_norm)
                 top_n = int(match_num.group(1)) if match_num and 1 <= int(match_num.group(1)) <= 50 else 5
 
-                # 1. DETECCIÓN COGNITIVA DE MÉDICO ESPECÍFICO O CONTINUIDAD DE CONVERSACIÓN SOBRE UN MÉDICO
                 medico_detectado_chat = detectar_medico_en_texto(input_chat_chira)
                 es_pregunta_tactica_individual = any(k in texto_norm for k in [
                     "COMPRAD", "AMARRAD", "CASAD", "FIDELIZAD", "PIDE", "PEDIR", "PIDIO", "A CAMBIO",
                     "CONGRESO", "MUESTRA", "REGALO", "APOYO", "PATROCIN", "OBJECION", "ESCEPTIC",
                     "PRECIO", "CARO", "PASILLO", "ABORDO", "ABORDAR", "MANEJAR", "MANEJO", "ENTRARLE",
-                    "ESTE MEDICO", "ESTA DOCTORA", "ESTE DOCTOR", "ELLA", "EL DOCTOR", "LA DOCTORA"
+                    "ESTE MEDICO", "ESTA DOCTORA", "ESTE DOCTOR", "ELLA", "EL DOCTOR", "LA DOCTORA",
+                    "COMPARTIENDO", "COMPARTE", "COMPROMISO", "QUE CREES QUE PASE"
                 ])
 
                 if not medico_detectado_chat and es_pregunta_tactica_individual:
@@ -1508,27 +1521,25 @@ with nucleo_copiloto:
             st.session_state.chira_history.append({"role": "user", "content": pregunta_mostrar})
             with chat_container_chira.chat_message("user"): st.write(pregunta_mostrar)
 
-            with st.spinner("[CHIRA RAZONANDO ESCENARIO COMERCIAL Y EXPEDIENTE CLÍNICO...]"):
-                # MOTOR ESPECIAL: CONSULTORÍA COGNITIVA DE MÉDICO ESPECÍFICO Y ESCENARIOS DE CALLE
+            with st.spinner("[CHIRA ANALIZANDO CASO Y DATOS REALES...]"):
                 if modo_motor == "CONSULTORIA_MEDICO_INDIVIDUAL":
                     dossier_doc = extraer_dossier_medico(medico_detectado_chat)
                     base_cognitiva = construir_respuesta_cognitiva_medico(dossier_doc, input_chat_chira)
 
                     prompt_cognitivo_ia = f"""{REGLAS_FARMA}
-Eres CHIRA 3.0, Estratega Senior de Inteligencia Comercial y Master Coach del Modelo TVP de Laboratorios Gutis en Nicaragua.
-Erick Calderón (Visitador Médico) te acaba de plantear la siguiente situación o consulta de campo:
+Eres CHIRA 3.0, Consultora Senior de Inteligencia Comercial y Master Coach TVP de Laboratorios Gutis.
+El usuario (Erick Calderón) te acaba de escribir exactamente esto:
 "{input_chat_chira}"
 
-Aquí tienes el Dossier Real auditado en Close-Up, Laboratorios y Sell-Out del especialista junto con la estructura táctica base:
+Aquí tienes el diagnóstico base y las cifras exactas extraídas de Close-Up y Sell-Out para el Dr(a). {dossier_doc['nombre']}:
 {base_cognitiva}
 
-INSTRUCCIONES DE RAZONAMIENTO AVANZADO:
-1. Mantén INTACTAS todas las cifras reales del médico (Pxs-MES, Pxs-YTD, ranking de laboratorios, productos líderes y farmacias de su ciudad).
-2. Responde directamente al contexto específico que Erick te está contando (ej. si dice que está comprada/amarrada por otro laboratorio, si pide congresos/muestras/regalos a cambio de recetar, si es escéptica, o si quiere analizarla para armar su plan TVP).
-3. Estructura tu respuesta con autoridad ejecutiva, empatía comercial y guiones literales listos para usar hoy mismo en el consultorio."""
+INSTRUCCIONES ESTRICTAS:
+1. Empieza respondiendo DIRECTAMENTE a la duda o situación que plantea Erick (por ejemplo, si pregunta por qué el médico comparte la receta en ciertas marcas a pesar de tener compromiso con Gutis, analiza las causas reales usando los números exactos de cada marca).
+2. NO uses encabezados genéricos si no vienen al caso; conserva TODAS las cifras exactas de pacientes (Mes, YTD, rivales por mercado y farmacias de su ciudad) y entrega el guion quirúrgico TVP para resolverlo en la visita."""
 
                     res_ia_cog = llamar_gemini(prompt_cognitivo_ia)
-                    resultado_final = res_ia_cog if (res_ia_cog and len(res_ia_cog.strip()) > 200) else base_cognitiva
+                    resultado_final = res_ia_cog if (res_ia_cog and len(res_ia_cog.strip()) > 180) else base_cognitiva
 
                 else:
                     df_panel_sub = df_panel.copy()
@@ -1668,7 +1679,7 @@ INSTRUCCIONES DE RAZONAMIENTO AVANZADO:
             with cb4: escala_post = st.selectbox("4. Escalón Alcanzado:", ["1. No Consciente", "2. Consciente", "3. Prueba (2-10 Pxs)", "4. Adopción (25-50%)", "5. Lealtad (>50%)"])
             compromiso_med = st.text_input("Compromiso del Médico:", value="Iniciar en próximos 3-5 pacientes")
             compromiso_vis = st.text_input("Compromiso Visitador:", value=f"Garantizar stock en {top_farmacias_ciudad_str.split(',')[0]}")
-            notas_visita = st.text_area("Contexto de Calle / Objeciones / Pedidos detectados:", height=68, placeholder="Ej: Está casada con Cetriler; se abordó por nicho de lactantes sin alcohol...")
+            notas_visita = st.text_area("Acuerdos Clínicos y Observaciones Post-Visita:", height=68, placeholder="Registra hallazgos clínicos o seguimiento para la próxima apertura...")
 
             if st.form_submit_button("⛓️ Registrar Cierre de Ciclo en Bitácora CRM", use_container_width=True, type="primary"):
                 nueva_visita = {
