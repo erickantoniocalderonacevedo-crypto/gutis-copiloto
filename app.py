@@ -184,10 +184,9 @@ REGLAS FARMACOLÓGICAS Y METODOLOGÍA OFICIAL TVP GUTIS (ESTRICTO):
 6. METODOLOGÍA TVP GUTIS:
    - Escala de Adopción de la Marca: 1. No Consciente (0% MS), 2. Consciente (0% MS pero conoce), 3. Prueba (2 a 10 Pxs o >0% y <=25% MS), 4. Adopción (>25% a 50% MS), 5. Lealtad (>50% MS).
    - En la APERTURA está PROHIBIDO mencionar el nombre del producto y abusar del "Yo"; debe proponerse una Agenda centrada en el paciente, comunicar el Valor de la Agenda y Confirmar Aceptación.
-   - En DESCUBRIR NECESIDADES se usa la Técnica del Embudo para explorar: Circunstancias -> Necesidad -> Necesidad detrás de la Necesidad (Finanzas, Desempeño o Imagen) usando Sondeos de Valor Mutuo (Comparar, Analizar, Suponer, Reflexionar, Contrastar, Evaluar, Considerar, Explorar).
+   - En DESCUBRIR NECESIDADES se usa la Técnica del Embudo para explorar: Circunstancias -> Necesidad -> Necesidad detrás de la Necesidad (Finanzas, Desempeño o Imagen) usando Sondeos de Valor Mutuo.
    - En APOYO/STORYTELLING: 1) Demostrar comprensión de la necesidad, 2) Característica + Beneficio vinculado a la Necesidad detrás de la Necesidad + Love Brands, 3) Confirmar aceptación.
-   - En CIERRE/PUENTE: 1) Resumir beneficios aceptados, 2) Pedir compromiso mutuo (pasos del médico y pasos del visitador), 3) Confirmar aceptación, 4) Hacer PUENTE natural hacia el 2do y 3er producto de diferente categoría de mercado.
-   - MANEJO DE OBJECIONES: Clasificar siempre en Escepticismo (duda -> dar pruebas/evidencia), Malentendido (información incompleta -> confirmar necesidad subyacente y describir beneficio) o Desventaja (limitación real como precio -> reenfocar perspectiva amplia y contraargumentar con beneficios previos).
+   - En CIERRE/PUENTE: 1) Resumir beneficios aceptados, 2) Pedir compromiso mutuo, 3) Confirmar aceptación, 4) Hacer PUENTE natural hacia el 2do y 3er producto.
 """
 
 # --- ESTILOS CSS ELEGANTES Y PREMIUM ---
@@ -199,8 +198,9 @@ st.markdown("""
     .metric-title { color: #64748b; font-size: 0.72rem; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; letter-spacing: 0.8px; }
     .metric-value { color: #0f172a; font-size: 1.45rem; font-weight: 800; }
     .tvp-box { background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #0284c7; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.03); }
-    .stTabs [data-baseweb="tab-list"] { border-bottom: 2px solid #e2e8f0; gap: 6px; padding-bottom: 0; }
-    .stTabs [data-baseweb="tab"] { font-size: 0.85rem; font-weight: 700; color: #475569; padding: 10px 16px; border-radius: 6px 6px 0 0; background-color: #f1f5f9; border: 1px solid transparent; border-bottom: none; }
+    .elite-header { background: linear-gradient(90deg, #0f172a 0%, #1e3a8a 100%); color: #f8fafc; padding: 12px 18px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #eab308; font-weight: 800; }
+    .stTabs [data-baseweb="tab-list"] { border-bottom: 2px solid #e2e8f0; gap: 5px; padding-bottom: 0; }
+    .stTabs [data-baseweb="tab"] { font-size: 0.82rem; font-weight: 700; color: #475569; padding: 9px 14px; border-radius: 6px 6px 0 0; background-color: #f1f5f9; border: 1px solid transparent; border-bottom: none; }
     .stTabs [aria-selected="true"] { color: #ffffff; background-color: #1e3a8a; box-shadow: inset 0 -3px 0 #38bdf8; }
 </style>
 """, unsafe_allow_html=True)
@@ -257,7 +257,7 @@ if "bitacora_memoria" not in st.session_state: st.session_state.bitacora_memoria
 st.markdown("""
 <div style='background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); padding: 22px 26px; border-radius: 8px; margin-bottom: 22px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-left: 6px solid #38bdf8;'>
     <h2 style='color: #ffffff; margin: 0; font-size: 1.7rem; letter-spacing: 0.5px; font-weight: 800;'>[GUTIS BI] - TERMINAL DE INTELIGENCIA COMERCIAL & MODELO TVP</h2>
-    <p style='color: #93c5fd; margin: 0; font-size: 0.82rem; text-transform: uppercase; font-weight: 600; margin-top: 5px; letter-spacing: 1px;'>Auditoría Multi-Mercado (Prioridad 1, 2, 3), Técnica de Ventas Profesionales y Gestión Territorial</p>
+    <p style='color: #93c5fd; margin: 0; font-size: 0.82rem; text-transform: uppercase; font-weight: 600; margin-top: 5px; letter-spacing: 1px;'>Penetración por Especialidad, Sincronía Rx vs. Sell-Out y Técnica de Ventas Profesionales</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -318,11 +318,7 @@ if perfil_360_actual:
     if estilo_visita and str(estilo_visita) not in ["nan", ""]: partes_rapport.append(f"Estilo de Visita Preferido: {estilo_visita}")
     if partes_rapport: contexto_rapport_str = " | ".join(partes_rapport)
 
-# --- PROCESAMIENTO MULTI-MERCADO (PRIORIDAD 1, 2, 3 Y ESCALA DE ADOPCIÓN TVP) ---
-rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy() if not df_productos.empty else pd.DataFrame()
-rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"]) if not rx_raw.empty and "NOMBRE_PRODUCTO" in rx_raw.columns else pd.DataFrame()
-if not rx_clean.empty: rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
-
+# --- FUNCIONES DE CLASIFICACIÓN DE PRODUCTOS Y MERCADOS ---
 def es_gutis(nombre_prod): return any(g in str(nombre_prod).upper() for g in PRODUCTOS_GUTIS)
 def obtener_meta_mercado(mercado_val):
     m_up = str(mercado_val).strip().upper()
@@ -348,6 +344,256 @@ def diagnosticar_escala_adopcion(pxs_gutis_m, pxs_tot_m, ms_gutis_m):
     if ms_gutis_m <= 50.0:
         return f"4. Adopción ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (>50% MS)", "Consolidar la marca como primera elección en más del 50% de sus pacientes meta."
     return f"5. Lealtad ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (Blindaje y Promotor)", "Blindar su lealtad ante la competencia y convertirlo en médico promotor de la marca."
+
+# --- FUNCIÓN MOTOR 1 NUEVO: MATRIZ DE PENETRACIÓN POR ESPECIALIDAD Y TOP 5 COMPETENCIA ---
+@st.cache_data
+def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
+    df_p_sub = df_panel.copy()
+    if ciudad_sel != "TODO MI PANEL" and "CIUDAD" in df_p_sub.columns:
+        df_p_sub = df_p_sub[df_p_sub["CIUDAD"].astype(str).str.upper().str.contains(re.escape(ciudad_sel), na=False)].copy()
+
+    if df_p_sub.empty or "Especialidad" not in df_p_sub.columns:
+        return pd.DataFrame(), pd.DataFrame()
+
+    # Limpieza de base de laboratorios
+    usar_labs = not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns
+    if usar_labs:
+        df_l_clean = df_labs[~df_labs["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])].copy()
+        col_ytd_l = "Pxs-YTD" if "Pxs-YTD" in df_l_clean.columns else next((c for c in df_l_clean.columns if "YTD" in c.upper() and "PXS" in c.upper()), None)
+        if not col_ytd_l:
+            col_ytd_l = next((c for c in df_l_clean.columns if "PXS" in c.upper()), None)
+        if col_ytd_l:
+            df_l_clean[col_ytd_l] = pd.to_numeric(df_l_clean[col_ytd_l], errors='coerce').fillna(0)
+
+    # Limpieza de base de productos como apoyo/respaldo
+    df_rx_c = df_productos[~df_productos["NOMBRE_PRODUCTO"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])].copy() if not df_productos.empty else pd.DataFrame()
+    col_ytd_rx = next((c for c in df_rx_c.columns if c.upper() == "PXS-YTD"), None) if not df_rx_c.empty else None
+    if not col_ytd_rx and not df_rx_c.empty:
+        col_ytd_rx = next((c for c in df_rx_c.columns if "PXS" in c.upper()), None)
+    if not df_rx_c.empty and col_ytd_rx:
+        df_rx_c[col_ytd_rx] = pd.to_numeric(df_rx_c[col_ytd_rx], errors='coerce').fillna(0)
+        df_rx_c["Es_G"] = df_rx_c["NOMBRE_PRODUCTO"].apply(es_gutis)
+
+    filas_rendimiento = []
+    filas_competencia = []
+
+    for esp_nom, grp_esp in df_p_sub.groupby("Especialidad"):
+        meds_panel_esp = set(grp_esp["Médico"].dropna().unique())
+        num_panel = len(meds_panel_esp)
+        if num_panel == 0:
+            continue
+
+        if usar_labs and col_ytd_l:
+            df_l_esp = df_l_clean[df_l_clean["Médico"].isin(meds_panel_esp)].copy()
+            df_l_esp_act = df_l_esp[df_l_esp[col_ytd_l] > 0]
+            meds_captados = set(df_l_esp_act["Médico"].unique())
+
+            # Si hay médicos captados en productos que no aparecieron en df_labs, complementar
+            if not df_rx_c.empty and col_ytd_rx:
+                meds_cap_rx = set(df_rx_c[(df_rx_c["Médico"].isin(meds_panel_esp)) & (df_rx_c[col_ytd_rx] > 0)]["Médico"].unique())
+                meds_captados = meds_captados.union(meds_cap_rx)
+
+            num_captados = len(meds_captados)
+
+            # Médicos que recetan Gutis, Top 1 y Top 3 por médico
+            recetan_gutis_count = 0
+            top1_count = 0
+            top3_count = 0
+
+            for m_doc in meds_captados:
+                sub_m = df_l_esp_act[df_l_esp_act["Médico"] == m_doc]
+                if not sub_m.empty:
+                    rk_m = sub_m.groupby("FABRICANTE")[col_ytd_l].sum().reset_index().sort_values(by=col_ytd_l, ascending=False).reset_index(drop=True)
+                    rk_m["Rank"] = rk_m.index + 1
+                    fila_g_m = rk_m[rk_m["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)]
+                    if not fila_g_m.empty and fila_g_m.iloc[0][col_ytd_l] > 0:
+                        recetan_gutis_count += 1
+                        r_pos = int(fila_g_m.iloc[0]["Rank"])
+                        if r_pos == 1:
+                            top1_count += 1
+                        if r_pos <= 3:
+                            top3_count += 1
+                elif not df_rx_c.empty and col_ytd_rx:
+                    sub_rx_m = df_rx_c[(df_rx_c["Médico"] == m_doc) & (df_rx_c[col_ytd_rx] > 0)]
+                    if not sub_rx_m.empty and sub_rx_m[sub_rx_m["Es_G"]][col_ytd_rx].sum() > 0:
+                        recetan_gutis_count += 1
+
+            penetracion_pct = (recetan_gutis_count / num_captados * 100) if num_captados > 0 else 0.0
+
+            # Ranking global de Fabricantes dentro de la Especialidad
+            if not df_l_esp_act.empty:
+                rk_esp_labs = df_l_esp_act.groupby("FABRICANTE")[col_ytd_l].sum().reset_index().sort_values(by=col_ytd_l, ascending=False).reset_index(drop=True)
+                tot_pxs_esp_ytd = rk_esp_labs[col_ytd_l].sum()
+                rk_esp_labs["MS_YTD"] = (rk_esp_labs[col_ytd_l] / tot_pxs_esp_ytd * 100) if tot_pxs_esp_ytd > 0 else 0.0
+                
+                fila_g_esp = rk_esp_labs[rk_esp_labs["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)]
+                ms_gutis_ytd = float(fila_g_esp.iloc[0]["MS_YTD"]) if not fila_g_esp.empty else 0.0
+
+                top5_strs = []
+                for idx_c in range(5):
+                    if idx_c < len(rk_esp_labs):
+                        r_lab = rk_esp_labs.iloc[idx_c]
+                        nom_f = str(r_lab["FABRICANTE"]).strip()
+                        ms_f = float(r_lab["MS_YTD"])
+                        marca_f = f"🟢 {nom_f} ({ms_f:.2f}%)" if "GUTIS" in nom_f.upper() else f"{nom_f} ({ms_f:.2f}%)"
+                        top5_strs.append(marca_f)
+                    else:
+                        top5_strs.append("-")
+            else:
+                ms_gutis_ytd = 0.0
+                top5_strs = ["-", "-", "-", "-", "-"]
+
+            filas_rendimiento.append({
+                "ESPECIALIDAD": esp_nom,
+                "PANEL": num_panel,
+                "CAPTADOS": num_captados,
+                "RECETAN GUTIS": recetan_gutis_count,
+                "PENETRACIÓN": round(penetracion_pct, 2),
+                "TOP 1": top1_count,
+                "TOP 3": top3_count,
+                "%MS-YTD": round(ms_gutis_ytd, 2)
+            })
+
+            filas_competencia.append({
+                "ESPECIALIDAD": esp_nom,
+                "#1": top5_strs[0],
+                "#2": top5_strs[1],
+                "#3": top5_strs[2],
+                "#4": top5_strs[3],
+                "#5": top5_strs[4],
+                "_orden": num_panel
+            })
+
+    df_rend = pd.DataFrame(filas_rendimiento).sort_values(by="PANEL", ascending=False) if filas_rendimiento else pd.DataFrame()
+    df_comp = pd.DataFrame(filas_competencia).sort_values(by="_orden", ascending=False).drop(columns=["_orden"]) if filas_competencia else pd.DataFrame()
+    return df_rend, df_comp
+
+# --- FUNCIÓN MOTOR 2 NUEVO: CRUCE DE TENDENCIAS EN EL TIEMPO (RX MÉDICO VS. VENTA EN FARMACIA) ---
+@st.cache_data
+def calcular_sincronia_rx_vs_sellout(ciudad_sel="TODO MI PANEL"):
+    df_p_sub = df_panel.copy()
+    if ciudad_sel != "TODO MI PANEL" and "CIUDAD" in df_p_sub.columns:
+        df_p_sub = df_p_sub[df_p_sub["CIUDAD"].astype(str).str.upper().str.contains(re.escape(ciudad_sel), na=False)].copy()
+    meds_zona = set(df_p_sub["Médico"].dropna().unique())
+
+    df_rx_sub = df_productos[df_productos["Médico"].isin(meds_zona)].copy() if not df_productos.empty else pd.DataFrame()
+    if not df_rx_sub.empty:
+        df_rx_sub = df_rx_sub[~df_rx_sub["NOMBRE_PRODUCTO"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+
+    col_pxs_m = next((c for c in df_rx_sub.columns if c.upper() == "PXS-MES"), None) if not df_rx_sub.empty else None
+    col_pxs_y = next((c for c in df_rx_sub.columns if c.upper() == "PXS-YTD"), None) if not df_rx_sub.empty else None
+    if not df_rx_sub.empty and col_pxs_m:
+        df_rx_sub[col_pxs_m] = pd.to_numeric(df_rx_sub[col_pxs_m], errors='coerce').fillna(0)
+    if not df_rx_sub.empty and col_pxs_y:
+        df_rx_sub[col_pxs_y] = pd.to_numeric(df_rx_sub[col_pxs_y], errors='coerce').fillna(0)
+
+    df_v_sub = df_ventas.copy() if not df_ventas.empty else pd.DataFrame()
+    if not df_v_sub.empty and ciudad_sel != "TODO MI PANEL" and "DESCRIPCION_RUTA" in df_v_sub.columns:
+        df_v_sub = df_v_sub[df_v_sub["DESCRIPCION_RUTA"].str.contains(re.escape(ciudad_sel), na=False)].copy()
+    if not df_v_sub.empty:
+        df_v_sub = df_v_sub[~df_v_sub["NOMBRE_CLIENTE_1"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
+    col_prod_v = "VM4" if (not df_v_sub.empty and "VM4" in df_v_sub.columns) else (next((c for c in df_v_sub.columns if "PRODUCTO" in c.upper()), None) if not df_v_sub.empty else None)
+
+    filas_sincronia = []
+    for m_key, m_info in MERCADOS_PRIORITARIOS.items():
+        prod_nom = m_info["producto"]
+        kw_merc = m_key.replace("MR ", "").strip().upper()
+        kw_venta = prod_nom.split()[0].upper()
+        if kw_venta == "DALIVIO":
+            patron_v = "DALIVIO|DALIVIUM"
+        elif kw_venta == "TALERDÍN" or kw_venta == "TALERDIN":
+            patron_v = "TALERDIN|TALERDÍN"
+        else:
+            patron_v = re.escape(kw_venta)
+
+        # 1. Métricas de Prescripción (Rx en el Tiempo: YTD vs Mes Actual)
+        pxs_ytd_tot, pxs_ytd_gut, pxs_mes_tot, pxs_mes_gut = 0, 0, 0, 0
+        if not df_rx_sub.empty and "MERCADO" in df_rx_sub.columns:
+            sub_m_rx = df_rx_sub[df_rx_sub["MERCADO"].astype(str).str.upper().str.contains(re.escape(kw_merc), na=False)].copy()
+            if not sub_m_rx.empty:
+                sub_m_rx["Es_G"] = sub_m_rx["NOMBRE_PRODUCTO"].apply(es_gutis)
+                if col_pxs_y:
+                    pxs_ytd_tot = int(sub_m_rx[col_pxs_y].sum())
+                    pxs_ytd_gut = int(sub_m_rx[sub_m_rx["Es_G"]][col_pxs_y].sum())
+                if col_pxs_m:
+                    pxs_mes_tot = int(sub_m_rx[col_pxs_m].sum())
+                    pxs_mes_gut = int(sub_m_rx[sub_m_rx["Es_G"]][col_pxs_m].sum())
+
+        ms_ytd_gut = (pxs_ytd_gut / pxs_ytd_tot * 100) if pxs_ytd_tot > 0 else 0.0
+        ms_mes_gut = (pxs_mes_gut / pxs_mes_tot * 100) if pxs_mes_tot > 0 else 0.0
+        delta_ms_rx = ms_mes_gut - ms_ytd_gut
+
+        # 2. Métricas de Sell-Out en Farmacias (Q1, Q2, Q3)
+        v_q1, v_q2, v_q3 = 0.0, 0.0, 0.0
+        if not df_v_sub.empty and col_prod_v and "Trimestre" in df_v_sub.columns:
+            sub_v = df_v_sub[df_v_sub[col_prod_v].astype(str).str.upper().str.contains(patron_v, na=False)]
+            if not sub_v.empty:
+                q_sums = sub_v.groupby("Trimestre")["Monto Real"].sum().to_dict()
+                v_q1 = float(q_sums.get("Q1", 0.0))
+                v_q2 = float(q_sums.get("Q2", 0.0))
+                v_q3 = float(q_sums.get("Q3", 0.0))
+
+        v_total = v_q1 + v_q2 + v_q3
+        delta_so_pct = ((v_q3 - v_q2) / v_q2 * 100) if v_q2 > 0 else (100.0 if v_q3 > 0 else 0.0)
+
+        if pxs_ytd_tot == 0 and pxs_mes_tot == 0 and v_total == 0:
+            continue
+
+        # Clasificación de Tendencia Rx y Diagnóstico de Sincronía
+        if delta_ms_rx >= 1.5 or (pxs_mes_gut > (pxs_ytd_gut / 8.0) and pxs_mes_gut > 0):
+            tend_rx_str = f"📈 Crece Rx ({delta_ms_rx:+.1f}% MS)"
+            rx_crece = True
+        elif delta_ms_rx <= -1.5:
+            tend_rx_str = f"📉 Cae Rx ({delta_ms_rx:+.1f}% MS)"
+            rx_crece = False
+        else:
+            tend_rx_str = f"➖ Estable ({delta_ms_rx:+.1f}% MS)"
+            rx_crece = (ms_mes_gut >= 15.0 or pxs_mes_gut > 0)
+
+        if delta_so_pct >= 5.0:
+            tend_so_str = f"🟢 Sube +{delta_so_pct:.1f}%"
+            so_crece = True
+        elif delta_so_pct <= -10.0:
+            tend_so_str = f"🔴 Cae {delta_so_pct:.1f}%"
+            so_crece = False
+        else:
+            tend_so_str = f"🟡 Estable ({delta_so_pct:+.1f}%)"
+            so_crece = True if v_q3 > 0 else False
+
+        if rx_crece and so_crece:
+            diag_sinc = "🟢 SINCRONÍA POSITIVA (Crece Médico y Crece Farmacia)"
+        elif rx_crece and not so_crece:
+            diag_sinc = "🚨 ALERTA DE FUGA EN MOSTRADOR (Médico receta más, pero cae Farmacia)"
+        elif not rx_crece and so_crece:
+            diag_sinc = "⚠️ EMPUJE COMERCIAL SIN TRACCIÓN RX (Sube Farmacia, reforzar visita médica)"
+        else:
+            diag_sinc = "🔴 CONTRACCIÓN DOBLE (Reactivar TVP en consultorio y PDV)"
+
+        filas_sincronia.append({
+            "Prioridad": f"P{m_info['prioridad']}",
+            "Marca Gutis": prod_nom,
+            "Pxs Gutis (YTD / Mes)": f"{pxs_ytd_gut} / {pxs_mes_gut}",
+            "% MS YTD": round(ms_ytd_gut, 2),
+            "% MS MES": round(ms_mes_gut, 2),
+            "Evolución Receta (Rx)": tend_rx_str,
+            "Sell-Out Q1": round(v_q1, 2),
+            "Sell-Out Q2": round(v_q2, 2),
+            "Sell-Out Q3": round(v_q3, 2),
+            "Evolución Farmacia (Q3 vs Q2)": tend_so_str,
+            "Diagnóstico de Sincronía (Rx vs. Farmacia)": diag_sinc,
+            "_orden_p": m_info["prioridad"],
+            "_orden_v": v_total
+        })
+
+    df_sinc = pd.DataFrame(filas_sincronia)
+    if not df_sinc.empty:
+        df_sinc = df_sinc.sort_values(by=["_orden_p", "_orden_v"], ascending=[True, False]).drop(columns=["_orden_p", "_orden_v"])
+    return df_sinc
+
+# --- PROCESAMIENTO MULTI-MERCADO DEL MÉDICO SELECCIONADO ---
+rx_raw = df_productos[df_productos["Médico"] == medico_sel].copy() if not df_productos.empty else pd.DataFrame()
+rx_clean = rx_raw.dropna(subset=["NOMBRE_PRODUCTO"]) if not rx_raw.empty and "NOMBRE_PRODUCTO" in rx_raw.columns else pd.DataFrame()
+if not rx_clean.empty: rx_clean = rx_clean[~rx_clean["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", ""])]
 
 if not rx_clean.empty:
     rx_clean["Es_Gutis"] = rx_clean["NOMBRE_PRODUCTO"].apply(es_gutis)
@@ -397,25 +643,13 @@ if not rx_clean.empty:
 
         if pxs_tot_m > 0 or pxs_ytd_m > 0 or lider_ms > 0:
             opciones_mercados_medico.append({
-                "mercado": m_nom,
-                "prioridad": prio_num,
-                "categoria_mercado": cat_merc_txt,
-                "lider_actual": lider_nombre,
-                "lider_es_gutis": lider_es_gutis,
-                "prod_gutis": prod_gutis_esperado,
-                "pxs_totales": pxs_tot_m,
-                "pxs_ytd": pxs_ytd_m,
-                "pxs_gutis": pxs_gut_m,
-                "pxs_comp": pxs_comp_m,
-                "ms_lider": lider_ms,
-                "ms_gutis": ms_gut_m,
-                "escala_actual": escala_act,
-                "escala_meta": escala_meta,
-                "objetivo_escala": obj_escala,
-                "meta_info": meta
+                "mercado": m_nom, "prioridad": prio_num, "categoria_mercado": cat_merc_txt,
+                "lider_actual": lider_nombre, "lider_es_gutis": lider_es_gutis, "prod_gutis": prod_gutis_esperado,
+                "pxs_totales": pxs_tot_m, "pxs_ytd": pxs_ytd_m, "pxs_gutis": pxs_gut_m, "pxs_comp": pxs_comp_m,
+                "ms_lider": lider_ms, "ms_gutis": ms_gut_m, "escala_actual": escala_act,
+                "escala_meta": escala_meta, "objetivo_escala": obj_escala, "meta_info": meta
             })
 
-    # Ordenar secuencialmente: primero por Prioridad de Mercado (1 -> 2 -> 3) y luego por Volumen de Pacientes
     opciones_mercados_medico = sorted(opciones_mercados_medico, key=lambda x: (x["prioridad"], -x["pxs_totales"], -x["pxs_ytd"]))
     num_mercados = len(opciones_mercados_medico)
 
@@ -482,16 +716,12 @@ def llamar_gemini(prompt_text, max_tok=4096):
         except: continue
     return None
 
-# --- CONSTRUCTOR LOCAL Y DE RED DEL PLAN TVP OFICIAL GUTIS PASO A PASO ---
+# --- CONSTRUCTOR DEL PLAN TVP OFICIAL GUTIS PASO A PASO ---
 def construir_plan_tvp_gutis(med_nombre, esp_med, cat_med, ciu_med, m1, m2, m3, tipo_cita, necesidad_profunda, rapport_str, farmacias_str):
     meta1 = m1["meta_info"]
-    prod1 = m1["prod_gutis"]
-    comp1 = m1["lider_actual"]
-    merc1 = m1["mercado"]
-    escala_act1 = m1["escala_actual"]
-    escala_meta1 = m1["escala_meta"]
+    prod1, comp1, merc1 = m1["prod_gutis"], m1["lider_actual"], m1["mercado"]
+    escala_act1, escala_meta1 = m1["escala_actual"], m1["escala_meta"]
 
-    # Información de 2do y 3er mercado (Categorías/Prioridades 2 y 3) para el Puente
     if m2:
         prod2, comp2, merc2, cat_m2 = m2["prod_gutis"], m2["lider_actual"], m2["mercado"], m2["categoria_mercado"]
         caract2, benef2 = m2["meta_info"]["caracteristica"], m2["meta_info"]["beneficio"]
@@ -506,7 +736,6 @@ def construir_plan_tvp_gutis(med_nombre, esp_med, cat_med, ciu_med, m1, m2, m3, 
         prod3, comp3, merc3, cat_m3 = "Renovart Platinum / Felicitat", "Competencia", "Mercado Terciario", "Prioridad 3 (Complemento)"
         benef3 = "Mejora sostenida en la calidad de vida a largo plazo"
 
-    # Posicionamiento de apertura según Tipo de Cita (Unidad 3 - Pág. 25 del Manual)
     if "Sin cita" in tipo_cita:
         frase_permiso = f"«Doctor(a) {med_nombre}, realmente le agradezco que me permita estos minutos; comprendo perfectamente que tiene pacientes en espera.»"
     elif "Encuentro casual" in tipo_cita:
@@ -514,7 +743,6 @@ def construir_plan_tvp_gutis(med_nombre, esp_med, cat_med, ciu_med, m1, m2, m3, 
     else:
         frase_permiso = f"«Doctor(a) {med_nombre}, un gusto saludarlo(a) nuevamente. {('Recordaba su afinidad por ' + rapport_str + '.') if rapport_str else 'Gracias por el espacio en su agenda de hoy.'}»"
 
-    # Enfoque de Necesidad detrás de la Necesidad (Unidad 1 y 4 - Págs. 11 y 41)
     if "Desempeño" in necesidad_profunda:
         enfoque_ndn = "EL DESEMPEÑO CLÍNICO (asegurar máxima eficacia terapéutica, rapidez de acción y cero recaídas en sus pacientes)"
     elif "Imagen" in necesidad_profunda:
@@ -522,7 +750,7 @@ def construir_plan_tvp_gutis(med_nombre, esp_med, cat_med, ciu_med, m1, m2, m3, 
     else:
         enfoque_ndn = "LAS FINANZAS / COSTO-BENEFICIO (garantizar un tratamiento que resuelva el cuadro en el primer ciclo sin gastos adicionales por falta de adherencia)"
 
-    reporte_tvp = f"""### 🎯 Hoja de Ruta Oficial: Técnica de Ventas Profesionales (TVP) - Gutis
+    return f"""### 🎯 Hoja de Ruta Oficial: Técnica de Ventas Profesionales (TVP) - Gutis
 **Médico:** Dr(a). {med_nombre} ({esp_med} | Categoría {cat_med} | {ciu_med})  
 **Secuencia Multi-Mercado de Hoy:**  
 1. **1ra Posición ({m1['categoria_mercado']}):** `{prod1}` en `{merc1}` *(Líder actual: {comp1} con {m1['pxs_totales']} Pxs-MES | YTD: {m1['pxs_ytd']} Pxs)*  
@@ -594,7 +822,6 @@ def construir_plan_tvp_gutis(med_nombre, esp_med, cat_med, ciu_med, m1, m2, m3, 
   * 🌉 **Recordación de 3ra Posición (`{prod3}` - {cat_m3}):**  
     > *«Finalmente Doctor(a), para sus pacientes en `{merc3.replace('MR ', '')}`, recuerde que también tiene disponible en **{farmacias_str}** nuestro **{prod3}**, garantizando **{benef3.lower()}**.»*
 """
-    return reporte_tvp
 
 # --- TARJETAS KPI CORPORATIVAS ---
 col1, col2, col3 = st.columns(3)
@@ -609,17 +836,98 @@ with col3:
 if cards_ataque_html:
     st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 14px; margin-bottom: 18px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);"><div style="font-size: 0.82rem; font-weight: 800; color: #0f172a; margin-bottom: 10px; letter-spacing: 0.5px;">[MATRIZ DE MERCADOS DEL MÉDICO POR PRIORIDAD (P1, P2, P3) Y ESCALA DE ADOPCIÓN - {num_mercados} MERCADOS ACTIVOS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=205, scrolling=True)
 
-# --- PESTAÑAS DEL SISTEMA COMPLETAS ---
-tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab_ruta = st.tabs([
-    "[ASISTENTE CHIRA]", "Fase 1: Modelo TVP Gutis", "Perfil 360°", "Fase 2: Análisis Rx (P1, P2, P3)", "Fase 3: Sell-Out", "Fase 4: Post-Visita & CRM", "Itinerario de Ruta"
+# --- PESTAÑAS DEL SISTEMA COMPLETAS (8 MÓDULOS INTEGRADOS) ---
+tab_terreno, tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_bitacora, tab_ruta = st.tabs([
+    "📊 Inteligencia de Terreno", "[ASISTENTE CHIRA]", "Fase 1: Modelo TVP Gutis", "Perfil 360°", "Fase 2: Análisis Rx", "Fase 3: Sell-Out", "Fase 4: Post-Visita CRM", "Itinerario de Ruta"
 ])
 
 # ==============================================================================
-# PESTAÑA 1: CHIRA 2.0 - CONSOLA DINÁMICA MULTIDIMENSIONAL + FUERA DE PANEL
+# PESTAÑA NUEVA: INTELIGENCIA DE TERRENO (PENETRACIÓN POR ESPECIALIDAD + CRUCE RX VS SELL-OUT)
+# ==============================================================================
+with tab_terreno:
+    st.markdown("<div class='elite-header'>🏆 INTELIGENCIA DE TERRENO: REVISIÓN DEL PANEL POR ESPECIALIDAD Y SINCRONÍA RX vs. SELL-OUT</div>", unsafe_allow_html=True)
+    
+    col_t_f1, col_t_f2 = st.columns([1.5, 2.5])
+    with col_t_f1:
+        zona_terreno_sel = st.selectbox("📍 Seleccionar Territorio a Auditar:", ["TODO MI PANEL"] + LISTA_CIUDADES_REALES, key="terr_zona")
+    with col_t_f2:
+        st.info("💡 **Lectura Ejecutiva:** Arriba auditas la **Penetración y Top 5 Competencia por Especialidad** de tu panel; abajo auditas si el **crecimiento de recetas médicas (Rx)** se está reflejando en las **ventas de farmacia (Sell-Out)**.")
+
+    df_rend_interno, df_top_comp = calcular_matriz_penetracion_panel(zona_terreno_sel)
+
+    if not df_rend_interno.empty:
+        tot_pan = int(df_rend_interno["PANEL"].sum())
+        tot_cap = int(df_rend_interno["CAPTADOS"].sum())
+        tot_rec_g = int(df_rend_interno["RECETAN GUTIS"].sum())
+        pen_global = (tot_rec_g / tot_cap * 100) if tot_cap > 0 else 0.0
+        tot_t1 = int(df_rend_interno["TOP 1"].sum())
+        tot_t3 = int(df_rend_interno["TOP 3"].sum())
+
+        kt1, kt2, kt3, kt4, kt5 = st.columns(5)
+        kt1.metric("Médicos en Panel", tot_pan)
+        kt2.metric("Captados en Close-Up", tot_cap, f"{(tot_cap/tot_pan*100):.1f}% Cobertura" if tot_pan > 0 else "")
+        kt3.metric("Recetan Gutis", tot_rec_g)
+        kt4.metric("Penetración Global", f"{pen_global:.2f}%")
+        kt5.metric("Médicos Gutis Top 1 / Top 3", f"{tot_t1} / {tot_t3}")
+
+        st.markdown(f"#### 1️⃣ Rendimiento Interno YTD 2026 ({zona_terreno_sel})")
+        st.dataframe(
+            df_rend_interno,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "PENETRACIÓN": st.column_config.ProgressColumn("PENETRACIÓN (%)", format="%.2f%%", min_value=0, max_value=100),
+                "%MS-YTD": st.column_config.ProgressColumn("%MS-YTD GUTIS", format="%.2f%%", min_value=0, max_value=100),
+                "TOP 1": st.column_config.NumberColumn("TOP 1 (Médicos)", help="Médicos donde Gutis es su laboratorio #1 en recetas YTD"),
+                "TOP 3": st.column_config.NumberColumn("TOP 3 (Médicos)", help="Médicos donde Gutis está en su Top 3 de laboratorios YTD")
+            }
+        )
+
+        st.markdown(f"#### 2️⃣ Top Competencia Directa por Cuota de Mercado YTD ({zona_terreno_sel})")
+        st.dataframe(df_top_comp, hide_index=True, use_container_width=True)
+    else:
+        st.warning("No se encontraron datos de especialidades cruzados con el archivo de laboratorios.")
+
+    st.divider()
+    st.markdown(f"#### 3️⃣ Matriz de Sincronía en el Tiempo: Evolución de Recetas (Rx) vs. Sell-Out de Farmacias ({zona_terreno_sel})")
+    st.caption("Compara si el impulso de prescripción del médico (% MS Mes vs % MS YTD) coincide con la tendencia de compra de las farmacias en Q3 vs Q2.")
+
+    df_sincronia = calcular_sincronia_rx_vs_sellout(zona_terreno_sel)
+    if not df_sincronia.empty:
+        st.dataframe(
+            df_sincronia,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "% MS YTD": st.column_config.NumberColumn("% MS YTD", format="%.2f%%"),
+                "% MS MES": st.column_config.NumberColumn("% MS MES", format="%.2f%%"),
+                "Sell-Out Q1": st.column_config.NumberColumn("Sell-Out Q1", format="$%.2f"),
+                "Sell-Out Q2": st.column_config.NumberColumn("Sell-Out Q2", format="$%.2f"),
+                "Sell-Out Q3": st.column_config.NumberColumn("Sell-Out Q3", format="$%.2f"),
+            }
+        )
+
+        fugas_df = df_sincronia[df_sincronia["Diagnóstico de Sincronía (Rx vs. Farmacia)"].str.contains("🚨")]
+        exitos_df = df_sincronia[df_sincronia["Diagnóstico de Sincronía (Rx vs. Farmacia)"].str.contains("🟢")]
+        
+        c_al1, c_al2 = st.columns(2)
+        with c_al1:
+            if not exitos_df.empty:
+                marcas_ex = ", ".join(exitos_df["Marca Gutis"].tolist())
+                st.success(f"**🟢 Mercados en Crecimiento Sincronizado ({zona_terreno_sel}):** {marcas_ex}. La receta médica impulsa directamente el Sell-Out en farmacias.")
+        with c_al2:
+            if not fugas_df.empty:
+                marcas_fu = ", ".join(fugas_df["Marca Gutis"].tolist())
+                st.error(f"**🚨 Alerta de Fuga en Mostrador ({zona_terreno_sel}):** {marcas_fu}. Los médicos de tu panel sostienen o suben la receta, pero el Sell-Out cayó en Q3. Auditar sustitución en farmacias o quiebre de inventario.")
+    else:
+        st.info("No hay suficientes datos combinados de Rx y Sell-Out para la zona seleccionada.")
+
+# ==============================================================================
+# PESTAÑA 2: CHIRA 2.0 - CONSOLA DINÁMICA MULTIDIMENSIONAL + FUERA DE PANEL
 # ==============================================================================
 with tab_chira:
     st.markdown("### [CHIRA 2.0] - Consultor de Inteligencia Comercial Senior")
-    st.caption("Audita Laboratorios, Pareto 80/20, Mercados por Prioridad (P1, P2, P3), Médicos No Visitados y Sell-Out.")
+    st.caption("Audita Penetración por Especialidad, Laboratorios, Pareto 80/20, Mercados (P1, P2, P3), Médicos No Visitados y Sincronía Rx vs. Sell-Out.")
     
     with st.container(border=True):
         st.markdown("**🎛️ Consola Dinámica de Cruce Territorial, Especialidades, Prioridad de Mercado y Médicos No Visitados:**")
@@ -642,19 +950,20 @@ with tab_chira:
         with p_c5:
             chira_top_sel = st.selectbox("🔢 Top:", [5, 10, 15, 20], index=0, key="ch_top")
 
-        b_c1, b_c2, b_c3, b_c4, b_c5 = st.columns(5)
+        b_c1, b_c2, b_c3, b_c4, b_c5, b_c6 = st.columns(6)
         accion_consola = None
-        if b_c1.button("🔬 Auditar Labs", use_container_width=True): accion_consola = "LABS"
-        if b_c2.button("📊 Pareto 80/20", use_container_width=True): accion_consola = "MEDICOS_PARETO"
-        if b_c3.button("🎯 Conquista", use_container_width=True): accion_consola = "MEDICOS_CONQUISTA"
-        if b_c4.button("🚀 Fuera de Panel", use_container_width=True): accion_consola = "MEDICOS_NO_VISITADOS"
-        if b_c5.button("🏥 Sell-Out PDV", use_container_width=True): accion_consola = "SELLOUT"
+        if b_c1.button("🏆 Penetración Panel", use_container_width=True): accion_consola = "PENETRACION"
+        if b_c2.button("🔄 Rx vs Farmacia", use_container_width=True): accion_consola = "SINCRONIA"
+        if b_c3.button("🔬 Auditar Labs", use_container_width=True): accion_consola = "LABS"
+        if b_c4.button("📊 Pareto 80/20", use_container_width=True): accion_consola = "MEDICOS_PARETO"
+        if b_c5.button("🎯 Conquista", use_container_width=True): accion_consola = "MEDICOS_CONQUISTA"
+        if b_c6.button("🚀 Fuera de Panel", use_container_width=True): accion_consola = "MEDICOS_NO_VISITADOS"
 
     chat_container_chira = st.container(height=360)
     for msg in st.session_state.chira_history:
         with chat_container_chira.chat_message(msg["role"]): st.write(msg["content"])
         
-    input_chat_chira = st.chat_input("Escribe cualquier consulta libre (ej: Analiza los mercados de prioridad 2 en Masaya / Médicos no visitados en Rivas)...")
+    input_chat_chira = st.chat_input("Escribe cualquier consulta libre (ej: Dame la penetración por especialidad en Granada / Cruza recetas vs ventas en Carazo)...")
 
     if accion_consola or input_chat_chira:
         prio_target = None
@@ -667,7 +976,7 @@ with tab_chira:
             elif "Prioridad 2" in chira_prio_sel: prio_target = 2
             elif "Prioridad 3" in chira_prio_sel: prio_target = 3
             modo_motor = accion_consola
-            pregunta_mostrar = f"[Consola BI] {accion_consola} | Zona: {chira_ciu_sel} | Esp: {chira_esp_sel} | {chira_prio_sel} | Mercado: {chira_mer_sel} (Top {top_n})"
+            pregunta_mostrar = f"[Consola BI] {accion_consola} | Zona: {chira_ciu_sel} | Esp: {chira_esp_sel} | {chira_prio_sel} | Mercado: {chira_mer_sel}"
         else:
             pregunta_mostrar = input_chat_chira
             texto_norm = normalizar_txt(input_chat_chira)
@@ -714,7 +1023,11 @@ with tab_chira:
                         mer_target = next((m for m in LISTA_MERCADOS_REALES if normalizar_txt(m_key) in normalizar_txt(m)), m_key)
                         break
 
-            if any(k in texto_norm for k in [
+            if any(k in texto_norm for k in ["PENETRACION", "REVISION DEL PANEL", "RENDIMIENTO INTERNO", "TOP 1", "TOP 3"]):
+                modo_motor = "PENETRACION"
+            elif any(k in texto_norm for k in ["SINCRONIA", "TENDENCIA", "FUGA", "RECETAS VS", "MEDICO VS"]):
+                modo_motor = "SINCRONIA"
+            elif any(k in texto_norm for k in [
                 "NO VISITADO", "NO VISITADOS", "FUERA DE PANEL", "NO ESTA EN MI PANEL",
                 "NO ESTAN EN MI PANEL", "NO ESTA SIENDO VISITADO", "NO SON VISITADOS",
                 "POTENCIALES NO VISITADOS", "INCORPORAR", "NUEVOS MEDICOS", "SIN VISITA"
@@ -734,7 +1047,7 @@ with tab_chira:
 
         with st.spinner("[CHIRA PROCESANDO CRUCE DINÁMICO EN BASE DE DATOS...]"):
             df_panel_sub = df_panel.copy()
-            etiqueta_z = ciu_target if ciu_target else "TODO EL TERRITORIO AUDITADO"
+            etiqueta_z = ciu_target if ciu_target else "TODO MI PANEL"
             etiqueta_e = esp_target if esp_target else "Todas las Especialidades"
             etiqueta_m = mer_target if mer_target else (f"Mercados Prioridad {prio_target}" if prio_target else "Todos los Mercados (P1, P2, P3)")
 
@@ -746,7 +1059,32 @@ with tab_chira:
             medicos_segmento = set(df_panel_sub["Médico"].dropna().unique())
             num_meds_seg = len(medicos_segmento)
 
-            if modo_motor == "LABS":
+            if modo_motor == "PENETRACION":
+                df_r_ch, df_c_ch = calcular_matriz_penetracion_panel(etiqueta_z)
+                if not df_r_ch.empty:
+                    lineas = [
+                        f"### 🏆 Inteligencia de Terreno: Penetración por Especialidad ({etiqueta_z})\n",
+                        "#### 1. Rendimiento Interno YTD 2026:",
+                        df_r_ch.to_markdown(index=False),
+                        "\n#### 2. Top Competencia Directa por Cuota de Mercado:",
+                        df_c_ch.to_markdown(index=False)
+                    ]
+                    resultado_final = "\n".join(lineas)
+                else:
+                    resultado_final = f"No se encontraron datos de penetración para {etiqueta_z}."
+
+            elif modo_motor == "SINCRONIA":
+                df_s_ch = calcular_sincronia_rx_vs_sellout(etiqueta_z)
+                if not df_s_ch.empty:
+                    lineas = [
+                        f"### 🔄 Sincronía en el Tiempo: Evolución Recetas (Rx) vs. Sell-Out Farmacias ({etiqueta_z})\n",
+                        df_s_ch.to_markdown(index=False)
+                    ]
+                    resultado_final = "\n".join(lineas)
+                else:
+                    resultado_final = f"No se encontraron datos de sincronía Rx vs Sell-Out para {etiqueta_z}."
+
+            elif modo_motor == "LABS":
                 if not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns:
                     df_l_seg = df_labs[df_labs["Médico"].isin(medicos_segmento)].copy()
                     if df_l_seg.empty and esp_target and "Especialidad" in df_labs.columns:
@@ -999,7 +1337,7 @@ with tab_chira:
 
             prompt_ia = f"""{REGLAS_FARMA}
 Eres CHIRA, Consultora Senior de BI de Laboratorios Gutis.
-Respeta ÍNTEGRAMENTE todas las cifras y nombres del siguiente reporte y añade al final un bloque breve titulado '⚡ Recomendación Táctica TVP (Modo Argón)' con 2 acciones concretas para Erick Calderón:
+Respeta ÍNTEGRAMENTE todas las cifras y tablas del siguiente reporte y añade al final un bloque breve titulado '⚡ Recomendación Táctica TVP (Modo Argón)' con 2 acciones concretas para Erick Calderón:
 
 {resultado_final}"""
             respuesta_ia = llamar_gemini(prompt_ia)
@@ -1010,13 +1348,12 @@ Respeta ÍNTEGRAMENTE todas las cifras y nombres del siguiente reporte y añade 
         st.rerun()
 
 # ==============================================================================
-# PESTAÑA 2: FASE 1 - MODELO OFICIAL TVP GUTIS PASO A PASO & MULTI-MERCADO
+# PESTAÑA 3: FASE 1 - MODELO OFICIAL TVP GUTIS PASO A PASO & MULTI-MERCADO
 # ==============================================================================
 with tab_estrategia:
     st.markdown("#### 📘 [PLANIFICADOR Y EJECUTOR DEL MODELO OFICIAL TVP GUTIS - MULTI-MERCADO (P1, P2, P3)]")
     st.caption("Estructura tu visita paso a paso siguiendo las Unidades del Manual TVP Gutis: Planificación SMART, Apertura con Agenda, Sondeos de Valor Mutuo, Storytelling Love Brands y Cierre con Puente entre Categorías de Mercado.")
 
-    # Configuración de la secuencia de visita (1er Producto, 2do Producto Puente, 3er Producto Recordación)
     with st.container(border=True):
         st.markdown("**⚙️ 1. Configuración de la Secuencia Multi-Mercado (Prioridad 1, 2 y 3) y Contexto de Visita:**")
         if opciones_mercados_medico:
@@ -1056,7 +1393,6 @@ with tab_estrategia:
         with ct3:
             actitud_med_sel = st.selectbox("🎭 Actitud Inicial del Médico:", ["Receptivo / Consultivo", "Indiferente (Satisfecho con lo que receta)", "Con Objeción (Escepticismo / Malentendido / Desventaja)"])
 
-    # Tarjetas de Diagnóstico en la Escala de Adopción de la Marca (Unidad 2 - Pág. 18 del Manual)
     st.markdown(f"""
     <div class='tvp-box'>
         <div style='font-size:0.8rem; font-weight:800; color:#1e3a8a; text-transform:uppercase;'>📊 Diagnóstico Oficial en la Escala de Adopción de la Marca ({m_primario['prod_gutis']})</div>
@@ -1109,7 +1445,6 @@ Además, dado que la actitud seleccionada es '{actitud_med_sel}', añade al fina
         st.markdown("#### 🥊 [SIMULADOR DE INDIFERENCIA Y OBJECIONES TVP (UNIDADES 7 Y 8)]")
         st.caption("Practica con el médico virtual. El simulador clasifica la objeción en **Escepticismo**, **Malentendido** o **Desventaja** (o **Indiferencia**) y evalúa si seguiste los 4 pasos del manual.")
         
-        # Guía rápida desplegable de las Unidades 7 y 8 del Manual
         with st.expander("📖 Ver Chuleta Oficial TVP: Cómo responder Indiferencia y Objeciones"):
             st.markdown(f"""
 **1. Si el médico está INDIFERENTE** (*"Ya estoy conforme con {m_primario['lider_actual']}"*):
@@ -1138,8 +1473,8 @@ Producto Gutis: {m_primario['prod_gutis']} vs Competidor: {m_primario['lider_act
 Erick acaba de decirle al médico: "{prompt_chat}"
 
 Responde en dos bloques cortos:
-1. **🩺 Respuesta del Dr(a). {medico_sel}:** Actúa como el médico respondiendo de forma realista (planteando una nueva pregunta clínica, escepticismo, malentendido, desventaja o aceptando el cierre si Erick lo hizo muy bien).
-2. **📋 Coaching TVP Gutis:** Evalúa en 2 viñetas si Erick aplicó bien el manual (ej. si sondeó antes de refutar, si demostró comprensión, si vinculó característica con beneficio o si pidió confirmación de aceptación) y sugiérele la frase exacta para el siguiente paso."""
+1. **🩺 Respuesta del Dr(a). {medico_sel}:** Actúa como el médico respondiendo de forma realista.
+2. **📋 Coaching TVP Gutis:** Evalúa en 2 viñetas si Erick aplicó bien el manual y sugiérele la frase exacta para el siguiente paso."""
                 res_sim = llamar_gemini(prompt_sim)
                 if not res_sim:
                     res_sim = f"""**🩺 Respuesta del Dr(a). {medico_sel}:** «Entiendo lo que me comenta sobre **{m_primario['prod_gutis']}**, pero llevo tiempo usando `{m_primario['lider_actual']}` y algunos pacientes buscan opciones económicas. ¿Realmente vale la pena el cambio?»\n\n**📋 Coaching TVP Gutis (Unidad 8 - Desventaja/Escepticismo):**\n* **Diagnóstico:** El médico plantea una combinación de *Inercia/Indiferencia* y *Desventaja de precio*.\n* **Paso sugerido según el Manual:** 1) Demuestra comprensión (*"Comprendo que el costo total del tratamiento es importante para sus pacientes"*), 2) Reenfoca en una perspectiva amplia recordando que **{m_primario['prod_gutis']}** evita recaídas y gastos dobles gracias a *{m_primario['meta_info']['caracteristica']}*, y 3) Confirma aceptación (*"Teniendo en cuenta este beneficio, ¿le parece probarlo en sus próximos 3 pacientes?"*)."""
@@ -1147,7 +1482,7 @@ Responde en dos bloques cortos:
             st.rerun()
 
 # ==============================================================================
-# PESTAÑA 3: PERFIL 360° (CON GUARDADO REAL EN EXCEL Y MEMORIA)
+# PESTAÑA 4: PERFIL 360° (CON GUARDADO REAL EN EXCEL Y MEMORIA)
 # ==============================================================================
 with tab_perfil360:
     st.markdown(f"#### [ACTUALIZACIÓN DE PERFIL OMNICANAL - {medico_sel}]")
@@ -1185,7 +1520,7 @@ with tab_perfil360:
             st.success(f"✅ Perfil 360° de {medico_sel} guardado y sincronizado con el generador TVP.")
 
 # ==============================================================================
-# PESTAÑA 4: FASE 2 - ANÁLISIS RX POR CATEGORÍAS DE MERCADO (P1, P2, P3)
+# PESTAÑA 5: FASE 2 - ANÁLISIS RX POR CATEGORÍAS DE MERCADO (P1, P2, P3)
 # ==============================================================================
 with tab_rx:
     st.markdown("#### [AUDITORÍA DE PRESCRIPCIÓN MULTI-MERCADO (PRIORIDAD 1, 2, 3) Y LABORATORIOS]")
@@ -1307,7 +1642,7 @@ with tab_rx:
     else: st.info("[SISTEMA] Sin datos de prescripción.")
 
 # ==============================================================================
-# PESTAÑA 5: FASE 3 - SELL-OUT LIBRE POR TERRITORIO, SUCURSAL Y LÍNEA
+# PESTAÑA 6: FASE 3 - SELL-OUT LIBRE POR TERRITORIO, SUCURSAL Y LÍNEA
 # ==============================================================================
 with tab_sellout:
     st.markdown("#### [INTELIGENCIA DE SELL-OUT Y TENDENCIAS TRIMESTRALES]")
@@ -1412,10 +1747,10 @@ with tab_sellout:
                             f"- **Desempeño Trimestral Consolidado:** El bloque pasó de `${tot_q2:,.2f}` en Q2 a `${tot_q3:,.2f}` en Q3 (**{var_global_q3:+.1f}%**)."
                         ]
                         if not en_alza.empty:
-                            top_crec = ", ".join([f"**{r[col_prod_v]}** en {r['NOMBRE_CLIENTE_1']} (${r['Q2']:,.2f} ➔${r['Q3']:,.2f})" for _, r in en_alza.head(3).iterrows()])
+                            top_crec = ", ".join([f"**{r[col_prod_v]}** en {r['NOMBRE_CLIENTE_1']} (${r['Q2']:,.2f} ➔ ${r['Q3']:,.2f})" for _, r in en_alza.head(3).iterrows()])
                             lineas_so.append(f"- **🟢 Motores de Crecimiento (Q3):** Excelente tracción en {top_crec}. Asegurar stock de seguridad.")
                         if not en_caida.empty:
-                            top_fuga = ", ".join([f"**{r[col_prod_v]}** en {r['NOMBRE_CLIENTE_1']} (cayó de ${r['Q2']:,.2f} a${r['Q3']:,.2f})" for _, r in en_caida.head(3).iterrows()])
+                            top_fuga = ", ".join([f"**{r[col_prod_v]}** en {r['NOMBRE_CLIENTE_1']} (cayó de ${r['Q2']:,.2f} a ${r['Q3']:,.2f})" for _, r in en_caida.head(3).iterrows()])
                             lineas_so.append(f"- **🔴 Alerta de Fuga / Desabasto en Q3:** Revisar inventario y rotación en {top_fuga}. Cruzar con la receta de los médicos de la zona.")
 
                         reporte_base_so = "\n".join(lineas_so)
@@ -1427,7 +1762,7 @@ with tab_sellout:
     else: st.error("[SISTEMA] No hay cruce de rutas de venta.")
 
 # ==============================================================================
-# PESTAÑA 6: FASE 4 - ANÁLISIS POST-VISITA (UNIDAD 9 MANUAL TVP) & BITÁCORA CRM
+# PESTAÑA 7: FASE 4 - ANÁLISIS POST-VISITA (UNIDAD 9 MANUAL TVP) & BITÁCORA CRM
 # ==============================================================================
 with tab_bitacora:
     st.markdown(f"#### [UNIDAD 9: ANÁLISIS POST-VISITA Y CONSOLA CRM - {medico_sel}]")
@@ -1488,7 +1823,7 @@ with tab_bitacora:
         st.download_button("⬇️ Descargar Historial Post-Visita CRM (CSV/Excel)", data=csv_crm, file_name=f"Bitacora_TVP_Gutis_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 # ==============================================================================
-# PESTAÑA 7: ITINERARIO DE RUTA MULTIDIMENSIONAL (CON FILTRO P1, P2, P3)
+# PESTAÑA 8: ITINERARIO DE RUTA MULTIDIMENSIONAL (CON FILTRO P1, P2, P3)
 # ==============================================================================
 with tab_ruta:
     st.markdown("#### [ITINERARIO INTELIGENTE POR TERRITORIO, NIVEL DE MERCADO (P1, P2, P3) Y POTENCIAL]")
