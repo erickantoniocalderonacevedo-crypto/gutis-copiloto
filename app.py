@@ -27,6 +27,19 @@ def normalizar_txt(texto):
     t = str(texto).strip().upper()
     return ''.join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
 
+# --- CONVERSOR NATIVO DE TABLAS A MARKDOWN (ELIMINA EL ERROR DE 'TABULATE') ---
+def df_a_markdown_nativo(df):
+    if df is None or df.empty:
+        return "_Sin registros disponibles._"
+    cols = [str(c) for c in df.columns]
+    encabezado = "| " + " | ".join(cols) + " |"
+    separador = "| " + " | ".join(["---"] * len(cols)) + " |"
+    filas = [encabezado, separador]
+    for _, row in df.iterrows():
+        valores = [str(val).replace("|", "/") for val in row.values]
+        filas.append("| " + " | ".join(valores) + " |")
+    return "\n".join(filas)
+
 # --- MATRIZ COMPLETA DE MERCADOS (PRIORIDAD 1, 2 Y 3 CON ATRIBUTOS CLÍNICOS Y STORYTELLING) ---
 MERCADOS_PRIORITARIOS = {
     "MR TALERDIN": {
@@ -39,7 +52,7 @@ MERCADOS_PRIORITARIOS = {
     },
     "MR BIOTOS": {
         "producto": "Biotos Inmune", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Foco Core)",
-        "keywords": ["BIOTOS", "HEDERA", "PELARGONIUM", "ABRILAR"],
+        "keywords": ["BIOTOS", "HEDERA", "PELARGONIUM", "ABRILAR", "TUSILEXIL"],
         "paciente_meta": "Pacientes desde los 2 años y adultos con IVRS virales, tos productiva y dificultad para manejar secreciones.",
         "caracteristica": "Combinación fitofarmacológica dual única de Hedera helix + Pelargonium sidoides.",
         "beneficio": "Cuádruple acción (mucolítica, broncodilatadora, expectorante e inmunomoduladora) que acorta el cuadro viral y previene sobreinfección bacteriana.",
@@ -55,7 +68,7 @@ MERCADOS_PRIORITARIOS = {
     },
     "MR MOMETZONA": {
         "producto": "Mometzona", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Foco Core)",
-        "keywords": ["MOMETZONA", "MOMETASONA", "NASONEX"],
+        "keywords": ["MOMETZONA", "MOMETASONA", "NASONEX", "GAMMAFLUX"],
         "paciente_meta": "Pacientes con rinitis alérgica estacional o perenne, congestión nasal persistente o pólipos nasales.",
         "caracteristica": "Furoato de Mometasona en suspensión acuosa nasal 100% libre de alcohol con válvula dosificadora de micro-nebulización.",
         "beneficio": "Potente control antiinflamatorio local sin resecar ni irritar la mucosa nasal y con biodisponibilidad sistémica insignificante (<0.1%).",
@@ -63,7 +76,7 @@ MERCADOS_PRIORITARIOS = {
     },
     "MR VENTILAR": {
         "producto": "Ventilar", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Foco Core)",
-        "keywords": ["VENTILAR", "MONTELUKAST", "SINGULAIR", "AIRUM"],
+        "keywords": ["VENTILAR", "MONTELUKAST", "SINGULAIR", "AIRUM", "SUVIAR"],
         "paciente_meta": "Pacientes pediátricos y adultos con asma persistente, broncoespasmo inducido por ejercicio o rinitis alérgica.",
         "caracteristica": "Montelukast sódico de alta pureza galénica en tabletas masticables pediátricas y recubiertas de una toma diaria.",
         "beneficio": "Bloqueo selectivo de leucotrienos que previene las crisis respiratorias y reduce el uso de corticoides de rescate.",
@@ -79,7 +92,7 @@ MERCADOS_PRIORITARIOS = {
     },
     "MR DALIVIO": {
         "producto": "Dalivio", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Foco Core)",
-        "keywords": ["DALIVIO", "DALIVIUM", "DEXKETOPROFENO", "ENANTYUM", "STADIUM"],
+        "keywords": ["DALIVIO", "DALIVIUM", "DEXKETOPROFENO", "ENANTYUM", "STADIUM", "CETIX"],
         "paciente_meta": "Pacientes con dolor agudo de moderado a severo (musculoesquelético, odontalgia, dismenorrea o postquirúrgico).",
         "caracteristica": "Dexketoprofeno trometamol (enantiómero activo S+) de rápida absorción disponible en bebible/sobre y tabletas.",
         "beneficio": "Alivio analgésico explosivo desde los primeros 10-15 minutos con la mitad de la carga metabólica y menor riesgo gástrico.",
@@ -87,7 +100,7 @@ MERCADOS_PRIORITARIOS = {
     },
     "MR VALERPAN": {
         "producto": "Valerpan", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
-        "keywords": ["VALERPAN", "BETAMETASONA", "CELESTONE", "DIPROSPAN"],
+        "keywords": ["VALERPAN", "BETAMETASONA", "CELESTONE", "DIPROSPAN", "DEXAMETASONA"],
         "paciente_meta": "Pacientes con cuadros inflamatorios agudos, alérgicos severos o patologías osteomusculares que requieren corticoterapia de depósito.",
         "caracteristica": "Combinación dual de Betametasona (Fosfato disódico de acción inmediata + Dipropionato de liberación prolongada).",
         "beneficio": "Control rápido de la crisis inflamatoria en las primeras horas y cobertura sostenida que evita recaídas.",
@@ -318,16 +331,21 @@ if perfil_360_actual:
     if estilo_visita and str(estilo_visita) not in ["nan", ""]: partes_rapport.append(f"Estilo de Visita Preferido: {estilo_visita}")
     if partes_rapport: contexto_rapport_str = " | ".join(partes_rapport)
 
-# --- FUNCIONES DE CLASIFICACIÓN DE PRODUCTOS Y MERCADOS ---
-def es_gutis(nombre_prod): return any(g in str(nombre_prod).upper() for g in PRODUCTOS_GUTIS)
+# --- FUNCIONES DE CLASIFICACIÓN DE PRODUCTOS Y MERCADOS (SIN TILDES Y MULTI-FORMATO) ---
+def es_gutis(nombre_prod):
+    n_norm = normalizar_txt(nombre_prod)
+    return any(normalizar_txt(g) in n_norm for g in PRODUCTOS_GUTIS)
+
 def obtener_meta_mercado(mercado_val):
-    m_up = str(mercado_val).strip().upper()
+    m_norm = normalizar_txt(mercado_val)
     for m_key, m_info in MERCADOS_PRIORITARIOS.items():
-        if m_key in m_up: return m_info
+        base_key = normalizar_txt(m_key.replace("MR ", ""))
+        if base_key in m_norm or any(normalizar_txt(k) in m_norm for k in m_info["keywords"]):
+            return m_info
     return {
-        "producto": m_up.replace("MR ", "").title(),
+        "producto": str(mercado_val).replace("MR ", "").strip().title(),
         "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complementario)",
-        "keywords": [m_up.replace("MR ", "")],
+        "keywords": [m_norm.replace("MR ", "")],
         "paciente_meta": "Pacientes de consulta especializada que requieren eficacia y seguridad comprobada.",
         "caracteristica": "Formulación farmacéutica de calidad certificada Gutis.",
         "beneficio": "Respuesta clínica confiable, excelente tolerabilidad y apego al tratamiento.",
@@ -345,7 +363,7 @@ def diagnosticar_escala_adopcion(pxs_gutis_m, pxs_tot_m, ms_gutis_m):
         return f"4. Adopción ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (>50% MS)", "Consolidar la marca como primera elección en más del 50% de sus pacientes meta."
     return f"5. Lealtad ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (Blindaje y Promotor)", "Blindar su lealtad ante la competencia y convertirlo en médico promotor de la marca."
 
-# --- FUNCIÓN MOTOR 1 NUEVO: MATRIZ DE PENETRACIÓN POR ESPECIALIDAD Y TOP 5 COMPETENCIA ---
+# --- FUNCIÓN MOTOR 1: MATRIZ DE PENETRACIÓN POR ESPECIALIDAD Y TOP 5 COMPETENCIA ---
 @st.cache_data
 def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
     df_p_sub = df_panel.copy()
@@ -355,7 +373,6 @@ def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
     if df_p_sub.empty or "Especialidad" not in df_p_sub.columns:
         return pd.DataFrame(), pd.DataFrame()
 
-    # Limpieza de base de laboratorios
     usar_labs = not df_labs.empty and "FABRICANTE" in df_labs.columns and "Médico" in df_labs.columns
     if usar_labs:
         df_l_clean = df_labs[~df_labs["FABRICANTE"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])].copy()
@@ -365,7 +382,6 @@ def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
         if col_ytd_l:
             df_l_clean[col_ytd_l] = pd.to_numeric(df_l_clean[col_ytd_l], errors='coerce').fillna(0)
 
-    # Limpieza de base de productos como apoyo/respaldo
     df_rx_c = df_productos[~df_productos["NOMBRE_PRODUCTO"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])].copy() if not df_productos.empty else pd.DataFrame()
     col_ytd_rx = next((c for c in df_rx_c.columns if c.upper() == "PXS-YTD"), None) if not df_rx_c.empty else None
     if not col_ytd_rx and not df_rx_c.empty:
@@ -388,14 +404,11 @@ def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
             df_l_esp_act = df_l_esp[df_l_esp[col_ytd_l] > 0]
             meds_captados = set(df_l_esp_act["Médico"].unique())
 
-            # Si hay médicos captados en productos que no aparecieron en df_labs, complementar
             if not df_rx_c.empty and col_ytd_rx:
                 meds_cap_rx = set(df_rx_c[(df_rx_c["Médico"].isin(meds_panel_esp)) & (df_rx_c[col_ytd_rx] > 0)]["Médico"].unique())
                 meds_captados = meds_captados.union(meds_cap_rx)
 
             num_captados = len(meds_captados)
-
-            # Médicos que recetan Gutis, Top 1 y Top 3 por médico
             recetan_gutis_count = 0
             top1_count = 0
             top3_count = 0
@@ -420,7 +433,6 @@ def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
 
             penetracion_pct = (recetan_gutis_count / num_captados * 100) if num_captados > 0 else 0.0
 
-            # Ranking global de Fabricantes dentro de la Especialidad
             if not df_l_esp_act.empty:
                 rk_esp_labs = df_l_esp_act.groupby("FABRICANTE")[col_ytd_l].sum().reset_index().sort_values(by=col_ytd_l, ascending=False).reset_index(drop=True)
                 tot_pxs_esp_ytd = rk_esp_labs[col_ytd_l].sum()
@@ -468,7 +480,7 @@ def calcular_matriz_penetracion_panel(ciudad_sel="TODO MI PANEL"):
     df_comp = pd.DataFrame(filas_competencia).sort_values(by="_orden", ascending=False).drop(columns=["_orden"]) if filas_competencia else pd.DataFrame()
     return df_rend, df_comp
 
-# --- FUNCIÓN MOTOR 2 NUEVO: CRUCE DE TENDENCIAS EN EL TIEMPO (RX MÉDICO VS. VENTA EN FARMACIA) ---
+# --- FUNCIÓN MOTOR 2: CRUCE DE TENDENCIAS EN EL TIEMPO (RX MÉDICO VS. VENTA EN FARMACIA) ---
 @st.cache_data
 def calcular_sincronia_rx_vs_sellout(ciudad_sel="TODO MI PANEL"):
     df_p_sub = df_panel.copy()
@@ -497,19 +509,20 @@ def calcular_sincronia_rx_vs_sellout(ciudad_sel="TODO MI PANEL"):
     filas_sincronia = []
     for m_key, m_info in MERCADOS_PRIORITARIOS.items():
         prod_nom = m_info["producto"]
-        kw_merc = m_key.replace("MR ", "").strip().upper()
+        kw_merc = normalizar_txt(m_key.replace("MR ", ""))
         kw_venta = prod_nom.split()[0].upper()
         if kw_venta == "DALIVIO":
             patron_v = "DALIVIO|DALIVIUM"
-        elif kw_venta == "TALERDÍN" or kw_venta == "TALERDIN":
+        elif kw_venta in ["TALERDÍN", "TALERDIN"]:
             patron_v = "TALERDIN|TALERDÍN"
+        elif kw_venta == "CONFLEXIL":
+            patron_v = "CONFLEXIL|CONRELAX"
         else:
             patron_v = re.escape(kw_venta)
 
-        # 1. Métricas de Prescripción (Rx en el Tiempo: YTD vs Mes Actual)
         pxs_ytd_tot, pxs_ytd_gut, pxs_mes_tot, pxs_mes_gut = 0, 0, 0, 0
         if not df_rx_sub.empty and "MERCADO" in df_rx_sub.columns:
-            sub_m_rx = df_rx_sub[df_rx_sub["MERCADO"].astype(str).str.upper().str.contains(re.escape(kw_merc), na=False)].copy()
+            sub_m_rx = df_rx_sub[df_rx_sub["MERCADO"].apply(normalizar_txt).str.contains(re.escape(kw_merc), na=False)].copy()
             if not sub_m_rx.empty:
                 sub_m_rx["Es_G"] = sub_m_rx["NOMBRE_PRODUCTO"].apply(es_gutis)
                 if col_pxs_y:
@@ -523,7 +536,6 @@ def calcular_sincronia_rx_vs_sellout(ciudad_sel="TODO MI PANEL"):
         ms_mes_gut = (pxs_mes_gut / pxs_mes_tot * 100) if pxs_mes_tot > 0 else 0.0
         delta_ms_rx = ms_mes_gut - ms_ytd_gut
 
-        # 2. Métricas de Sell-Out en Farmacias (Q1, Q2, Q3)
         v_q1, v_q2, v_q3 = 0.0, 0.0, 0.0
         if not df_v_sub.empty and col_prod_v and "Trimestre" in df_v_sub.columns:
             sub_v = df_v_sub[df_v_sub[col_prod_v].astype(str).str.upper().str.contains(patron_v, na=False)]
@@ -539,7 +551,6 @@ def calcular_sincronia_rx_vs_sellout(ciudad_sel="TODO MI PANEL"):
         if pxs_ytd_tot == 0 and pxs_mes_tot == 0 and v_total == 0:
             continue
 
-        # Clasificación de Tendencia Rx y Diagnóstico de Sincronía
         if delta_ms_rx >= 1.5 or (pxs_mes_gut > (pxs_ytd_gut / 8.0) and pxs_mes_gut > 0):
             tend_rx_str = f"📈 Crece Rx ({delta_ms_rx:+.1f}% MS)"
             rx_crece = True
@@ -650,7 +661,8 @@ if not rx_clean.empty:
                 "escala_meta": escala_meta, "objetivo_escala": obj_escala, "meta_info": meta
             })
 
-    opciones_mercados_medico = sorted(opciones_mercados_medico, key=lambda x: (x["prioridad"], -x["pxs_totales"], -x["pxs_ytd"]))
+    # Ordenar primero por los mercados con pacientes activos en el mes, luego Prioridad (P1->P2->P3) y luego YTD
+    opciones_mercados_medico = sorted(opciones_mercados_medico, key=lambda x: (-x["pxs_totales"], x["prioridad"], -x["pxs_ytd"]))
     num_mercados = len(opciones_mercados_medico)
 
     if opciones_mercados_medico:
@@ -764,7 +776,7 @@ def construir_plan_tvp_gutis(med_nombre, esp_med, cat_med, ciu_med, m1, m2, m3, 
   * **Posición Actual:** `{escala_act1}` $\longrightarrow$ **Meta de Ascenso Hoy:** `{escala_meta1}`.
 * **Perfil del Paciente Meta (¿A quién?):** {meta1['paciente_meta']}
 * **Las 3 Preguntas de Perspectiva TVP:**
-  * **¿A QUIÉN quiero que recomiende `{prod1}`?** A los {m1['pxs_totales']} pacientes mensuales donde hoy prescribe `{comp1}`.
+  * **¿A QUIÉN quiero que recomiende `{prod1}`?** A los {m1['pxs_totales']} pacientes mensuales (o {m1['pxs_ytd']} acumulados YTD) donde hoy prescribe `{comp1}`.
   * **¿POR QUÉ debería cambiar a `{prod1}`?** Por su ventaja exclusiva: *{meta1['caracteristica']}*.
   * **¿CÓMO debería prescribirlo?** En sus próximos casos de esta semana, sabiendo que cuenta con respaldo en **{farmacias_str}**.
 * **Objetivos de Visita "SMART" (Específico, Medible, Alcanzable, Relevante y con Plazo):**
@@ -842,7 +854,7 @@ tab_terreno, tab_chira, tab_estrategia, tab_perfil360, tab_rx, tab_sellout, tab_
 ])
 
 # ==============================================================================
-# PESTAÑA NUEVA: INTELIGENCIA DE TERRENO (PENETRACIÓN POR ESPECIALIDAD + CRUCE RX VS SELL-OUT)
+# PESTAÑA 1: INTELIGENCIA DE TERRENO (PENETRACIÓN POR ESPECIALIDAD + CRUCE RX VS SELL-OUT)
 # ==============================================================================
 with tab_terreno:
     st.markdown("<div class='elite-header'>🏆 INTELIGENCIA DE TERRENO: REVISIÓN DEL PANEL POR ESPECIALIDAD Y SINCRONÍA RX vs. SELL-OUT</div>", unsafe_allow_html=True)
@@ -1065,9 +1077,9 @@ with tab_chira:
                     lineas = [
                         f"### 🏆 Inteligencia de Terreno: Penetración por Especialidad ({etiqueta_z})\n",
                         "#### 1. Rendimiento Interno YTD 2026:",
-                        df_r_ch.to_markdown(index=False),
+                        df_a_markdown_nativo(df_r_ch),
                         "\n#### 2. Top Competencia Directa por Cuota de Mercado:",
-                        df_c_ch.to_markdown(index=False)
+                        df_a_markdown_nativo(df_c_ch)
                     ]
                     resultado_final = "\n".join(lineas)
                 else:
@@ -1078,7 +1090,7 @@ with tab_chira:
                 if not df_s_ch.empty:
                     lineas = [
                         f"### 🔄 Sincronía en el Tiempo: Evolución Recetas (Rx) vs. Sell-Out Farmacias ({etiqueta_z})\n",
-                        df_s_ch.to_markdown(index=False)
+                        df_a_markdown_nativo(df_s_ch)
                     ]
                     resultado_final = "\n".join(lineas)
                 else:
@@ -1187,8 +1199,8 @@ with tab_chira:
                     df_fuera = df_fuera[~df_fuera["Médico"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
 
                     if mer_target:
-                        kw_m = mer_target.replace("MR ", "").strip().upper()
-                        df_fuera = df_fuera[df_fuera["MERCADO"].astype(str).str.upper().str.contains(re.escape(kw_m), na=False)]
+                        kw_m = normalizar_txt(mer_target.replace("MR ", ""))
+                        df_fuera = df_fuera[df_fuera["MERCADO"].apply(normalizar_txt).str.contains(re.escape(kw_m), na=False)]
                     elif prio_target:
                         df_fuera = df_fuera[df_fuera["MERCADO"].apply(lambda x: obtener_meta_mercado(x)["prioridad"] == prio_target)]
 
@@ -1267,8 +1279,8 @@ with tab_chira:
                     df_rx_sub = df_rx_sub[~df_rx_sub["NOMBRE_PRODUCTO"].astype(str).str.upper().isin(["TOTAL", "NAN", ""])]
 
                     if mer_target:
-                        kw_m = mer_target.replace("MR ", "").strip().upper()
-                        df_rx_sub = df_rx_sub[df_rx_sub["MERCADO"].astype(str).str.upper().str.contains(re.escape(kw_m), na=False)]
+                        kw_m = normalizar_txt(mer_target.replace("MR ", ""))
+                        df_rx_sub = df_rx_sub[df_rx_sub["MERCADO"].apply(normalizar_txt).str.contains(re.escape(kw_m), na=False)]
                     elif prio_target:
                         df_rx_sub = df_rx_sub[df_rx_sub["MERCADO"].apply(lambda x: obtener_meta_mercado(x)["prioridad"] == prio_target)]
 
@@ -1357,7 +1369,7 @@ with tab_estrategia:
     with st.container(border=True):
         st.markdown("**⚙️ 1. Configuración de la Secuencia Multi-Mercado (Prioridad 1, 2 y 3) y Contexto de Visita:**")
         if opciones_mercados_medico:
-            etiquetas_m = [f"[P{o['prioridad']}] {o['mercado']} | Líder: {o['lider_actual'][:14]} ({o['pxs_totales']} Pxs) ➔ {o['prod_gutis']}" for o in opciones_mercados_medico]
+            etiquetas_m = [f"[P{o['prioridad']}] {o['mercado']} | Líder: {o['lider_actual'][:14]} (Mes: {o['pxs_totales']} | YTD: {o['pxs_ytd']}) ➔ {o['prod_gutis']}" for o in opciones_mercados_medico]
             cm1, cm2, cm3 = st.columns(3)
             with cm1:
                 idx_m1 = st.selectbox("🥇 1ra Posición (Foco Principal):", range(len(etiquetas_m)), index=0, format_func=lambda i: etiquetas_m[i])
@@ -1431,7 +1443,7 @@ Además, dado que la actitud seleccionada es '{actitud_med_sel}', añade al fina
                     prod2_nom = m_secundario["prod_gutis"] if m_secundario else "nuestra línea complementaria"
                     pitch_base = f"""### ⚡ Abordaje de Pasillo con Agenda Limitada (60 Segundos)
 1. **Permiso y Empatía (Unidad 3):** *«Doctor(a) {medico_sel}, sé que va entrando a consulta; regáleme exactamente 60 segundos mientras camina.»*
-2. **Pregunta Disruptiva + Necesidad (Unidad 4):** *«Para los **{m_primario['pxs_totales']} pacientes** donde hoy indica `{m_primario['lider_actual']}`, si pudiera asegurarles **{m_primario['meta_info']['beneficio'].lower()}**, ¿no les daría mayor tranquilidad?»*
+2. **Pregunta Disruptiva + Necesidad (Unidad 4):** *«Para los **{m_primario['pxs_totales']} pacientes mensuales** ({m_primario['pxs_ytd']} YTD) donde hoy indica `{m_primario['lider_actual']}`, si pudiera asegurarles **{m_primario['meta_info']['beneficio'].lower()}**, ¿no les daría mayor tranquilidad?»*
 3. **Storytelling Flash (Unidad 5):** *«Con **{m_primario['prod_gutis']}** cuenta con **{m_primario['meta_info']['caracteristica'].lower()}**.»*
 4. **Cierre + Puente Rápido (Unidad 6):** *«Póngalo a prueba en sus próximos 3 pacientes hoy; ya hay stock completo en **{top_farmacias_ciudad_str}** tanto de **{m_primario['prod_gutis']}** como de **{prod2_nom}**. ¿Contamos con ello, Doctor(a)?»*"""
                     st.session_state.pasillo_result = pitch_base
@@ -1817,7 +1829,7 @@ with tab_bitacora:
         try: df_hist_crm = pd.read_excel(ARCHIVO_BITACORA)
         except: pass
     if not df_hist_crm.empty:
-        st.markdown("##### 📂 Historial de Análisis Post-Visita Registrados")
+        st.markdown("##### 📂 Historial de Análisis Post-Visita Registradas")
         st.dataframe(df_hist_crm.tail(20), hide_index=True, use_container_width=True)
         csv_crm = df_hist_crm.to_csv(index=False).encode('utf-8-sig')
         st.download_button("⬇️ Descargar Historial Post-Visita CRM (CSV/Excel)", data=csv_crm, file_name=f"Bitacora_TVP_Gutis_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
