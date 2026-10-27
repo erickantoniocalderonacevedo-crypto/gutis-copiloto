@@ -27,7 +27,7 @@ def normalizar_txt(texto):
     t = str(texto).strip().upper()
     return ''.join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
 
-# --- CONVERSOR NATIVO DE TABLAS A MARKDOWN (INMUNE A FALTA DE 'TABULATE') ---
+# --- CONVERSOR NATIVO DE TABLAS A MARKDOWN ---
 def df_a_markdown_nativo(df):
     if df is None or df.empty:
         return "_Sin registros disponibles._"
@@ -40,160 +40,194 @@ def df_a_markdown_nativo(df):
         filas.append("| " + " | ".join(valores) + " |")
     return "\n".join(filas)
 
-# --- MATRIZ DE MERCADOS (PRIORIDAD 1, 2 Y 3 CON ATRIBUTOS CLÍNICOS Y LOVE BRANDS) ---
+# --- VADEMÉCUM OFICIAL GUTIS NICARAGUA 2026 (ADUANA ESTRICTA DE MARCAS Y PERFILES PEDIÁTRICO/ADULTO) ---
 MERCADOS_PRIORITARIOS = {
     "MR TALERDIN": {
         "producto": "Talerdín", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": True,
         "keywords": ["TALERDIN", "CETIRIZINA", "CETRILER", "ALERCET", "DEGRALER"],
-        "paciente_meta": "Pacientes pediátricos y adultos con rinitis alérgica o urticaria que requieren alivio rápido sin sedación ni irritación.",
-        "caracteristica": "Cetirizina 100% libre de alcohol, libre de azúcar y con gotero de dosificación exacta pediátrica.",
-        "beneficio": "Garantiza apego total al tratamiento pediátrico sin rechazo por sabor ni efectos adversos gástricos por excipientes alcohólicos.",
+        "paciente_meta": "Pacientes con rinitis alérgica, conjuntivitis alérgica, urticaria o prurito que requieren control antihistamínico seguro.",
+        "paciente_meta_ped": "Pacientes pediátricos y lactantes con rinitis alérgica, urticaria o prurito que requieren alivio seguro sin irritación gástrica.",
+        "caracteristica": "Cetirizina en Tabletas (10 mg), Jarabe (60 ml 100% libre de alcohol) y Solución Gotas (10 ml: 1 gota por cada 2 kg de peso en menores de 2 años).",
+        "beneficio": "Garantiza apego total al tratamiento sin rechazo por sabor ni efectos adversos gástricos por excipientes alcohólicos.",
         "nicho_flanqueo": "Lactantes y niños pequeños con reflujo o intolerancia al excipiente alcohólico de los jarabes tradicionales.",
-        "love_brand": "Tranquilidad nocturna para el niño y los padres desde la primera toma, protegiendo su desarrollo diario."
+        "love_brand": "Tranquilidad nocturna para el paciente y su familia desde la primera toma, libre de alcohol."
     },
     "MR BIOTOS": {
         "producto": "Biotos Inmune", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": True,
         "keywords": ["BIOTOS", "HEDERA", "PELARGONIUM", "ABRILAR", "TUSILEXIL"],
-        "paciente_meta": "Pacientes desde los 2 años y adultos con IVRS virales, tos productiva y dificultad para manejar secreciones.",
-        "caracteristica": "Combinación fitofarmacológica dual única de Hedera helix + Pelargonium sidoides.",
-        "beneficio": "Cuádruple acción (mucolítica, broncodilatadora, expectorante e inmunomoduladora) que acorta el cuadro viral y previene sobreinfección.",
-        "nicho_flanqueo": "Pacientes con IVRS recurrentes donde un mucolítico simple (solo Hedera) no frena la replicación viral ni evita la recaída.",
-        "love_brand": "Devolver la respiración libre a las familias con evidencia clínica fitoterapéutica."
+        "paciente_meta": "Pacientes con tos seca, tos con flemas y secreción nasal en resfriado común, bronquitis, rinosinusitis y faringitis viral.",
+        "paciente_meta_ped": "Pacientes pediátricos (desde los 2 años) con IVRS virales, tos seca o con flemas y dificultad para expulsar secreciones.",
+        "caracteristica": "Fórmula fitofarmacológica dual única: Hedera hélix (35 mg) + Pelargonium sidoides (12.5 mg) en presentación Pediátrica (120 ml) y Adulto (170 ml).",
+        "beneficio": "Alivia la tos seca y con flemas mientras estimula los mecanismos defensivos antivirales y antibacterianos (efecto inmunorregulador).",
+        "nicho_flanqueo": "Pacientes con cuadros respiratorios virales donde un mucolítico simple (solo Hedera) se queda corto sin inmunorregulación.",
+        "love_brand": "Devolver la respiración libre y estimular las defensas naturales con respaldo científico."
     },
     "MR CLEMBROXIL": {
         "producto": "Clembroxil Compuesto", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": True,
         "keywords": ["CLEMBROXIL", "CLENBUTEROL", "AMBROXOL", "MUCOSOLVAN"],
-        "paciente_meta": "Pacientes con broncoespasmo, bronquitis aguda o crónica y retención severa de moco en vías respiratorias.",
-        "caracteristica": "Sinergia exacta de Ambroxol (mucolítico mucocinético) + Clenbuterol (broncodilatador selectivo B2).",
-        "beneficio": "Despeja las vías aéreas dilatando el bronquio mientras fluidifica el moco espeso, facilitando la ventilación inmediata.",
-        "nicho_flanqueo": "Pacientes con tos espástica y sibilancias donde un jarabe simple no abre el bronquio.",
-        "love_brand": "Respaldo respiratorio contundente cuando el paciente siente que le falta el aire."
+        "paciente_meta": "Pacientes con patologías respiratorias agudas y crónicas que cursan con retención de secreciones y broncoespasmo.",
+        "paciente_meta_ped": "Pacientes pediátricos y lactantes con broncoespasmo, sibilancias y retención severa de flemas (dosificación exacta a 2 gotas/kg).",
+        "caracteristica": "Sinergia de Ambroxol (7.5 mg) + Clenbuterol (5 mcg) en Jarabe (120 ml) y Solución Gotas Pediátricas (20 ml), 100% libre de azúcar y alcohol.",
+        "beneficio": "Abre el bronquio y fluidifica el moco simultáneamente, despejando las vías respiratorias sin irritación por azúcar o alcohol.",
+        "nicho_flanqueo": "Pacientes con tos espástica y cierre bronquial donde un mucolítico aislado no resuelve el broncoespasmo.",
+        "love_brand": "Respaldo respiratorio contundente y seguro cuando al paciente le falta el aire."
     },
     "MR MOMETZONA": {
         "producto": "Mometzona", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": True,
         "keywords": ["MOMETZONA", "MOMETASONA", "NASONEX", "GAMMAFLUX"],
-        "paciente_meta": "Pacientes con rinitis alérgica estacional o perenne, congestión nasal persistente o pólipos nasales.",
-        "caracteristica": "Furoato de Mometasona en suspensión acuosa nasal 100% libre de alcohol con válvula de micro-nebulización.",
-        "beneficio": "Potente control antiinflamatorio local sin resecar ni irritar la mucosa nasal y con biodisponibilidad sistémica <0.1%.",
-        "nicho_flanqueo": "Pacientes con mucosa nasal hipersensible o epistaxis por sprays con conservantes agresivos o alcohol.",
-        "love_brand": "Descongestionar y devolver el descanso reparador sin ardor nasal."
+        "paciente_meta": "Pacientes con rinitis alérgica u obstrucción nasal inflamatoria que requieren control local sin irritación.",
+        "paciente_meta_ped": "Pacientes pediátricos (2 a 11 años: 1 pulsación al día) y adolescentes con rinitis alérgica y congestión nasal persistente.",
+        "caracteristica": "Mometasona furoato al 0.05% en spray nasal acuoso (140 aplicaciones), suspensión 100% libre de alcohol.",
+        "beneficio": "Desinflama la mucosa nasal desde la primera aplicación diaria sin causar ardor, resequedad ni sangrado nasal.",
+        "nicho_flanqueo": "Pacientes con mucosa nasal sensible que abandonan otros sprays por ardor o presencia de alcohol.",
+        "love_brand": "Descongestionar y devolver el descanso reparador con suavidad acuosa libre de alcohol."
     },
     "MR VENTILAR": {
         "producto": "Ventilar", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": True,
         "keywords": ["VENTILAR", "MONTELUKAST", "SINGULAIR", "AIRUM", "SUVIAR"],
-        "paciente_meta": "Pacientes pediátricos y adultos con asma persistente, broncoespasmo inducido por ejercicio o rinitis alérgica.",
-        "caracteristica": "Montelukast sódico de alta pureza galénica en tabletas masticables pediátricas y recubiertas de una toma diaria.",
-        "beneficio": "Bloqueo selectivo de leucotrienos que previene crisis respiratorias y reduce el uso de corticoides de rescate.",
-        "nicho_flanqueo": "Pacientes crónicos que abandonan el tratamiento de control por el alto costo mensual de la marca multinacional.",
-        "love_brand": "Libertad para que el paciente juegue y respire sin temor a una crisis nocturna."
+        "paciente_meta": "Pacientes con asma bronquial o rinitis alérgica que requieren control preventivo nocturno.",
+        "paciente_meta_ped": "Pacientes pediátricos desde los 6 meses hasta los 14 años con hiperreactividad bronquial, asma o rinitis alérgica.",
+        "caracteristica": "Montelukast sódico en 3 presentaciones exactas: 4 mg masticable sabor naranja (6 meses a 5 años), 5 mg masticable sabor tutti-chicle (6 a 14 años) y 10 mg recubierto.",
+        "beneficio": "Excelente adherencia pediátrica por su sabor agradable y control sostenido de leucotrienos con una sola toma nocturna.",
+        "nicho_flanqueo": "Pacientes que requieren terapia continua de control sin abandonar el esquema por costo o mal sabor.",
+        "love_brand": "Libertad para que el niño juegue y duerma toda la noche sin crisis respiratorias."
     },
     "MR GASTROALIVIO": {
         "producto": "Gastroalivio", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": False,
         "keywords": ["GASTROALIVIO", "ESOMEPRAZOL", "CARBUM", "NEXIUM"],
-        "paciente_meta": "Pacientes adultos con ERGE, esofagitis erosiva, úlcera péptica o gastropatía por AINEs.",
-        "caracteristica": "Esomeprazol con tecnología avanzada de micropellets gastrorresistentes.",
-        "beneficio": "Mayor superficie de absorción intestinal, ofreciendo inicio de acción más rápido y supresión ácida sostenida por 24 horas.",
-        "nicho_flanqueo": "Pacientes con reflujo nocturno rebelde donde los esomeprazoles convencionales en polvo compactado se inactivan en el ácido gástrico.",
-        "love_brand": "Innovación galénica que protege el estómago del paciente desde la primera cápsula."
+        "paciente_meta": "Pacientes adultos con ERGE, gastropatía por AINEs, hiperklorhidria o en erradicación de Helicobacter pylori.",
+        "paciente_meta_ped": "Pacientes adolescentes mayores y adultos con ERGE o gastritis erosiva.",
+        "caracteristica": "Esomeprazol 40 mg en cápsulas de liberación retardada con micropellets gastrorresistentes (libre de gluten y lactosa) + Plan Paciente 2+1.",
+        "beneficio": "Protección gástrica y control ácido por 24 horas completas, sumado al Plan Paciente 2+1 (compra 2 cajas y recibe 1 gratis) que asegura el tratamiento completo.",
+        "nicho_flanqueo": "Pacientes con ERGE rebelde donde el esomeprazol convencional no cubre las 24 horas o el paciente abandona el mes por costo.",
+        "love_brand": "Tecnología de micropellets y respaldo 2+1 que protegen el estómago y la economía del paciente."
     },
     "MR DALIVIO": {
-        "producto": "Dalivio", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
-        "keywords": ["DALIVIO", "DALIVIUM", "DEXKETOPROFENO", "ENANTYUM", "STADIUM", "CETIX"],
-        "paciente_meta": "Pacientes con dolor agudo de moderado a severo (musculoesquelético, odontalgia, dismenorrea o postquirúrgico).",
-        "caracteristica": "Dexketoprofeno trometamol (enantiómero activo S+) de rápida absorción disponible en sobre bebible y tabletas.",
-        "beneficio": "Alivio analgésico explosivo desde los primeros 10-15 minutos con mitad de carga metabólica y menor riesgo gástrico.",
-        "nicho_flanqueo": "Pacientes con dolor agudo severo o dificultad para deglutir que necesitan analgesia en 10 minutos con sobre bebible.",
-        "love_brand": "Aliviar al paciente del dolor agudo en solo 10 minutos para que recupere su día."
+        "producto": "Dalivio / Dalivio Tramax", "peso": 3, "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
+        "apto_pediatria": False,
+        "keywords": ["DALIVIO", "DALIVIUM", "DEXKETOPROFENO", "ENANTYUM", "STADIUM", "CETIX", "DISFLAM"],
+        "paciente_meta": "Pacientes adultos con dolor agudo de moderado a intenso (musculoesquelético, dismenorrea, odontalgia, cólico renal o dolor postoperatorio).",
+        "paciente_meta_ped": "Pacientes adolescentes mayores con dolor agudo traumático, odontalgia o dismenorrea.",
+        "caracteristica": "Dexketoprofeno en 3 vías (Tabletas 25 mg, Solución oral bebible 25 mg/10 ml e Inyectable 50 mg/2 ml) + Dalivio Tramax (Dexketoprofeno 25 mg + Tramadol 75 mg para analgesia multimodal).",
+        "beneficio": "Alivio rápido y potente del dolor agudo en minutos (especialmente con el sobre bebible o ampolla) y analgesia multimodal en casos severos.",
+        "nicho_flanqueo": "Pacientes con dolor agudo severo donde un AINE tradicional tarda demasiado en actuar o irrita la mucosa gástrica.",
+        "love_brand": "Aliados del alivio rápido para devolverle la funcionalidad al paciente en minutos."
+    },
+    "MR CONFLEXIL": {
+        "producto": "Conflexil / Conflexil Plus Shot", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
+        "apto_pediatria": False,
+        "keywords": ["CONFLEXIL", "CONRELAX", "TIZANIDINA", "MELOXICAM", "TIOCOLCHICOSIDO"],
+        "paciente_meta": "Pacientes adultos y adolescentes (>16 años) con contracturas musculares, cervicalgia, dorsalgia o lumbalgia aguda.",
+        "paciente_meta_ped": "Adolescentes a partir de los 16 años con contracturas musculares deportivas o posturales.",
+        "caracteristica": "Portafolio integral: Conflexil (Tiocolchicósido 4 mg y Fuerte 8 mg que NO produce sueño) + Conflexil Plus Tabletas y Conflexil Plus Shot (bebible en stick pack con Tiocolchicósido 4 mg + Diclofenaco potásico 50 mg, aprobado por Guías ACP).",
+        "beneficio": "Triple acción (analgésica, antiinflamatoria y miorrelajante) de rápida absorción en Shot bebible, recuperando la movilidad sin sedación diurna.",
+        "nicho_flanqueo": "Pacientes laboralmente activos con lumbalgia o contractura que no pueden permitirse la somnolencia de otros relajantes.",
+        "love_brand": "Liberar el movimiento del paciente sin adormecer su ritmo de vida."
     },
     "MR VALERPAN": {
         "producto": "Valerpan", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
+        "apto_pediatria": True,
         "keywords": ["VALERPAN", "BETAMETASONA", "CELESTONE", "DIPROSPAN", "DEXAMETASONA"],
-        "paciente_meta": "Pacientes con cuadros inflamatorios agudos, alérgicos severos o patologías osteomusculares que requieren depósito.",
-        "caracteristica": "Combinación dual de Betametasona (Fosfato disódico de acción inmediata + Dipropionato de liberación prolongada).",
-        "beneficio": "Control rápido de la crisis inflamatoria en las primeras horas y cobertura sostenida que evita recaídas.",
-        "nicho_flanqueo": "Pacientes agudos donde la dexametasona simple se queda corta en duración y provoca rebote inflamatorio a las 48 horas.",
-        "love_brand": "Potencia y precisión antiinflamatoria en una sola aplicación segura."
-    },
-    "MR CONFLEXIL": {
-        "producto": "Conflexil", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
-        "keywords": ["CONFLEXIL", "CONRELAX", "TIZANIDINA", "MELOXICAM", "TIOCOLCHICOSIDO"],
-        "paciente_meta": "Pacientes activos o mayores con lumbalgia mecánica, contractura muscular aguda o cervicalgia que limita su movilidad.",
-        "caracteristica": "Sinergia miorrelajante de acción central medular + potente acción antiinflamatoria y analgésica.",
-        "beneficio": "Elimina el espasmo y el dolor recuperando los arcos de movimiento sin producir sedación ni somnolencia diurna.",
-        "nicho_flanqueo": "Pacientes laboralmente activos o conductores que no pueden tomar relajantes musculares que producen sueño.",
-        "love_brand": "Reintegrar al paciente a su trabajo y vida diaria sin las ataduras del dolor lumbar."
+        "paciente_meta": "Pacientes con procesos inflamatorios severos, crisis alérgicas agudas o patologías articulares que requieren corticoterapia de doble acción.",
+        "paciente_meta_ped": "Pacientes con cuadros alérgicos o inflamatorios agudos severos que requieren control inmediato y sostenido.",
+        "caracteristica": "Fosfato sódico de Betametasona + Dipropionato de Betametasona en ampolla de 1 ml y 2 ml con viscosidad adecuada y óptima homogeneidad.",
+        "beneficio": "Doble acción comprobada: inicio rápido a los 30 minutos (fosfato) y efecto prolongado hasta por 30 días (dipropionato) en una aplicación suave.",
+        "nicho_flanqueo": "Cuadros inflamatorios o alérgicos agudos donde la dexametasona simple pierde efecto rápido y genera recaída.",
+        "love_brand": "Calidad garantizada con acción inmediata en 30 minutos y respaldo prolongado."
     },
     "MR RENOVART": {
         "producto": "Renovart Platinum", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
-        "keywords": ["RENOVART", "COLAGENO", "GLUCOSAMINA"],
-        "paciente_meta": "Pacientes con desgaste articular, osteoartrosis o deportistas con sobrecarga mecánica articular.",
-        "caracteristica": "Colágeno Hidrolizado enzimáticamente en cadenas cortas de aminoácidos de máxima absorción intestinal.",
-        "beneficio": "Regenera la matriz del cartílago, mejora la movilidad articular y disminuye el dolor crónico a mediano plazo.",
-        "nicho_flanqueo": "Pacientes mayores o deportistas que abandonan otros colágenos por mal sabor o pesadez digestiva.",
-        "love_brand": "Devolver la vitalidad del movimiento para que la edad o el deporte no detengan al paciente."
+        "apto_pediatria": False,
+        "keywords": ["RENOVART", "COLAGENO", "GLUCOSAMINA", "CURCUMA"],
+        "paciente_meta": "Pacientes adultos con dolor articular inflamatorio, desgaste de cartílago o enfermedades degenerativas articulares.",
+        "paciente_meta_ped": "Adolescentes deportistas con sobrecarga articular.",
+        "caracteristica": "Fórmula pentavalente en sticks sabor naranja: Colágeno 100% hidrolizado bioactivo (10 g) + Cúrcuma longa (400 mg) + N-AcetilGlucosamina (1000 mg) + Condroitina (800 mg) + Vitamina C (60 mg).",
+        "beneficio": "No solo nutre el cartílago, sino que controla el dolor e inflamación articular gracias a los curcuminoides, sin azúcar, sin lactosa y bajo en sodio.",
+        "nicho_flanqueo": "Pacientes con artrosis donde un colágeno simple sin cúrcuma ni glucosamina no alivia el dolor articular.",
+        "love_brand": "Fortalecer las articulaciones y favorecer la movilidad diaria con la fórmula más completa."
     },
     "MR MUPIRAL": {
         "producto": "Mupiral", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
+        "apto_pediatria": True,
         "keywords": ["MUPIRAL", "MUPIROCINA", "BACTROBAN"],
-        "paciente_meta": "Pacientes con infecciones cutáneas bacterianas primarias o secundarias (impétigo, foliculitis, heridas infectadas).",
-        "caracteristica": "Mupirocina tópica al 2% con inhibición específica de síntesis proteica bacteriana.",
-        "beneficio": "Erradicación rápida de S. aureus y S. pyogenes sin resistencia cruzada con otros antibióticos.",
-        "nicho_flanqueo": "Lesiones dérmicas sobreinfectadas que no responden a cremas antibióticas genéricas.",
-        "love_brand": "Seguridad dermatológica confiable que protege la piel de toda la familia."
+        "paciente_meta": "Pacientes con infecciones bacterianas primarias de la piel (impétigo, foliculitis, furunculosis) o secundarias (heridas, cortaduras, quemaduras).",
+        "paciente_meta_ped": "Pacientes pediátricos (desde los 2 meses de edad) con impétigo, foliculitis o raspones y heridas sobreinfectadas.",
+        "caracteristica": "Mupirocina al 2% en ungüento tópico (tubo de 15 g), seguro en adultos y niños desde los 2 meses de edad.",
+        "beneficio": "Erradicación bacteriana localizada altamente eficaz con excelente tolerabilidad cutánea.",
+        "nicho_flanqueo": "Infecciones cutáneas pediátricas o heridas donde los antibióticos tópicos combinados simples ya presentan resistencia.",
+        "love_brand": "Seguridad antibiótica tópica de primera línea desde los 2 meses de edad."
     },
     "MR BICORPAN": {
         "producto": "Bicorpan", "peso": 2, "prioridad": 2, "categoria_mercado": "Prioridad 2 (Expansión)",
+        "apto_pediatria": True,
         "keywords": ["BICORPAN"],
-        "paciente_meta": "Pacientes con dermatomicosis acompañadas de inflamación y prurito intenso.",
-        "caracteristica": "Fórmula tópica combinada antimicótica y antiinflamatoria de alta penetración cutánea.",
-        "beneficio": "Corta el prurito y el eritema desde el primer día mientras erradica el hongo causal.",
-        "nicho_flanqueo": "Infecciones micóticas con rascado severo que requieren alivio sintomático inmediato.",
-        "love_brand": "Alivio visible y rápido en infecciones dérmicas complejas."
+        "paciente_meta": "Pacientes (>12 años y adultos) con dermatitis inflamatorias complicadas con infecciones por bacterias y/o hongos (piodermias, tiñas).",
+        "paciente_meta_ped": "Pacientes mayores de 12 años con dermatitis alérgica o por contacto sobreinfectada con hongos o bacterias.",
+        "caracteristica": "Fórmula cuádruple en crema (15 g): Betametasona (0.5 mg) + Gentamicina (1 mg) + Tolnaftato (10 mg) + Yodoclorohidroxiquinoleína (10 mg).",
+        "beneficio": "Controla simultáneamente la inflamación, el prurito, la infección bacteriana y la micosis en lesiones dérmicas mixtas.",
+        "nicho_flanqueo": "Dermatitis mixtas rebeldes donde una crema simple no cubre hongos y bacterias a la vez.",
+        "love_brand": "Resolución integral para afecciones complejas de la piel."
     },
     "MR FEMGYL": {
         "producto": "Femgyl", "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complemento)",
+        "apto_pediatria": False,
         "keywords": ["FEMGYL"],
-        "paciente_meta": "Pacientes ginecológicas con infecciones vaginales mixtas.",
-        "caracteristica": "Terapia ginecológica de amplio espectro de acción local efectiva.",
-        "beneficio": "Resolución clínica integral desde las primeras aplicaciones, restaurando el bienestar íntimo.",
-        "nicho_flanqueo": "Infecciones ginecológicas mixtas con recidiva tras tratamientos simples.",
-        "love_brand": "Contribución fundamental de Gutis para el cuidado de la salud femenina."
+        "paciente_meta": "Pacientes en edad reproductiva que buscan anticoncepción hormonal mensual cómoda y segura.",
+        "paciente_meta_ped": "Pacientes ginecológicas en control anticonceptivo.",
+        "caracteristica": "Enantato de noretisterona (50 mg) + Valerato de estradiol (5 mg) en ampolla de 1 ml de aplicación mensual fecha calendario.",
+        "beneficio": "Alta eficacia anticonceptiva en una sola aplicación mensual que evita olvidos diarios.",
+        "nicho_flanqueo": "Usuarias que olvidan la toma diaria de tabletas orales.",
+        "love_brand": "Tranquilidad y confianza mensual en salud femenina."
     },
     "MR NORGYLEN": {
         "producto": "Norgylen", "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complemento)",
+        "apto_pediatria": False,
         "keywords": ["NORGYLEN"],
-        "paciente_meta": "Pacientes en edad reproductiva que requieren planificación familiar hormonal segura.",
-        "caracteristica": "Formulación anticonceptiva hormonal balanceada de alta eficacia clínica.",
-        "beneficio": "Excelente control del ciclo menstrual con alta seguridad y tolerabilidad.",
-        "nicho_flanqueo": "Usuarias que buscan regularidad del ciclo con excelente relación costo-beneficio.",
-        "love_brand": "Confianza y respaldo en cada etapa de la planificación familiar."
+        "paciente_meta": "Pacientes que requieren anticoncepción oral hormonal combinada confiable.",
+        "paciente_meta_ped": "Pacientes ginecológicas en regulación de ciclo o anticoncepción.",
+        "caracteristica": "Levonorgestrel (0.15 mg) + Etinilestradiol (0.03 mg) en caja con 21 tabletas recubiertas.",
+        "beneficio": "Control predecible del ciclo menstrual con alta eficacia y seguridad.",
+        "nicho_flanqueo": "Pacientes que buscan estabilidad hormonal oral con respaldo farmacéutico.",
+        "love_brand": "Cuidado confiable todos los días para la mujer."
     },
     "MR ANSIOLIT": {
         "producto": "Ansiolit", "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complemento)",
-        "keywords": ["ANSIOLIT"],
-        "paciente_meta": "Pacientes adultos con trastornos de ansiedad generalizada o insomnio asociado.",
-        "caracteristica": "Ansiolítico de perfil farmacocinético predecible y dosificación adaptable.",
-        "beneficio": "Control efectivo de los síntomas somáticos y psíquicos de la ansiedad.",
-        "nicho_flanqueo": "Pacientes con somatización ansiosa e insomnio de conciliación.",
-        "love_brand": "Equilibrio emocional y paz mental respaldados por la calidad de Gutis."
+        "apto_pediatria": False,
+        "keywords": ["ANSIOLIT", "ALPRAZOLAM"],
+        "paciente_meta": "Pacientes adultos con ansiedad generalizada, ansiedad asociada a depresión o estados de pánico.",
+        "paciente_meta_ped": "Pacientes adultos en manejo de ansiedad.",
+        "caracteristica": "Alprazolam 0.5 mg en tabletas ranuradas para dosificación individualizada.",
+        "beneficio": "Rápido control de las crisis de ansiedad y síntomas somáticos asociados.",
+        "nicho_flanqueo": "Pacientes con crisis de angustia o insomnio por ansiedad aguda.",
+        "love_brand": "Paz mental y control oportuno en trastornos de ansiedad."
     },
     "MR DEPAX": {
         "producto": "Depax", "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complemento)",
-        "keywords": ["DEPAX"],
-        "paciente_meta": "Pacientes con trastornos depresivos o de ansiedad que requieren bioequivalencia comprobada.",
-        "caracteristica": "Antidepresivo con estudio de Bioequivalencia certificado.",
-        "beneficio": "Estabilidad terapéutica continua a un costo accesible para el apego a largo plazo.",
-        "nicho_flanqueo": "Pacientes en terapia prolongada que necesitan eficacia bioequivalente sin abandonar por precio.",
-        "love_brand": "Calidad bioequivalente comprobada para acompañar la recuperación emocional."
+        "apto_pediatria": False,
+        "keywords": ["DEPAX", "SERTRALINA"],
+        "paciente_meta": "Pacientes adultos con depresión, TOC, trastorno de pánico, estrés postraumático o fobia social.",
+        "paciente_meta_ped": "Pacientes en manejo por neurociencias.",
+        "caracteristica": "Sertralina 50 mg en tabletas recubiertas con Sello de Bioequivalencia Comprobada.",
+        "beneficio": "Garantiza idéntica biodisponibilidad y eficacia clínica que el innovador con un costo accesible para el apego a largo plazo.",
+        "nicho_flanqueo": "Pacientes crónicos que necesitan seguridad bioequivalente certificada.",
+        "love_brand": "Bioequivalencia comprobada para acompañar la recuperación emocional."
     },
     "MR FELICITAT": {
         "producto": "Felicitat", "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complemento)",
+        "apto_pediatria": False,
         "keywords": ["FELICITAT", "ESCITALOPRAM"],
-        "paciente_meta": "Pacientes con depresión mayor o trastorno de ansiedad que buscan mejoría sostenida.",
-        "caracteristica": "Escitalopram con interacción dual única en el transportador SERT.",
-        "beneficio": "Inhibición más selectiva y eficaz de la recaptación de serotonina.",
-        "nicho_flanqueo": "Pacientes que requieren respuesta sostenida con mínimo perfil de efectos adversos.",
-        "love_brand": "Ayudar a miles de pacientes en su salud mental para que vuelvan a disfrutar de la vida."
+        "paciente_meta": "Pacientes adultos con episodios depresivos mayores, trastorno de angustia o ansiedad generalizada.",
+        "paciente_meta_ped": "Pacientes en manejo de estado de ánimo.",
+        "caracteristica": "Escitalopram en presentaciones de 10 mg y 20 mg (30 tabletas recubiertas) con acción dual en el receptor SERT.",
+        "beneficio": "Inhibición altamente selectiva de la recaptación de serotonina para una mejoría emocional sostenida.",
+        "nicho_flanqueo": "Pacientes que requieren ajustar dosis entre 10 mg y 20 mg con excelente tolerabilidad.",
+        "love_brand": "Ayudar a miles de pacientes a volver a disfrutar de la vida."
     }
 }
 
@@ -204,20 +238,23 @@ PRODUCTOS_GUTIS = [
     "DEPAX", "FELICITAT"
 ]
 
+# Mercados de Close-Up que NO existen en el Vademécum Nicaragua 2026 y deben bloquearse o re-homologarse
+MERCADOS_EXCLUIDOS_NICARAGUA = ["VALVIREX", "PRIMABELA", "BELEZA", "DESLER", " ZITRO", "FLUKIT"]
+
 REGLAS_FARMA = """
-REGLAS FARMACOLÓGICAS Y METODOLOGÍA OFICIAL TVP GUTIS (ESTRICTO):
-1. CETRILER es CETIRIZINA. CARBUM es ESOMEPRAZOL.
-2. TALERDÍN es CETIRIZINA (100% libre de alcohol, gotas exactas pediátricas).
-3. GASTROALIVIO es ESOMEPRAZOL (Micropellets gastrorresistentes). PROHIBIDO en Pediatría.
-4. VENTILAR es MONTELUKAST SÓDICO. MOMETZONA es FUROATO DE MOMETASONA (sin alcohol).
-5. BIOTOS INMUNE es HEDERA HELIX + PELARGONIUM SIDOIDES.
-6. METODOLOGÍA TVP GUTIS:
-   - Escala de Adopción: 1. No Consciente, 2. Consciente, 3. Prueba (2-10 Pxs o <25% MS), 4. Adopción (25-50% MS), 5. Lealtad (>50% MS).
-   - La Gran División: Pasar de Vendedor Transaccional a Consejero de Confianza / Consultivo.
-   - APERTURA: Prohibido nombrar marca; proponer Agenda centrada en el paciente, Valor de la agenda y Confirmar aceptación.
-   - DESCUBRIR NECESIDADES: Técnica del Embudo (Circunstancias -> Necesidad -> Necesidad detrás de la Necesidad: Finanzas, Desempeño o Imagen) con Sondeos de Valor Mutuo (Comparar, Analizar, Suponer, Reflexionar, Contrastar, Evaluar).
-   - APOYO/STORYTELLING: Comprensión + Característica/Beneficio + Love Brands + Confirmación.
-   - CIERRE/PUENTE: Resumen + Compromiso bilateral + Puente natural a 2do y 3er producto.
+REGLAS FARMACOLÓGICAS Y VADEMÉCUM OFICIAL GUTIS NICARAGUA 2026 (ESTRICTO):
+1. PROHIBIDO mencionar marcas que NO existen en Nicaragua: JAMÁS menciones 'Disflam', 'Disflam Familia', 'Conrelax', 'Dalivium', 'Valvirex' ni 'Primabela' como marcas a promover. En Nicaragua las marcas oficiales son:
+   - Línea Dolor: Conflexil (4mg y Fuerte 8mg), Conflexil Plus Tabletas y Conflexil Plus Shot (sobres bebibles Tiocolchicósido 4mg + Diclofenaco potásico 50mg, Guías ACP), Dalivio (Dexketoprofeno Tabletas 25mg, Bebible 25mg/10ml, Ampolla 50mg/2ml), Dalivio Tramax (Dexketoprofeno 25mg + Tramadol 75mg), Valerpan (Fosfato + Dipropionato de Betametasona ampolla 1ml y 2ml: acción en 30 min y por 30 días).
+   - Salud Articular: Renovart Platinum con Cúrcuma (Colágeno hidrolizado 10g + Cúrcuma 400mg + N-AcetilGlucosamina 1000mg + Condroitina 800mg + Vitamina C 60mg).
+   - Línea Respiratoria: Talerdín (Cetirizina Tabletas, Jarabe sin alcohol y Gotas: 1 gota/2kg en <2 años), Biotos Inmune (Hedera hélix + Pelargonium sidoides Pediátrico 120ml y Adulto 170ml), Clembroxil Compuesto (Ambroxol + Clenbuterol Jarabe 120ml y Gotas 20ml a 2 gotas/kg sin azúcar ni alcohol), Mometzona (Mometasona spray acuoso sin alcohol), Ventilar (Montelukast 4mg naranja, 5mg tutti-chicle y 10mg).
+   - Línea Gastro: Gastroalivio (Esomeprazol 40mg micropellets + Plan Paciente 2+1). PROHIBIDO en Pediatría.
+   - Línea Dermatológica, Salud Femenina y Neurociencias: Mupiral (Mupirocina 2% desde los 2 meses), Bicorpan (crema cuádruple >12 años), Femgyl, Norgylen, Ansiolit, Depax (Bioequivalencia comprobada) y Felicitat (10mg y 20mg).
+2. COHERENCIA CON LA ESPECIALIDAD:
+   - Si el médico es PEDIATRA, está PROHIBIDO hablar de 'adultos' en la agenda o promover líneas exclusivas de adultos (Gastroalivio, Conflexil, Dalivio Tramax, Renovart, Femgyl, Neurociencias). Enfócate 100% en lactantes, niños, gotas por kilo de peso y jarabes libres de alcohol/azúcar.
+3. COHERENCIA TÁCTICA CON LA ESCALA DE ADOPCIÓN (MANUAL TVP GUTIS):
+   - Si el médico ya está en LEALTAD (>50% MS) o ADOPCIÓN ALTA en una marca de Gutis: está PROHIBIDO pedirle 'probar en 3 a 5 pacientes' como si no nos conociera. Debes AGRADECER su lealtad como socio clave, BLINDAR la marca sutilmente y usar esa confianza para hacer el PUENTE hacia un segundo producto donde sí necesitamos crecer.
+   - Si está en PRUEBA o ADOPCIÓN PARCIAL (comparte receta): agradece lo que ya nos da, indaga su experiencia con esos pacientes y migra sutilmente el nicho que aún entrega al competidor.
+   - Si está en NO CONSCIENTE / CONSCIENTE (0 Pxs): aplica sondeo de descubrimiento y pide compromiso inicial de prueba (3 a 5 pacientes).
 """
 
 # --- ESTILOS CSS EJECUTIVOS ---
@@ -273,6 +310,9 @@ def cargar_datos():
             df_rx = df_rx.dropna(subset=["NOMBRE_PRODUCTO"]).copy()
             df_rx["NOMBRE_PRODUCTO"] = df_rx["NOMBRE_PRODUCTO"].astype(str).str.strip()
             df_rx = df_rx[~df_rx["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", "NONE", ""])].copy()
+        if "MERCADO" in df_rx.columns:
+            # Filtrar mercados regionales que no pertenecen al portafolio activo de Nicaragua
+            df_rx = df_rx[~df_rx["MERCADO"].apply(normalizar_txt).apply(lambda m: any(ex in m for ex in MERCADOS_EXCLUIDOS_NICARAGUA))].copy()
     if not df_labs_raw.empty and "Médico" in df_labs_raw.columns: df_labs_raw["Médico"] = df_labs_raw["Médico"].astype(str).str.strip().str.upper()
     if not df_p.empty and "CIUDAD" in df_p.columns: df_p["CIUDAD"] = df_p["CIUDAD"].astype(str).str.strip().str.upper()
     if not df_p.empty and "Especialidad" in df_p.columns: df_p["Especialidad"] = df_p["Especialidad"].astype(str).str.strip().str.upper()
@@ -300,7 +340,7 @@ st.markdown("""
 <div style='background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); padding: 16px 22px; border-radius: 8px; margin-bottom: 14px; border-left: 6px solid #38bdf8; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'>
     <div>
         <h2 style='color: #ffffff; margin: 0; font-size: 1.45rem; letter-spacing: 0.4px; font-weight: 800;'>⚜️ [GUTIS BI] — TERMINAL DE INTELIGENCIA COMERCIAL & ARQUITECTURA TVP</h2>
-        <p style='color: #93c5fd; margin: 0; font-size: 0.76rem; text-transform: uppercase; font-weight: 600; margin-top: 3px; letter-spacing: 0.9px;'>Núcleo I: Radar Territorial  |  Núcleo II: Consultorio 360° & Canvas TVP  |  Núcleo III: Copiloto Cognitivo Chira & CRM</p>
+        <p style='color: #93c5fd; margin: 0; font-size: 0.76rem; text-transform: uppercase; font-weight: 600; margin-top: 3px; letter-spacing: 0.9px;'>Núcleo I: Radar Territorial  |  Núcleo II: Consultorio 360° & Canvas TVP Adaptativo  |  Núcleo III: Copiloto Cognitivo Chira & CRM</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -361,38 +401,39 @@ if perfil_360_actual:
     if estilo_visita and str(estilo_visita) not in ["nan", ""]: partes_rapport.append(f"Estilo: {estilo_visita}")
     if partes_rapport: contexto_rapport_str = " | ".join(partes_rapport)
 
-# --- FUNCIONES DE CLASIFICACIÓN ---
+# --- ADUANA VADEMÉCUM NICARAGUA 2026: NUNCA RETORNA MARCAS INEXISTENTES COMO DISFLAM ---
 def es_gutis(nombre_prod):
     n_norm = normalizar_txt(nombre_prod)
     return any(normalizar_txt(g) in n_norm for g in PRODUCTOS_GUTIS)
 
-def obtener_meta_mercado(mercado_val):
+def obtener_meta_mercado(mercado_val, es_ped=False):
     m_norm = normalizar_txt(mercado_val)
+    # Homologación explícita de nombres de mercados regionales Close-Up hacia Vademécum Nicaragua 2026
+    if "DISFLAM" in m_norm or "DALIVIUM" in m_norm or "DALIVIO" in m_norm:
+        return MERCADOS_PRIORITARIOS["MR TALERDIN"] if es_ped else MERCADOS_PRIORITARIOS["MR DALIVIO"]
+    if "CONRELAX" in m_norm or "CONFLEXIL" in m_norm:
+        return MERCADOS_PRIORITARIOS["MR BIOTOS"] if es_ped else MERCADOS_PRIORITARIOS["MR CONFLEXIL"]
+
     for m_key, m_info in MERCADOS_PRIORITARIOS.items():
         base_key = normalizar_txt(m_key.replace("MR ", ""))
         if base_key in m_norm or any(normalizar_txt(k) in m_norm for k in m_info["keywords"]):
+            if es_ped and not m_info.get("apto_pediatria", True):
+                return MERCADOS_PRIORITARIOS["MR TALERDIN"]
             return m_info
-    return {
-        "producto": str(mercado_val).replace("MR ", "").strip().title(),
-        "peso": 1, "prioridad": 3, "categoria_mercado": "Prioridad 3 (Complemento)",
-        "keywords": [m_norm.replace("MR ", "")],
-        "paciente_meta": "Pacientes de consulta especializada que requieren eficacia y seguridad comprobada.",
-        "caracteristica": "Formulación farmacéutica de calidad certificada Gutis.",
-        "beneficio": "Respuesta clínica confiable, excelente tolerabilidad y apego al tratamiento.",
-        "nicho_flanqueo": "Pacientes que requieren alta tolerabilidad y respaldo galénico.",
-        "love_brand": "Innovación y tecnología farmacéutica pensada para mejorar la calidad de vida del paciente."
-    }
+
+    # Fallback blindado al Vademécum Oficial según especialidad (jamás usa el nombre crudo si no es de Nicaragua)
+    return MERCADOS_PRIORITARIOS["MR TALERDIN"] if es_ped else MERCADOS_PRIORITARIOS["MR DALIVIO"]
 
 def diagnosticar_escala_adopcion(pxs_gutis_m, pxs_tot_m, ms_gutis_m):
     if pxs_tot_m <= 0:
-        return "1. No Consciente", "2. Consciente / 3. Prueba (2-5 Pxs)", "Crear conciencia del perfil de paciente y lograr las primeras 3 recetas de prueba."
+        return "1. No Consciente", "2. Consciente / 3. Prueba (2-5 Pxs)", "CONQUISTA", "Crear conciencia del perfil de paciente y lograr las primeras 3 recetas de prueba."
     if pxs_gutis_m == 0:
-        return "2. Consciente (0% MS)", "3. Prueba (2 a 10 Pxs)", f"Iniciar período de prueba en sus próximos 3 a 5 pacientes (hoy entrega {pxs_tot_m} Pxs a competencia)."
-    if ms_gutis_m < 25.0 or pxs_gutis_m <= 10:
-        return f"3. Prueba ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "4. Adopción (>25% a 50% MS)", "Explorar resultados de pacientes en prueba para expandir hacia el >25% de sus casos."
-    if ms_gutis_m <= 50.0:
-        return f"4. Adopción ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (>50% MS)", "Consolidar la marca como primera opción en más del 50% de sus pacientes meta."
-    return f"5. Lealtad ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (Blindaje)", "Blindar lealtad y convertirlo en líder de opinión / promotor de la marca."
+        return "2. Consciente (0% MS)", "3. Prueba (2 a 10 Pxs)", "CONQUISTA", f"Iniciar período de prueba en sus próximos 3 a 5 pacientes (hoy entrega {pxs_tot_m} Pxs a competencia)."
+    if ms_gutis_m < 25.0 or (pxs_gutis_m <= 4 and ms_gutis_m < 45.0):
+        return f"3. Prueba ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "4. Adopción (>25% a 50% MS)", "EXPANSION", "Agradecer recetas iniciales, validar experiencia positiva y expandir hacia el >25% de sus casos."
+    if ms_gutis_m < 50.0:
+        return f"4. Adopción ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (>50% MS)", "EXPANSION", "Reconocer su respaldo activo y migrar sutilmente el nicho que aún comparte con otra marca."
+    return f"5. Lealtad ({ms_gutis_m:.1f}% MS | {pxs_gutis_m} Pxs)", "5. Lealtad (Blindaje & Puente)", "LEALTAD", "Agradecer su lealtad como prescriptor socio de Gutis, blindar presentaciones y apalancar el Puente hacia la 2da marca."
 
 # --- RECONOCIMIENTO COGNITIVO DE MÉDICOS EN TEXTO LIBRE ---
 def detectar_medico_en_texto(texto_usuario):
@@ -444,14 +485,17 @@ def extraer_dossier_medico(nombre_med):
             ciu_m = str(fila_p.get("CIUDAD", "NICARAGUA")).strip().upper()
             cat_m = str(fila_p.get("CATEGORIA", "S/C")).strip()
 
+    es_ped_doc = "PEDIAT" in esp_m
     rx_m = df_productos[df_productos["Médico"] == nombre_med].copy() if not df_productos.empty else pd.DataFrame()
     if not rx_m.empty:
         rx_m["Es_Gutis"] = rx_m["NOMBRE_PRODUCTO"].apply(es_gutis)
         if not en_panel:
             col_e = next((c for c in rx_m.columns if "ESPEC" in c.upper()), None)
             col_c = next((c for c in rx_m.columns if c.upper() in ["CIUDAD", "DEPARTAMENTO", "ZONA"]), None)
-            if col_e: esp_m = str(rx_m.iloc[0][col_e]).strip().upper()
+            if col_e: esp_m = str(rx_m.iloc[0][col_e]).strip().upper(); es_ped_doc = "PEDIAT" in esp_m
             if col_c: ciu_m = str(rx_m.iloc[0][col_c]).strip().upper()
+        if es_ped_doc:
+            rx_m = rx_m[~rx_m["MERCADO"].apply(normalizar_txt).str.contains("GASTROALIVIO|CONFLEXIL|CONRELAX|DISFLAM|RENOVART|FEMGYL|NORGYLEN|ANSIOLIT|DEPAX|FELICITAT", na=False)].copy()
 
     col_p_mes = next((c for c in rx_m.columns if c.upper() == "PXS-MES"), None) if not rx_m.empty else None
     if not col_p_mes and not rx_m.empty: col_p_mes = next((c for c in rx_m.columns if "PXS" in c.upper()), None)
@@ -461,8 +505,7 @@ def extraer_dossier_medico(nombre_med):
     if not rx_m.empty and col_p_ytd: rx_m[col_p_ytd] = pd.to_numeric(rx_m[col_p_ytd], errors='coerce').fillna(0)
 
     mercados_doc = []
-    pxs_mes_tot_doc, pxs_ytd_tot_doc, pxs_gut_doc, pxs_comp_doc = 0, 0, 0, 0
-    pxs_gut_ytd_doc = 0
+    pxs_mes_tot_doc, pxs_ytd_tot_doc, pxs_gut_doc, pxs_comp_doc, pxs_gut_ytd_doc = 0, 0, 0, 0, 0
 
     if not rx_m.empty and col_p_mes:
         pxs_mes_tot_doc = int(rx_m[col_p_mes].sum())
@@ -472,13 +515,13 @@ def extraer_dossier_medico(nombre_med):
         pxs_comp_doc = pxs_mes_tot_doc - pxs_gut_doc
 
         for m_nom, df_g in rx_m.groupby("MERCADO"):
-            meta_i = obtener_meta_mercado(m_nom)
+            meta_i = obtener_meta_mercado(m_nom, es_ped=es_ped_doc)
             p_m = int(df_g[col_p_mes].sum())
             p_y = int(df_g[col_p_ytd].sum()) if col_p_ytd else 0
             p_gut = int(df_g[df_g["Es_Gutis"]][col_p_mes].sum())
             p_gut_y = int(df_g[df_g["Es_Gutis"]][col_p_ytd].sum()) if col_p_ytd else 0
             p_cmp = p_m - p_gut
-            ms_g = (p_gut / p_m * 100) if p_m > 0 else 0.0
+            ms_g = (p_gut / p_m * 100) if p_m > 0 else ((p_gut_y / p_y * 100) if p_y > 0 else 0.0)
             if p_m <= 0 and p_y <= 0:
                 continue
             df_g_ord = df_g.sort_values(by=[col_p_mes, col_p_ytd] if col_p_ytd else [col_p_mes], ascending=False)
@@ -487,7 +530,6 @@ def extraer_dossier_medico(nombre_med):
             lid_px = int(lid_row[col_p_mes])
             lid_ytd = int(lid_row[col_p_ytd]) if col_p_ytd else 0
 
-            # Detectar principal competidor no-Gutis en este mercado
             df_no_g = df_g_ord[~df_g_ord["Es_Gutis"]]
             if not df_no_g.empty:
                 comp_row = df_no_g.iloc[0]
@@ -497,7 +539,7 @@ def extraer_dossier_medico(nombre_med):
             else:
                 comp_nom_m, comp_px_m, comp_ytd_m = "Sin competidor activo", 0, 0
 
-            esc_act, esc_meta, obj_esc = diagnosticar_escala_adopcion(p_gut, p_m, ms_g)
+            esc_act, esc_meta, modo_tac, obj_esc = diagnosticar_escala_adopcion(p_gut, p_m, ms_g)
 
             mercados_doc.append({
                 "mercado": m_nom, "prioridad": meta_i["prioridad"], "categoria_mercado": meta_i["categoria_mercado"],
@@ -505,7 +547,7 @@ def extraer_dossier_medico(nombre_med):
                 "comp_principal": comp_nom_m, "comp_pxs_mes": comp_px_m, "comp_pxs_ytd": comp_ytd_m,
                 "lider_es_gutis": bool(lid_row["Es_Gutis"]), "pxs_mes": p_m, "pxs_ytd": p_y,
                 "pxs_gutis": p_gut, "pxs_gutis_ytd": p_gut_y, "pxs_comp": p_cmp, "ms_gutis": ms_g,
-                "escala_actual": esc_act, "escala_meta": esc_meta, "meta_info": meta_i
+                "escala_actual": esc_act, "escala_meta": esc_meta, "modo_tactico": modo_tac, "meta_info": meta_i
             })
         mercados_doc = sorted(mercados_doc, key=lambda x: (-x["pxs_mes"], x["prioridad"], -x["pxs_ytd"]))
 
@@ -544,19 +586,20 @@ def extraer_dossier_medico(nombre_med):
                 farmacias_doc_str = ", ".join(rk_f["NOMBRE_CLIENTE_1"].head(3).tolist())
 
     return {
-        "nombre": nombre_med, "en_panel": en_panel, "especialidad": esp_m, "ciudad": ciu_m, "categoria": cat_m,
+        "nombre": nombre_med, "en_panel": en_panel, "especialidad": esp_m, "es_pediatra": es_ped_doc,
+        "ciudad": ciu_m, "categoria": cat_m,
         "pxs_mes_total": pxs_mes_tot_doc, "pxs_ytd_total": pxs_ytd_tot_doc,
         "pxs_gutis_mes": pxs_gut_doc, "pxs_gutis_ytd": pxs_gut_ytd_doc, "pxs_comp_mes": pxs_comp_doc,
         "mercados": mercados_doc, "labs": labs_doc,
         "farmacias_aliadas": farmacias_doc_str, "sellout_zona": sellout_ciudad_doc
     }
 
-# --- LLAMADA API GEMINI CON DESCUBRIMIENTO DINÁMICO DE MODELOS ---
+# --- LLAMADA API GEMINI ---
 def llamar_gemini(prompt_text, max_tok=4096):
     api_key = st.secrets.get("GEMINI_API_KEY", "")
     if not api_key: return None
     headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.25}}
+    payload = {"contents": [{"parts": [{"text": prompt_text}]}], "generationConfig": {"maxOutputTokens": max_tok, "temperature": 0.2}}
     modelos_a_probar = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"]
     try:
         r_list = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=4)
@@ -579,19 +622,18 @@ def llamar_gemini(prompt_text, max_tok=4096):
         except: continue
     return None
 
-# --- MOTOR COGNITIVO CONVERSACIONAL: RESPONDE DIRECTAMENTE A LA PREGUNTA DE ERICK ---
+# --- MOTOR COGNITIVO CONVERSACIONAL DE CHIRA ---
 def construir_respuesta_cognitiva_medico(dossier, pregunta_usuario):
     t_norm = normalizar_txt(pregunta_usuario)
     nom = dossier["nombre"]
     esp = dossier["especialidad"]
+    es_ped_d = dossier["es_pediatra"]
     ciu = dossier["ciudad"]
     cat = dossier["categoria"]
     farmacias = dossier["farmacias_aliadas"]
 
     ms_global_mes = (dossier["pxs_gutis_mes"] / dossier["pxs_mes_total"] * 100) if dossier["pxs_mes_total"] > 0 else 0.0
-    ms_global_ytd = (dossier["pxs_gutis_ytd"] / dossier["pxs_ytd_total"] * 100) if dossier["pxs_ytd_total"] > 0 else 0.0
 
-    # Detectar si el usuario mencionó marcas específicas en su pregunta (ej. Talerdin, Clembroxil, Biotos, Ventilar, Mometzona)
     mercados_mencionados = []
     for m_item in dossier["mercados"]:
         p_norm = normalizar_txt(m_item["prod_gutis"].split()[0])
@@ -603,32 +645,31 @@ def construir_respuesta_cognitiva_medico(dossier, pregunta_usuario):
 
     if mercados_foco:
         m1 = mercados_foco[0]
-        m2 = mercados_foco[1] if len(mercados_foco) > 1 else (dossier["mercados"][1] if len(dossier["mercados"]) > 1 else None)
-    elif dossier["mercados"]:
-        m1 = dossier["mercados"][0]
-        m2 = dossier["mercados"][1] if len(dossier["mercados"]) > 1 else None
+        # Buscar como M2 un mercado donde la competencia tenga volumen (para un puente real)
+        candidatos_puente = [m for m in dossier["mercados"] if m["prod_gutis"] != m1["prod_gutis"] and m["pxs_comp"] > 0]
+        m2 = candidatos_puente[0] if candidatos_puente else (mercados_foco[1] if len(mercados_foco) > 1 else None)
     else:
-        meta_fb = obtener_meta_mercado("MR TALERDIN" if "PEDIAT" in esp else "MR GASTROALIVIO")
+        meta_fb = obtener_meta_mercado("MR TALERDIN" if es_ped_d else "MR GASTROALIVIO", es_ped=es_ped_d)
         m1 = {
             "mercado": "MR PRINCIPAL", "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
             "prod_gutis": meta_fb["producto"], "lider_actual": "Competencia",
             "lider_pxs_mes": 0, "lider_pxs_ytd": 0, "comp_principal": "Competencia", "comp_pxs_mes": 0, "comp_pxs_ytd": 0,
             "lider_es_gutis": False, "pxs_mes": 0, "pxs_ytd": 0, "pxs_gutis": 0, "pxs_gutis_ytd": 0,
-            "pxs_comp": 0, "ms_gutis": 0.0, "escala_actual": "2. Consciente", "escala_meta": "3. Prueba", "meta_info": meta_fb
+            "pxs_comp": 0, "ms_gutis": 0.0, "escala_actual": "2. Consciente", "escala_meta": "3. Prueba", "modo_tactico": "CONQUISTA", "meta_info": meta_fb
         }
         m2 = None
 
     prod1, comp1, meta1 = m1["prod_gutis"], m1["comp_principal"], m1["meta_info"]
-    prod2 = m2["prod_gutis"] if m2 else "Biotos / Clembroxil"
+    paciente_perfil_1 = meta1.get("paciente_meta_ped", meta1["paciente_meta"]) if es_ped_d else meta1["paciente_meta"]
+    prod2 = m2["prod_gutis"] if m2 else ("Biotos Inmune / Clembroxil Compuesto" if es_ped_d else "Conflexil Plus Shot / Dalivio")
 
     labs_txt = " | ".join([f"**#{i+1} {l['fabricante']}** (`{l['pxs_ytd']} Pxs YTD` - {l['ms_ytd']}%)" for i, l in enumerate(dossier["labs"][:5])]) if dossier["labs"] else "Sin desglose de fabricantes"
     
     desglose_mercados_foco = "\n".join([
-        f"* **{m['prod_gutis']} (`{m['mercado']}`):** Volumen Mes `{m['pxs_mes']} Pxs` (🔷 **Gutis:** `{m['pxs_gutis']} Pxs` [{m['ms_gutis']:.1f}% MS] vs. ⚔️ **Fuga a Competencia:** `{m['pxs_comp']} Pxs` — Principal rival: **`{m['comp_principal']}`** con {m['comp_pxs_mes']} Mes / {m['comp_pxs_ytd']} YTD)."
+        f"* **{m['prod_gutis']} (`{m['mercado']}` — Escalón: `{m['escala_actual']}`):** Mes `{m['pxs_mes']} Pxs` (🔷 **Gutis:** `{m['pxs_gutis']} Pxs` [{m['ms_gutis']:.1f}% MS] vs. ⚔️ **Rival No-Gutis:** **`{m['comp_principal']}`** con `{m['comp_pxs_mes']} Mes` / `{m['comp_pxs_ytd']} YTD`)."
         for m in mercados_foco
     ]) if mercados_foco else "* _Sin registros en los mercados consultados._"
 
-    # CLASIFICACIÓN PRECISA DE LA INTENCIÓN DE ERICK
     es_dilucion_compromiso_gutis = (
         any(k in t_norm for k in ["COMPARTIENDO", "COMPARTE", "DILUY", "DIVID", "CON NOSOTROS", "CON GUTIS", "QUE CREES QUE PASE", "QUE PASA", "POR QUE RECETA OTROS", "FUGA"])
         and not any(k in t_norm for k in ["COMPRADA POR", "COMPRADO POR", "CASADA CON MEGALABS"])
@@ -638,79 +679,76 @@ def construir_respuesta_cognitiva_medico(dossier, pregunta_usuario):
     es_objecion_precio_esceptico = any(k in t_norm for k in ["PRECIO", "CARO", "COSTO", "ECONOMICO", "GENERICO", "ESCEPTIC", "BIOEQUIVALEN", "ESTUDIO", "DUDA", "NO CREE", "IGUALES", "OBJECION"])
 
     if es_dilucion_compromiso_gutis:
-        respuesta_base = f"""### 🔍 Diagnóstico Consultivo: ¿Por qué el Dr(a). {nom} está compartiendo la receta teniendo compromiso con Gutis?
+        return f"""### 🔍 Diagnóstico Consultivo: ¿Por qué el Dr(a). {nom} comparte la receta teniendo compromiso con Gutis?
 
-Analizando los números reales de Close-Up del **Dr(a). {nom}** ({esp}, Cat {cat}, {ciu}), él/ella mueve un volumen alto de **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} Pxs-YTD`), de los cuales **Gutis capta `{dossier['pxs_gutis_mes']} Pxs-MES` ({ms_global_mes:.1f}% de cuota)**, mientras que **`{dossier['pxs_comp_mes']} Pxs-MES` se están fugando hacia otros laboratorios**.
+En Close-Up, el/la **Dr(a). {nom}** ({esp}, Cat {cat}, {ciu}) genera **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} Pxs-YTD`), de los cuales **Gutis recibe `{dossier['pxs_gutis_mes']} Pxs-MES` ({ms_global_mes:.1f}% MS)** y **`{dossier['pxs_comp_mes']} Pxs-MES` se desvían a otros laboratorios**.
 
-#### 🧠 ¿Qué está pasando realmente en su consultorio? (Las 3 Causas de la Dilución)
-1. **El Síndrome del "Cumplimiento Moral Fraccionado":** Cuando un médico de alto volumen acuerda apoyarnos en **múltiples marcas a la vez ({', '.join([m['prod_gutis'] for m in mercados_foco])})**, siente que al darte **{dossier['pxs_gutis_mes']} recetas mensuales repartidas** entre esas líneas *«ya te está cumpliendo el compromiso»*. En la Escala de Adopción de Gutis se estacionó en **Adopción Parcial ({ms_global_mes:.1f}%)** y no en **Lealtad (>50%)**.
-2. **Segmentación Oculta por Patología o Presentación:** El médico te asignó un "nicho pequeño" para tus marcas y le dejó el grueso a la competencia. Mira exactamente con quién nos está compartiendo la receta en cada marca que mencionaste:
+#### 🧠 Las 3 Causas Tácticas de la Dilución:
+1. **Cumplimiento Fraccionado:** Al tener compromiso en varias marcas simultáneamente, el médico siente que dándote **{dossier['pxs_gutis_mes']} recetas globales** ya cumplió su palabra, quedándose en **Adopción Parcial** en lugar de **Lealtad (>50%)**.
+2. **Radiografía Marca por Marca (Con quién nos comparte la receta):**
 {desglose_mercados_foco}
-3. **Sustitución en Mostrador o Presión de Visitadores Rivales ({ciu}):** En su recetario global pesan fuerte: {labs_txt}. La competencia detectó que él/ella tiene compromiso contigo y lo están atacando con muestras de inicio o promociones en las farmacias de {ciu} (**{farmacias}**).
+3. **Presión Competitiva en su Recetario:** Casas rivales activas: {labs_txt}.
 
----
-
-#### ♟️ Cómo Reclamar y Blindar tu Cuota sin Confrontarlo (Estrategia TVP en 3 Pasos)
-* **1. Prohibido reclamarle "por qué receta a otros":** Si le dices *«Doctor, vi que está recetando a la competencia»*, se sentirá auditado y se pondrá a la defensiva. En el Modelo TVP se aborda validando primero las **{dossier['pxs_gutis_mes']} recetas** que sí nos da.
-* **2. Sondeo de Descubrimiento por Perfil Clínico (Unidad 4 — Aislar dónde nos cambia):**  
-  > *«Doctor(a) {nom}, antes que nada quiero agradecerle su respaldo y confianza en nuestro portafolio respiratorio. Precisamente revisando la evolución de sus pacientes aquí en {ciu}, noté que en ciertos casos específicos usa **`{prod1}`**, pero en otro grupo de pacientes prefiere alternar con `{comp1}`. Al **comparar** ambos perfiles, ¿en qué tipo de pacientito siente que todavía prefiere usar la otra opción?»*
-* **3. Cierre de "Migración de Nicho" (Pasar de Adopción a Lealtad >50%):**  
-  > *«Doctor(a), ya que usted mismo ha comprobado la respuesta de **{prod1}** (*{meta1['caracteristica'].lower()}*) y de **{prod2}**, mi propuesta hoy no es abrir más marcas, sino consolidar su confianza: para esos **{m1['pxs_comp']} pacientes mensuales** donde aún alterna con `{comp1}`, démosles el beneficio completo de **{prod1}**. Yo me encargo personalmente de que en **{farmacias}** no le fallen ni un solo día con el inventario. ¿Hacemos ese ajuste esta semana?»*
+#### ♟️ Abordaje Sutil TVP (Agradecer Primero $\rightarrow$ Aislar Nicho $\rightarrow$ Migrar):
+* **1. Apertura de Reconocimiento (Nunca reclamar):**  
+  > *«Doctor(a) {nom}, quiero iniciar agradeciéndole su respaldo constante a nuestro portafolio en {ciu}; gracias a su confianza decenas de pacientes están recibiendo formulaciones libres de alcohol y de alta pureza.»*
+* **2. Sondeo Sutil de Segmentación (Unidad 4):**  
+  > *«Precisamente dando seguimiento a la excelente respuesta que ha tenido con **{prod1}**, noté que para cierto grupo de pacientes a veces alterna el esquema con `{comp1}`. Al **comparar** ambos perfiles en su consulta de **{esp}**, ¿en qué cuadro específico siente que aún prefiere usar la otra opción?»*
+* **3. Cierre de Consolidación de Lealtad:**  
+  > *«Doctor(a), ya que usted conoce de primera mano la seguridad de **{prod1}** (*{meta1['caracteristica'].lower()}*), consolidemos también ese grupo de pacientes bajo un solo estándar de calidad, con disponibilidad total asegurada en **{farmacias}**. ¿Le parece bien?»*
 """
     elif es_comprado_competencia:
-        respuesta_base = f"""### 🔒 Estrategia de Flanqueo TVP: Cómo abordar al Dr(a). {nom} cuando está fidelizado(a) con la competencia
+        return f"""### 🔒 Estrategia de Flanqueo TVP: Dr(a). {nom} ({esp} | {ciu})
 
-En la auditoría de Close-Up ({ciu}), el/la **Dr(a). {nom}** ({esp}, Cat {cat}) registra **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} YTD`), entregando **{dossier['pxs_comp_mes']} Pxs a la competencia** y solo **{dossier['pxs_gutis_mes']} Pxs a Gutis**. Sus laboratorios dominantes son: {labs_txt}.
-
-#### 📊 Estado de sus Mercados Principales:
+#### 📊 Estado de Cartera ({dossier['pxs_mes_total']} Pxs-MES | {dossier['pxs_ytd_total']} YTD):
 {desglose_mercados_foco}
 
-#### 🧠 Táctica Unidad 7 TVP (Flanqueo por Grieta Clínica)
-* **No ataques de frente su compromiso con `{comp1}`:** Si le pides que abandone de golpe a ese laboratorio, se cerrará.
-* **Entra por el subgrupo de pacientes donde `{comp1}` falla:** Pídele únicamente los pacientes con **{meta1.get('nicho_flanqueo', meta1['paciente_meta']).lower()}**.
-* **Guion Quirúrgico de Consultorio:**  
-  > *«Doctor(a) {nom}, respeto totalmente su experiencia con su esquema habitual; hoy no busco que cambie el manejo de su paciente estándar. Solo quiero pedirle que en aquellos casos puntuales de **{meta1.get('nicho_flanqueo', meta1['paciente_meta']).lower()}**, donde se requiere **{meta1['caracteristica'].lower()}**, ponga a prueba **{prod1}** en sus próximos **2 a 3 pacientes de rescate**, con stock garantizado en **{farmacias}**. ¿Le parece bien?»*
+#### 🗣️ Guion de Flanqueo por Nicho Clínico (Unidad 7 — Sin chocar con su laboratorio actual):
+* **1. Desarme Psicológico:** *«Doctor(a) {nom}, conozco los buenos resultados que tiene con su esquema habitual y mi intención hoy no es cambiar lo que ya le funciona en su paciente general.»*
+* **2. Sondeo de Grieta Clínica:** *«Solo quiero consultarle: cuando recibe ese subgrupo específico de **{meta1.get('nicho_flanqueo', paciente_perfil_1).lower()}**, ¿cómo evita que el paciente rechace o abandone el tratamiento?»*
+* **3. Cierre de Rescate + Puente a `{prod2}`:** *«Para esos casos puntuales cuente con **{prod1}** (*{meta1['caracteristica'].lower()}*) en sus próximos **2 a 3 pacientes de rescate**, y apóyese también en **{prod2}** con inventario listo en **{farmacias}**.»*
 """
     elif es_pedido_quid_pro_quo:
-        respuesta_base = f"""### 💼 Protocolo de Negociación Consultiva (La Gran División): Dr(a). {nom}
+        return f"""### 💼 Negociación Consultiva (Condicionalidad Invertida): Dr(a). {nom}
 
-#### 📊 1. Evaluación de Retorno de Inversión (ROI) del Médico
-* **Potencial Real Auditado:** El/La **Dr(a). {nom}** ({esp}, Cat {cat}, {ciu}) genera **{dossier['pxs_mes_total']} Pxs-MES** (`{dossier['pxs_ytd_total']} Pxs-YTD`). Actualmente Gutis recibe **{dossier['pxs_gutis_mes']} Pxs-MES ({ms_global_mes:.1f}%)** y la competencia se lleva **{dossier['pxs_comp_mes']} Pxs-MES**.
-* **Mercados en juego:**
+#### 📊 Auditoría de Retorno (ROI):
+* **Volumen Actual:** `{dossier['pxs_mes_total']} Pxs-MES` (`{dossier['pxs_ytd_total']} YTD`) — **Gutis:** `{dossier['pxs_gutis_mes']} Pxs ({ms_global_mes:.1f}%)` | **Fuga a Competencia:** `{dossier['pxs_comp_mes']} Pxs`.
 {desglose_mercados_foco}
 
-#### 🧠 2. Cómo Manejar su Solicitud sin Ceder por Adelantado (Condicionalidad Invertida)
-* **Usa el Escudo de Dirección Médica:** Posiciónate como su aliado, pero explica que Gerencia audita la masa crítica de pacientes en Close-Up y la rotación en **{farmacias}** para liberar el patrocinio.
-* **Guion Exacto de Negociación:**  
-  > *«Doctor(a) {nom}, cuente conmigo para gestionar este apoyo ante la compañía; usted tiene un potencial de {dossier['pxs_ytd_total']} pacientes anuales que para Gutis es estratégico. Para que Dirección Médica me apruebe la solicitud este ciclo, me piden demostrar que subimos nuestra participación actual de **{dossier['pxs_gutis_mes']} pacientes mensuales** captando al menos **15 pacientes adicionales** de los {dossier['pxs_comp_mes']} que hoy van a otras marcas en **{prod1}** y **{prod2}**. Iniciemos esta semana direccionando esas recetas hacia **{farmacias}** y con ese corte en mano yo defiendo su solicitud en gerencia. ¿Trato hecho?»*
-"""
-    elif es_objecion_precio_esceptico:
-        respuesta_base = f"""### 🔬 Manejo de Objeciones TVP (Unidad 8): Dr(a). {nom}
-
-#### 📊 Radiografía del Especialista ({esp} | {ciu}):
-{desglose_mercados_foco}
-
-#### 🗣️ Guion en 4 Pasos (Clarificar $\rightarrow$ Comprender $\rightarrow$ Reencuadrar $\rightarrow$ Confirmar)
-* **1. Clarificar:** *«Doctor(a) {nom}, cuando evalúa **{prod1}** frente a `{comp1}`, ¿su duda principal está en la respuesta galénica o en el costo para el paciente?»*
-* **2. Comprender:** *«Entiendo perfectamente; en **{esp}** cuidar el bolsillo y la adherencia de la familia es clave.»*
-* **3. Manejar con Valor Galénico:** *«Justamente por eso **{prod1}** ofrece **{meta1['caracteristica'].lower()}**, asegurando **{meta1['beneficio'].lower()}**. Eso evita que el paciente abandone el tratamiento al segundo día o gaste doble por recaídas.»*
-* **4. Confirmar:** *«Viendo ese beneficio integral, ¿le parece iniciarlo en sus próximos 3 pacientes con respaldo en **{farmacias}**?»*
+#### 🗣️ Guion con Escudo de Dirección Médica:
+> *«Doctor(a) {nom}, cuente conmigo para gestionar este apoyo; su consulta en {ciu} es prioritaria para Gutis. Para que Dirección Médica me apruebe formalmente el patrocinio este ciclo, el sistema me exige respaldarlo subiendo nuestra cuota actual de **{dossier['pxs_gutis_mes']} recetas mensuales** mediante la migración de al menos **12 a 15 pacientes** que hoy van a `{comp1}` hacia **{prod1}** y **{prod2}**, reflejados en **{farmacias}**. Si iniciamos esta semana con esos pacientes, yo presento su expediente con números en verde ante gerencia. ¿Arrancamos hoy?»*
 """
     else:
-        respuesta_base = f"""### 🧬 Análisis Estratégico & Plan TVP: Dr(a). {nom}
+        # Adaptar según si el médico YA es Leal en su producto #1 o si es de Conquista
+        if m1["modo_tactico"] == "LEALTAD":
+            guion_adaptado = f"""#### 🛡️ Estrategia de Socio Leal (Escalón 5: `{m1['escala_actual']}` en `{prod1}`)
+* **Análisis Táctico:** ¡Atención! El/La Dr(a). {nom} **ya es leal a `{prod1}` ({m1['ms_gutis']:.1f}% de cuota)**. Sería un error ir a venderle `{prod1}` desde cero. Hoy aplicamos **Agradecimiento + Blindaje Sutil + Puente Fuerte hacia `{prod2}`**.
+* **1. Apertura de Agradecimiento y Valoración:**  
+  > *«Doctor(a) {nom}, hoy quiero iniciar agradeciéndole su confianza y lealtad hacia **{prod1}**; usted es un referente clave para nuestro portafolio en {ciu} en el cuidado de **{paciente_perfil_1.lower()}**.»*
+* **2. Sondeo de Validación y Blindaje Sutil:**  
+  > *«En estos decenas de pacientes que ya trata con **{prod1}**, ¿qué comentarios le han compartido las familias sobre la tolerabilidad y dosificación de nuestras presentaciones (*{meta1['caracteristica'].lower()}*)? Recuerde que ya blindamos el stock completo en **{farmacias}** para que no le cambien ni una sola receta.»*
+* **3. El Verdadero Objetivo de Hoy — Puente de Autoridad hacia `{prod2}`:**  
+  > *«Y precisamente apoyándome en esa excelente experiencia que usted ya tiene con la calidad galénica de Gutis en **{prod1}**, quiero pedirle su respaldo para extender esa misma seguridad hacia **{prod2}** en sus pacientes donde aún se prescribe `{m2['comp_principal'] if m2 else 'la competencia'}`. ¿Iniciamos esta semana con sus próximos 3 a 5 casos en **{prod2}**?»*"""
+        else:
+            guion_adaptado = f"""#### ⚔️ Estrategia de {m1['modo_tactico'].title()} TVP (Escalón Actual: `{m1['escala_actual']}` $\rightarrow$ Meta: `{m1['escala_meta']}`)
+* **1. Apertura Centrada en el Paciente ({esp}):**  
+  > *«Doctor(a) {nom}, quería proponerle revisar brevemente cómo optimizar la adherencia y rapidez de respuesta en **{paciente_perfil_1.lower()}**. ¿Le parece bien?»*
+* **2. Sondeo de Valor Mutuo:**  
+  > *«En los casos donde actualmente se indica `{comp1}`, al **evaluar** la evolución en los primeros días, ¿qué considera prioritario mejorar en tolerabilidad y eficacia?»*
+* **3. Apoyo Love Brand (`{prod1}`):**  
+  > *«Con **{prod1}** usted cuenta con **{meta1['caracteristica'].lower()}**, logrando **{meta1['beneficio'].lower()}**.»*
+* **4. Cierre Bilateral + Puente a `{prod2}`:**  
+  > *«¿Lo ponemos en marcha en sus próximos 3 a 5 pacientes esta semana con stock garantizado en **{farmacias}**? Y como puente clínico para su consulta de **{esp}**, recuerde que también cuenta con **{prod2}**.»*"""
+
+        return f"""### 🧬 Análisis Estratégico & Plan TVP: Dr(a). {nom}
 **Especialidad:** `{esp}` | **Categoría:** `{cat}` | **Territorio:** `{ciu}` | **Volumen:** `{dossier['pxs_mes_total']} Pxs-MES` (`{dossier['pxs_ytd_total']} YTD`) — **Gutis:** `{dossier['pxs_gutis_mes']} Pxs ({ms_global_mes:.1f}%)` vs. **Competencia:** `{dossier['pxs_comp_mes']} Pxs`
 
-#### 📊 1. Desglose por Mercados y Competidor a Derribar:
+#### 📊 1. Radiografía por Marca (Vademécum Nicaragua 2026):
 {desglose_mercados_foco}
 * **Ranking de Laboratorios en su Recetario:** {labs_txt}
 
-#### 🗣️ 2. Abordaje TVP Paso a Paso para esta Visita:
-* **Apertura (Sin marca):** *«Doctor(a) {nom}, quería proponerle revisar en dos minutos cómo optimizar el apego y rapidez de respuesta en {meta1['paciente_meta'].lower()}. ¿Le parece bien?»*
-* **Sondeo de Valor Mutuo:** *«En los casos donde hoy indica `{comp1}`, al **evaluar** las primeras 48 horas, ¿qué considera prioritario mejorar en tolerabilidad y eficacia?»*
-* **Apoyo Love Brand (`{prod1}`):** *«Con **{prod1}** usted cuenta con **{meta1['caracteristica'].lower()}**, logrando **{meta1['beneficio'].lower()}**.»*
-* **Cierre Bilateral + Puente (`{prod2}`):** *«¿Iniciamos con **{prod1}** en sus próximos 3 a 5 pacientes esta semana mientras verifico el stock en **{farmacias}**? Y como puente clínico, recuerde que también tiene disponible **{prod2}** para sus casos complementarios.»*
+{guion_adaptado}
 """
-    return respuesta_base
 
 # --- MOTOR MACRO 1: MATRIZ DE PENETRACIÓN POR ESPECIALIDAD ---
 @st.cache_data
@@ -905,12 +943,14 @@ def calcular_sincronia_rx_vs_sellout(ciudad_sel="TODO MI PANEL"):
         df_sinc = df_sinc.sort_values(by=["_orden_p", "_orden_v"], ascending=[True, False]).drop(columns=["_orden_p", "_orden_v"])
     return df_sinc
 
-# --- PROCESAMIENTO DEL MÉDICO ACTIVO EN BARRA LATERAL ---
+# --- PROCESAMIENTO DEL MÉDICO ACTIVO EN BARRA LATERAL (FILTRADO POR ESPECIALIDAD Y VADEMÉCUM) ---
 rx_clean = df_productos[df_productos["Médico"] == medico_sel].copy() if not df_productos.empty else pd.DataFrame()
 if not rx_clean.empty:
     rx_clean["Es_Gutis"] = rx_clean["NOMBRE_PRODUCTO"].apply(es_gutis)
-    rx_clean["Meta_Mercado"] = rx_clean["MERCADO"].apply(obtener_meta_mercado)
-    if es_pediatra: rx_clean = rx_clean[~rx_clean["MERCADO"].str.upper().str.contains("GASTROALIVIO", na=False)]
+    if es_pediatra:
+        # Excluir mercados exclusivos de adultos en pediatría (Gastroalivio, Conflexil, Renovart, Salud Femenina, Neurociencias, Disflam)
+        rx_clean = rx_clean[~rx_clean["MERCADO"].apply(normalizar_txt).str.contains("GASTROALIVIO|CONFLEXIL|CONRELAX|DISFLAM|RENOVART|FEMGYL|NORGYLEN|ANSIOLIT|DEPAX|FELICITAT", na=False)].copy()
+    rx_clean["Meta_Mercado"] = rx_clean["MERCADO"].apply(lambda m: obtener_meta_mercado(m, es_ped=es_pediatra))
 
 col_pxs = next((c for c in rx_clean.columns if c.upper() == "PXS-MES"), None) if not rx_clean.empty else None
 if not col_pxs and not rx_clean.empty: col_pxs = next((c for c in rx_clean.columns if any(x in c.upper() for x in ["PXS-TRIM", "PXS-YTD", "PXS", "TRX", "RECETAS"])), None)
@@ -934,7 +974,7 @@ opciones_mercados_medico = []
 
 if not rx_clean.empty:
     for m_nom, df_m in rx_clean.groupby("MERCADO"):
-        meta = obtener_meta_mercado(m_nom)
+        meta = obtener_meta_mercado(m_nom, es_ped=es_pediatra)
         prod_gutis_esperado = meta["producto"]
         prio_num = meta["prioridad"]
         cat_merc_txt = meta["categoria_mercado"]
@@ -942,8 +982,9 @@ if not rx_clean.empty:
         pxs_tot_m = int(df_m[col_pxs].sum()) if col_pxs else 0
         pxs_ytd_m = int(df_m[col_pxs_ytd_prod].sum()) if col_pxs_ytd_prod else 0
         pxs_gut_m = int(df_m[df_m["Es_Gutis"]][col_pxs].sum()) if col_pxs else 0
+        pxs_gut_ytd_m = int(df_m[df_m["Es_Gutis"]][col_pxs_ytd_prod].sum()) if col_pxs_ytd_prod else 0
         pxs_comp_m = pxs_tot_m - pxs_gut_m
-        ms_gut_m = (pxs_gut_m / pxs_tot_m * 100) if pxs_tot_m > 0 else 0.0
+        ms_gut_m = (pxs_gut_m / pxs_tot_m * 100) if pxs_tot_m > 0 else ((pxs_gut_ytd_m / pxs_ytd_m * 100) if pxs_ytd_m > 0 else 0.0)
 
         df_m_ord = df_m.sort_values(by=[col_pxs, col_pxs_ytd_prod] if (col_pxs and col_pxs_ytd_prod) else ([col_pxs] if col_pxs else [col_mes]), ascending=False)
         lider = df_m_ord.iloc[0]
@@ -951,15 +992,27 @@ if not rx_clean.empty:
         lider_es_gutis = bool(lider["Es_Gutis"])
         lider_ms = (float(lider[col_mes]) * 100) if col_mes else 0.0
 
-        escala_act, escala_meta, obj_escala = diagnosticar_escala_adopcion(pxs_gut_m, pxs_tot_m, ms_gut_m)
+        # Identificar SIEMPRE al rival No-Gutis número 1 del mercado para no atacar a nuestra propia marca
+        df_rivales = df_m_ord[~df_m_ord["Es_Gutis"]]
+        if not df_rivales.empty:
+            rival_row = df_rivales.iloc[0]
+            rival_nombre = str(rival_row["NOMBRE_PRODUCTO"]).strip()
+            rival_pxs_mes = int(rival_row[col_pxs]) if col_pxs else 0
+            rival_pxs_ytd = int(rival_row[col_pxs_ytd_prod]) if col_pxs_ytd_prod else 0
+        else:
+            rival_nombre, rival_pxs_mes, rival_pxs_ytd = "Competencia menor", 0, 0
+
+        escala_act, escala_meta, modo_tactico_m, obj_escala = diagnosticar_escala_adopcion(pxs_gut_m, pxs_tot_m, ms_gut_m)
 
         if pxs_tot_m > 0 or pxs_ytd_m > 0 or lider_ms > 0:
             opciones_mercados_medico.append({
                 "mercado": m_nom, "prioridad": prio_num, "categoria_mercado": cat_merc_txt,
-                "lider_actual": lider_nombre, "lider_es_gutis": lider_es_gutis, "prod_gutis": prod_gutis_esperado,
-                "pxs_totales": pxs_tot_m, "pxs_ytd": pxs_ytd_m, "pxs_gutis": pxs_gut_m, "pxs_comp": pxs_comp_m,
+                "lider_actual": lider_nombre, "lider_es_gutis": lider_es_gutis,
+                "rival_principal": rival_nombre, "rival_pxs_mes": rival_pxs_mes, "rival_pxs_ytd": rival_pxs_ytd,
+                "prod_gutis": prod_gutis_esperado,
+                "pxs_totales": pxs_tot_m, "pxs_ytd": pxs_ytd_m, "pxs_gutis": pxs_gut_m, "pxs_gutis_ytd": pxs_gut_ytd_m, "pxs_comp": pxs_comp_m,
                 "ms_lider": lider_ms, "ms_gutis": ms_gut_m, "escala_actual": escala_act,
-                "escala_meta": escala_meta, "objetivo_escala": obj_escala, "meta_info": meta
+                "escala_meta": escala_meta, "modo_tactico": modo_tactico_m, "objetivo_escala": obj_escala, "meta_info": meta
             })
 
     opciones_mercados_medico = sorted(opciones_mercados_medico, key=lambda x: (-x["pxs_totales"], x["prioridad"], -x["pxs_ytd"]))
@@ -973,10 +1026,10 @@ if not rx_clean.empty:
         m = item_m["mercado"]
         badge_p = f"P{item_m['prioridad']}"
         color_p = "#1e3a8a" if item_m["prioridad"] == 1 else ("#0284c7" if item_m["prioridad"] == 2 else "#64748b")
-        if not item_m["lider_es_gutis"]:
-            cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border: 1px solid #fecdd3; border-top: 4px solid #e11d48; border-radius: 6px; padding: 10px; min-width: 205px; flex: 1 1 calc(25% - 12px);"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size: 0.65rem; font-weight: 800; color: #9f1239;">{m.replace('MR ', '')}</span><span style="background:{color_p}; color:white; font-size:0.6rem; padding:2px 6px; border-radius:4px; font-weight:700;">{badge_p}</span></div><div style="font-size: 0.84rem; color: #0f172a; margin: 3px 0;">Líder: <b style="color:#be123c;">{item_m['lider_actual'][:15]}</b></div><div style="font-size: 0.72rem; color: #475569;">Mes: <b>{item_m['pxs_totales']}</b> (Comp: {item_m['pxs_comp']}) | YTD: {item_m['pxs_ytd']}</div><div style="font-size: 0.69rem; color: #334155; margin-top:2px;">Escala: <b>{item_m['escala_actual'].split('(')[0]}</b></div><div style="margin-top: 4px; font-size: 0.72rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 3px;">⚔️ Conquistar: {item_m['prod_gutis']}</div></div>"""
+        if item_m["modo_tactico"] == "LEALTAD" or item_m["lider_es_gutis"]:
+            cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 10px; min-width: 205px; flex: 1 1 calc(25% - 12px);"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size: 0.65rem; font-weight: 800; color: #065f46;">{item_m['prod_gutis'].upper()}</span><span style="background:{color_p}; color:white; font-size:0.6rem; padding:2px 6px; border-radius:4px; font-weight:700;">{badge_p}</span></div><div style="font-size: 0.84rem; color: #0f172a; margin: 3px 0;">Líder: <b style="color:#047857;">{item_m['prod_gutis']} ({item_m['ms_gutis']:.0f}%)</b></div><div style="font-size: 0.72rem; color: #475569;">Mes: <b>{item_m['pxs_totales']}</b> (Gutis: {item_m['pxs_gutis']} | Comp: {item_m['pxs_comp']})</div><div style="font-size: 0.69rem; color: #334155; margin-top:2px;">Escala: <b>{item_m['escala_actual'].split('(')[0]}</b></div><div style="margin-top: 4px; font-size: 0.72rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 3px;">🛡️ Agradecer, Blindar & Puente</div></div>"""
         else:
-            cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border: 1px solid #a7f3d0; border-top: 4px solid #059669; border-radius: 6px; padding: 10px; min-width: 205px; flex: 1 1 calc(25% - 12px);"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size: 0.65rem; font-weight: 800; color: #065f46;">{m.replace('MR ', '')}</span><span style="background:{color_p}; color:white; font-size:0.6rem; padding:2px 6px; border-radius:4px; font-weight:700;">{badge_p}</span></div><div style="font-size: 0.84rem; color: #0f172a; margin: 3px 0;">Dominio: <b style="color:#047857;">{item_m['prod_gutis']}</b></div><div style="font-size: 0.72rem; color: #475569;">Mes: <b>{item_m['pxs_totales']}</b> (Gutis: {item_m['pxs_gutis']}) | YTD: {item_m['pxs_ytd']}</div><div style="font-size: 0.69rem; color: #334155; margin-top:2px;">Escala: <b>{item_m['escala_actual'].split('(')[0]}</b></div><div style="margin-top: 4px; font-size: 0.72rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 3px;">🛡️ Blindar Recetario</div></div>"""
+            cards_ataque_html += f"""<div style="background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border: 1px solid #fecdd3; border-top: 4px solid #e11d48; border-radius: 6px; padding: 10px; min-width: 205px; flex: 1 1 calc(25% - 12px);"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size: 0.65rem; font-weight: 800; color: #9f1239;">{item_m['prod_gutis'].upper()}</span><span style="background:{color_p}; color:white; font-size:0.6rem; padding:2px 6px; border-radius:4px; font-weight:700;">{badge_p}</span></div><div style="font-size: 0.84rem; color: #0f172a; margin: 3px 0;">Rival: <b style="color:#be123c;">{item_m['rival_principal'][:15]}</b></div><div style="font-size: 0.72rem; color: #475569;">Mes: <b>{item_m['pxs_totales']}</b> (Comp: {item_m['pxs_comp']}) | YTD: {item_m['pxs_ytd']}</div><div style="font-size: 0.69rem; color: #334155; margin-top:2px;">Escala: <b>{item_m['escala_actual'].split('(')[0]}</b></div><div style="margin-top: 4px; font-size: 0.72rem; font-weight: 800; color: #047857; border-top: 1px dashed #cbd5e1; padding-top: 3px;">⚔️ Conquistar con {item_m['prod_gutis']}</div></div>"""
 
 # DATOS DE SELL-OUT ZONAL
 total_sellout_zona, total_puntos_venta = 0.0, 0
@@ -1010,8 +1063,8 @@ st.markdown(f"""
         <div class='ticker-sub'>🔷 Gutis: {gutis_pxs_medico} | 🔶 Comp: {comp_pxs_medico}</div>
     </div>
     <div class='ticker-item'>
-        <div class='ticker-label'>♟️ BLANCO PRIMARIO ({mercado_principal_str})</div>
-        <div class='ticker-val'>{producto_ataque_str[:16]} ➔ {prod_gutis_ataque_oficial}</div>
+        <div class='ticker-label'>♟️ FOCO PRIMARIO ({prod_gutis_ataque_oficial.upper()})</div>
+        <div class='ticker-val'>{producto_ataque_str[:16]}</div>
         <div class='ticker-sub'>Escala TVP: <b>{escala_ticker}</b></div>
     </div>
     <div class='ticker-item'>
@@ -1205,34 +1258,45 @@ with nucleo_macro:
         st.download_button("📥 Exportar Hoja de Ruta Geotáctica (CSV)", data=csv_ruta, file_name=f"Ruta_Gutis_{zona_terreno_sel}.csv", mime="text/csv")
 
 # ==============================================================================
-# NÚCLEO II: CONSULTORIO 360° & CANVAS TVP DE 4 CUADRANTES
+# NÚCLEO II: CONSULTORIO 360° & CANVAS TVP ADAPTATIVO SEGÚN ESCALA DE ADOPCIÓN
 # ==============================================================================
 with nucleo_micro:
     if cards_ataque_html:
-        st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 12px; margin-bottom: 10px; border-radius: 8px;"><div style="font-size: 0.78rem; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: 0.5px;">💠 [MAPA DE MERCADOS ACTIVOS DEL ESPECIALISTA (P1, P2, P3) — {num_mercados} MERCADOS AUDITADOS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=190, scrolling=True)
+        st.components.v1.html(f"""<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #1e3a8a; padding: 12px; margin-bottom: 10px; border-radius: 8px;"><div style="font-size: 0.78rem; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: 0.5px;">💠 [MAPA DE MERCADOS ACTIVOS DEL ESPECIALISTA (VADEMÉCUM NICARAGUA 2026) — {num_mercados} MERCADOS AUDITADOS]</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">{cards_ataque_html}</div></div>""", height=190, scrolling=True)
 
     col_canvas, col_micro_datos = st.columns([1.35, 1.05])
 
     with col_canvas:
-        st.markdown("##### ♟️ [CANVAS TVP DE 4 CUADRANTES — LECTURA TÁCTICA EN 15 SEGUNDOS]")
+        st.markdown("##### ♟️ [CANVAS TVP DE 4 CUADRANTES — INTELIGENCIA ADAPTATIVA SEGÚN ESCALA DE ADOPCIÓN]")
         with st.container(border=True):
             if opciones_mercados_medico:
-                etiquetas_m = [f"[P{o['prioridad']}] {o['mercado']} | Líder: {o['lider_actual'][:13]} ({o['pxs_totales']} Pxs) ➔ {o['prod_gutis']}" for o in opciones_mercados_medico]
+                etiquetas_m = [
+                    f"[{'🛡️ LEALTAD' if o['modo_tactico']=='LEALTAD' else ('🔍 EXPANSIÓN' if o['modo_tactico']=='EXPANSION' else '⚔️ CONQUISTA')}] {o['prod_gutis']} ({o['pxs_totales']} Pxs | Gutis: {o['ms_gutis']:.0f}%)"
+                    for o in opciones_mercados_medico
+                ]
+                # Selección inteligente del índice de 2da Posición (Puente): buscar el primer mercado donde la competencia nos gane
+                idx_puente_sugerido = 1 if len(opciones_mercados_medico) > 1 else 0
+                for idx_cand, o_cand in enumerate(opciones_mercados_medico):
+                    if idx_cand > 0 and o_cand["modo_tactico"] != "LEALTAD" and o_cand["pxs_comp"] > 0:
+                        idx_puente_sugerido = idx_cand
+                        break
+
                 cm1, cm2, cm3 = st.columns(3)
-                with cm1: idx_m1 = st.selectbox("🥇 1ra Posición (Foco):", range(len(etiquetas_m)), index=0, format_func=lambda i: etiquetas_m[i])
-                with cm2: idx_m2 = st.selectbox("🥈 2da Posición (Puente):", range(len(etiquetas_m)), index=(1 if len(etiquetas_m)>1 else 0), format_func=lambda i: etiquetas_m[i])
-                with cm3: idx_m3 = st.selectbox("🥉 3ra Posición (Cierre):", range(len(etiquetas_m)), index=(2 if len(etiquetas_m)>2 else (1 if len(etiquetas_m)>1 else 0)), format_func=lambda i: etiquetas_m[i])
+                with cm1: idx_m1 = st.selectbox("🥇 1ra Posición (Foco / Ancla):", range(len(etiquetas_m)), index=0, format_func=lambda i: etiquetas_m[i])
+                with cm2: idx_m2 = st.selectbox("🥈 2da Posición (Puente de Crecimiento):", range(len(etiquetas_m)), index=idx_puente_sugerido, format_func=lambda i: etiquetas_m[i])
+                with cm3: idx_m3 = st.selectbox("🥉 3ra Posición (Recordación):", range(len(etiquetas_m)), index=(2 if len(etiquetas_m)>2 else idx_puente_sugerido), format_func=lambda i: etiquetas_m[i])
                 m_primario = opciones_mercados_medico[idx_m1]
                 m_secundario = opciones_mercados_medico[idx_m2] if len(opciones_mercados_medico) > 1 else None
                 m_terciario = opciones_mercados_medico[idx_m3] if len(opciones_mercados_medico) > 2 else None
             else:
-                meta_def = obtener_meta_mercado("MR TALERDIN" if es_pediatra else "MR GASTROALIVIO")
+                meta_def = obtener_meta_mercado("MR TALERDIN" if es_pediatra else "MR GASTROALIVIO", es_ped=es_pediatra)
                 m_primario = {
                     "mercado": "MR TALERDIN" if es_pediatra else "MR GASTROALIVIO", "prioridad": 1, "categoria_mercado": "Prioridad 1 (Core)",
-                    "lider_actual": producto_ataque_str, "lider_es_gutis": False, "prod_gutis": prod_gutis_ataque_oficial,
-                    "pxs_totales": total_pxs_medico, "pxs_ytd": total_ytd_medico_global, "pxs_gutis": gutis_pxs_medico, "pxs_comp": comp_pxs_medico,
+                    "lider_actual": producto_ataque_str, "lider_es_gutis": False, "rival_principal": producto_ataque_str, "rival_pxs_mes": comp_pxs_medico, "rival_pxs_ytd": 0,
+                    "prod_gutis": prod_gutis_ataque_oficial,
+                    "pxs_totales": total_pxs_medico, "pxs_ytd": total_ytd_medico_global, "pxs_gutis": gutis_pxs_medico, "pxs_gutis_ytd": 0, "pxs_comp": comp_pxs_medico,
                     "ms_lider": share_lider, "ms_gutis": 0.0, "escala_actual": "2. Consciente (0% MS)", "escala_meta": "3. Prueba (2 a 10 Pxs)",
-                    "objetivo_escala": "Iniciar período de prueba.", "meta_info": meta_def
+                    "modo_tactico": "CONQUISTA", "objetivo_escala": "Iniciar período de prueba.", "meta_info": meta_def
                 }
                 m_secundario, m_terciario = None, None
 
@@ -1241,66 +1305,151 @@ with nucleo_micro:
             with ct2: nec_detras_sel = st.selectbox("🧠 Resorte Psicológico (NdN):", ["Desempeño (Eficacia y adherencia)", "Imagen (Prestigio clínico)", "Finanzas (Costo-beneficio)"])
 
         meta1 = m_primario["meta_info"]
-        prod1, comp1, merc1 = m_primario["prod_gutis"], m_primario["lider_actual"], m_primario["mercado"]
-        prod2 = m_secundario["prod_gutis"] if m_secundario else "Conflexil / Valerpan"
-        benef2 = m_secundario["meta_info"]["beneficio"] if m_secundario else "Recuperación funcional rápida"
-        prod3 = m_terciario["prod_gutis"] if m_terciario else "Renovart Platinum"
+        prod1 = m_primario["prod_gutis"]
+        rival1 = m_primario["rival_principal"] if m_primario["rival_principal"] != "Sin competidor activo" else "la competencia"
+        modo_tac1 = m_primario["modo_tactico"]
+        perfil_paciente_adaptado = meta1.get("paciente_meta_ped", meta1["paciente_meta"]) if es_pediatra else meta1["paciente_meta"]
+
+        if m_secundario and m_secundario["prod_gutis"] != prod1:
+            prod2 = m_secundario["prod_gutis"]
+            benef2 = m_secundario["meta_info"]["beneficio"]
+            rival2 = m_secundario["rival_principal"]
+            pxs_comp2 = m_secundario["pxs_comp"]
+        else:
+            prod2 = "Biotos Inmune / Clembroxil Compuesto" if es_pediatra else "Conflexil Plus Shot / Dalivio"
+            benef2 = "Cuádruple acción respiratoria sin alcohol" if es_pediatra else "Triple acción analgésica, antiinflamatoria y miorrelajante"
+            rival2 = "marcas tradicionales"
+            pxs_comp2 = 0
+
+        if m_terciario and m_terciario["prod_gutis"] not in [prod1, prod2]:
+            prod3 = m_terciario["prod_gutis"]
+        else:
+            prod3 = "Ventilar / Mometzona" if es_pediatra else "Valerpan / Renovart Platinum"
+
+        # LÓGICA TÁCTICA DIFERENCIADA EN EL CANVAS DE 4 CUADRANTES SEGÚN ESCALA DE ADOPCIÓN
+        if modo_tac1 == "LEALTAD":
+            q1_html = f"""
+                • <b>Escala Actual:</b> <span style='color:#047857; font-weight:800;'>{m_primario['escala_actual']} (Socio Leal)</span><br>
+                • <b>Rol de {prod1}:</b> <b>Ancla de Reconocimiento y Blindaje</b>.<br>
+                • <b>Meta SMART Hoy:</b> Blindar sus <b>{m_primario['pxs_gutis']} Pxs actuales</b> de <b>{prod1}</b> ({'capturando el remanente de ' + str(m_primario['pxs_comp']) + ' Pxs que va a ' + rival1 if m_primario['pxs_comp']>0 else '100% fidelizado'}) y usar su confianza para lograr <b>3-5 recetas nuevas en {prod2}</b>.<br>
+                • <b>Plan B:</b> Asegurar rotación en <b>{top_farmacias_ciudad_str.split(',')[0]}</b>.
+            """
+            q2_html = f"""
+                • <b>Regla TVP en Lealtad:</b> Prohibido vender de cero lo que ya receta; <b>agradecer y validar</b>.<br>
+                • <b>Apertura de Reconocimiento:</b> Agradecer su liderazgo prescriptivo en <i>{perfil_paciente_adaptado[:58]}...</i><br>
+                • <b>Pregunta de Validación:</b> <i>«¿Cómo han evolucionado sus pacientes tratados con nuestras presentaciones sin alcohol este mes?»</i><br>
+                • <b>Acuerdo:</b> <i>«Permítame compartirle una actualización rápida y revisar un segundo grupo de pacientes.»</i>
+            """
+            q3_html = f"""
+                • <b>Refuerzo Sutil ({prod1}):</b> Recordar dosificación y ventaja exclusiva ({meta1['caracteristica'][:75]}...).<br>
+                • <b>Blindaje en {nec_detras_sel.split('(')[0].strip()}:</b> {meta1['beneficio']}<br>
+                • <b>Love Brand de Socio:</b> <i>«Gracias a su confianza, decenas de pacientes en {ciudad} reciben tecnología limpia de Gutis.»</i>
+            """
+            q4_html = f"""
+                • <b>Cierre en {prod1}:</b> Agradecer su preferencia #1 y garantizar stock total en <b>{top_farmacias_ciudad_str.split(',')[0]}</b>.<br>
+                • <b>🔥 PUENTE PROTAGONISTA ({prod1} ➔ {prod2}):</b> <i>«Apoyándome en esa confianza que ya nos brinda con {prod1}, extendamos esa misma calidad hacia <b>{prod2}</b> ({benef2[:50]}...) en los casos donde aún usa {rival2}.»</i><br>
+                • <b>Recordación 3ra ({prod3}):</b> Disponible en su farmacia aliada.
+            """
+        elif modo_tac1 == "EXPANSION":
+            q1_html = f"""
+                • <b>Escala Actual:</b> <span style='color:#0284c7; font-weight:800;'>{m_primario['escala_actual']} (Comparte Receta)</span><br>
+                • <b>Escalón Meta Hoy:</b> <span style='color:#047857; font-weight:700;'>{m_primario['escala_meta']}</span><br>
+                • <b>Meta SMART:</b> Agradecer sus <b>{m_primario['pxs_gutis']} Pxs actuales</b> en <b>{prod1}</b> y migrar <b>4 a 6 pacientes</b> de los <b>{m_primario['pxs_comp']} Pxs</b> que aún entrega a <code>{rival1}</code>.<br>
+                • <b>Plan B:</b> Migrar el subgrupo de pacientes más sensibles hacia {prod1}.
+            """
+            q2_html = f"""
+                • <b>Regla TVP en Expansión:</b> Abrir explorando su experiencia positiva con los pacientes que ya trató.<br>
+                • <b>Agenda ({especialidad}):</b> Analizar evolución en <i>{perfil_paciente_adaptado[:58]}...</i><br>
+                • <b>Pregunta Sutil:</b> <i>«En los casos donde ya prescribió nuestros esquemas frente a {rival1}, ¿qué diferencias notó en el apego al tratamiento?»</i><br>
+                • <b>Acuerdo:</b> Confirmar agenda de 2 minutos.
+            """
+            q3_html = f"""
+                • <b>Sondeo de Migración:</b> <i>«¿En qué perfil específico de paciente siente que aún alterna con {rival1}?»</i><br>
+                • <b>Ventaja Diferencial ({prod1}):</b> {meta1['caracteristica']}<br>
+                • <b>Beneficio ({nec_detras_sel.split('(')[0].strip()}):</b> {meta1['beneficio']}<br>
+                • <b>Love Brand:</b> <i>«{meta1['love_brand']}»</i>
+            """
+            q4_html = f"""
+                • <b>Pido al Médico:</b> Consolidar a <b>{prod1}</b> como primera elección en ese segmento que aún compartía con <code>{rival1}</code>.<br>
+                • <b>Mi Compromiso:</b> Blindar stock hoy en <b>{top_farmacias_ciudad_str.split(',')[0]}</b>.<br>
+                • <b>Puente a 2da Posición ({prod2}):</b> <i>«Y siguiendo con seguridad clínica, cuente con <b>{prod2}</b> ({benef2[:42]}...).»</i><br>
+                • <b>Recordación 3ra ({prod3}):</b> Respaldo en farmacias aledañas.
+            """
+        else:
+            q1_html = f"""
+                • <b>Escala Actual:</b> <span style='color:#be123c; font-weight:700;'>{m_primario['escala_actual']}</span><br>
+                • <b>Escalón Meta Hoy:</b> <span style='color:#047857; font-weight:700;'>{m_primario['escala_meta']}</span><br>
+                • <b>Meta SMART:</b> Capturar los primeros <b>3 a 5 pacientes</b> de los <b>{m_primario['pxs_comp']} Pxs</b> que hoy entrega a <code>{rival1}</code> hacia <b>{prod1}</b> en 7 días.<br>
+                • <b>Plan B (Respaldo):</b> Flanqueo en 2 pacientes de rescate con muestra de inicio.
+            """
+            q2_html = f"""
+                • <b>Regla TVP:</b> Entrar con agenda centrada en el paciente de <b>{especialidad}</b> (sin mencionar marca).<br>
+                • <b>Agenda ({tipo_cita_sel.split('(')[0].strip()}):</b> Revisar adherencia en <i>{perfil_paciente_adaptado[:58]}...</i><br>
+                • <b>Disruptiva:</b> <i>«¿Qué impacto tendría en su consulta eliminar hoy el abandono al 2do día en estos pacientes?»</i><br>
+                • <b>Acuerdo:</b> <i>«¿Le parece bien revisarlo en 2 minutos?»</i>
+            """
+            q3_html = f"""
+                • <b>Sondeo Valor Mutuo:</b> <i>«Al <b>comparar</b> y <b>evaluar</b> la respuesta con {rival1}, ¿qué prioriza mejorar?»</i><br>
+                • <b>Ventaja ({prod1}):</b> {meta1['caracteristica']}<br>
+                • <b>Beneficio ({nec_detras_sel.split('(')[0].strip()}):</b> {meta1['beneficio']}<br>
+                • <b>Love Brand:</b> <i>«{meta1['love_brand']}»</i>
+            """
+            q4_html = f"""
+                • <b>Pido al Médico:</b> Iniciar <b>{prod1}</b> en sus próximos 3-5 pacientes con este cuadro.<br>
+                • <b>Mi Compromiso:</b> Blindar stock hoy en <b>{top_farmacias_ciudad_str.split(',')[0]}</b>.<br>
+                • <b>Puente a 2da Posición ({prod2}):</b> <i>«Siguiendo con eficacia comprobada, en estos casos cuenta con <b>{prod2}</b> ({benef2[:42]}...).»</i><br>
+                • <b>Recordación 3ra ({prod3}):</b> Respaldo activo en farmacias aledañas.
+            """
 
         st.markdown(f"""
         <div class='canvas-grid'>
             <div class='quad-card' style='border-top: 4px solid #1e3a8a;'>
-                <div class='quad-title' style='color:#1e3a8a;'>♟️ I. DIAGNÓSTICO & OBJETIVO SMART</div>
-                <div class='quad-body'>
-                    • <b>Escala Actual:</b> <span style='color:#be123c; font-weight:700;'>{m_primario['escala_actual']}</span><br>
-                    • <b>Escalón Meta Hoy:</b> <span style='color:#047857; font-weight:700;'>{m_primario['escala_meta']}</span><br>
-                    • <b>Meta SMART:</b> Capturar <b>3 a 5 pacientes</b> de <code>{comp1}</code> hacia <b>{prod1}</b> en los próximos 7 días.<br>
-                    • <b>Plan B (Respaldo):</b> Flanqueo en 2 pacientes de rescate con muestra de inicio.
-                </div>
+                <div class='quad-title' style='color:#1e3a8a;'>♟️ I. DIAGNÓSTICO & OBJETIVO SMART ({modo_tac1})</div>
+                <div class='quad-body'>{q1_html}</div>
             </div>
             <div class='quad-card' style='border-top: 4px solid #0284c7;'>
-                <div class='quad-title' style='color:#0284c7;'>🗝️ II. APERTURA & PREGUNTA DISRUPTIVA</div>
-                <div class='quad-body'>
-                    • <b>Regla TVP:</b> Entrar con agenda centrada en el paciente (sin mencionar marca).<br>
-                    • <b>Agenda ({tipo_cita_sel.split('(')[0].strip()}):</b> Revisar adherencia en <i>{meta1['paciente_meta'][:55]}...</i><br>
-                    • <b>Disruptiva:</b> <i>«¿Qué impacto tendría en su consulta eliminar hoy el abandono al 2do día en estos pacientes?»</i><br>
-                    • <b>Acuerdo:</b> <i>«¿Le parece bien revisarlo en 2 minutos?»</i>
-                </div>
+                <div class='quad-title' style='color:#0284c7;'>🗝️ II. APERTURA ADAPTADA ({especialidad})</div>
+                <div class='quad-body'>{q2_html}</div>
             </div>
             <div class='quad-card' style='border-top: 4px solid #059669;'>
                 <div class='quad-title' style='color:#059669;'>⚗️ III. EMBUDO, APOYO & LOVE BRAND</div>
-                <div class='quad-body'>
-                    • <b>Sondeo Valor Mutuo:</b> <i>«Al <b>comparar</b> y <b>evaluar</b> la respuesta con {comp1}, ¿qué prioriza mejorar?»</i><br>
-                    • <b>Ventaja ({prod1}):</b> {meta1['caracteristica']}<br>
-                    • <b>Beneficio ({nec_detras_sel.split('(')[0].strip()}):</b> {meta1['beneficio']}<br>
-                    • <b>Love Brand:</b> <i>«{meta1['love_brand']}»</i>
-                </div>
+                <div class='quad-body'>{q3_html}</div>
             </div>
             <div class='quad-card' style='border-top: 4px solid #d97706;'>
                 <div class='quad-title' style='color:#b45309;'>⛓️ IV. CIERRE BILATERAL & PUENTE P1➔P2➔P3</div>
-                <div class='quad-body'>
-                    • <b>Pido al Médico:</b> Iniciar <b>{prod1}</b> en los próximos 3-5 pacientes.<br>
-                    • <b>Mi Compromiso:</b> Blindar stock hoy en <b>{top_farmacias_ciudad_str.split(',')[0]}</b>.<br>
-                    • <b>Puente a 2da Posición ({prod2}):</b> <i>«Siguiendo con seguridad clínica, en estos casos cuenta con {prod2} ({benef2[:42]}...).»</i><br>
-                    • <b>Recordación 3ra ({prod3}):</b> Respaldo activo en farmacias aledañas.
-                </div>
+                <div class='quad-body'>{q4_html}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        with st.expander("📜 [DESPLEGAR DIÁLOGO LITERAL EXTENDIDO PASO A PASO (UNIDADES 1 A 6 DEL MANUAL GUTIS)]"):
+        with st.expander("📜 [DESPLEGAR DIÁLOGO LITERAL EXTENDIDO PASO A PASO (ADAPTADO A ESCALA DE ADOPCIÓN Y ESPECIALIDAD)]"):
             if st.button("⚡ Personalizar Diálogo Extendido con IA", use_container_width=True):
                 with st.spinner("Redactando guion conversacional..."):
-                    prompt_ext = f"{REGLAS_FARMA}\nRedacta el diálogo exacto paso a paso (Apertura sin marca, Sondeos de Valor Mutuo, Apoyo Love Brand y Cierre con Puente de {prod1} hacia {prod2} y {prod3}) para el Dr(a). {medico_sel} ({especialidad} en {ciudad}), considerando que receta {comp1} ({m_primario['pxs_totales']} Pxs). Enfoque psicológico: {nec_detras_sel}. Farmacias aliadas: {top_farmacias_ciudad_str}."
+                    prompt_ext = f"""{REGLAS_FARMA}
+Redacta el diálogo exacto paso a paso para el Dr(a). {medico_sel} (Especialidad: {especialidad} en {ciudad}).
+- Producto 1: {prod1} | Estado en Escala de Adopción: {m_primario['escala_actual']} (Modo Táctico: {modo_tac1}) | Pacientes Gutis: {m_primario['pxs_gutis']} | Rival No-Gutis: {rival1} ({m_primario['pxs_comp']} Pxs).
+- Producto 2 (Puente): {prod2} | Producto 3 (Recordación): {prod3}.
+- Perfil de paciente: {perfil_paciente_adaptado}.
+- Farmacias aliadas: {top_farmacias_ciudad_str}.
+Recuerda: Si el Modo Táctico es LEALTAD, agradece su apoyo, blinda sutilmente {prod1} y enfoca el peso persuasivo en el Puente hacia {prod2}. Si es PEDIATRA, habla exclusivamente de pacientes pediátricos."""
                     res_ext = llamar_gemini(prompt_ext)
                     st.session_state.tvp_result = res_ext
             if st.session_state.tvp_result:
                 st.markdown(st.session_state.tvp_result)
             else:
-                st.markdown(f"""
-* **1. Apertura Formal:** *«Doctor(a) {medico_sel}, gracias por estos minutos. {('Recordaba su interés en ' + contexto_rapport_str + '. ') if contexto_rapport_str else ''}Quería proponerle analizar cómo asegurar un alivio más rápido y sin abandono en {meta1['paciente_meta'].lower()}. ¿Le parece bien?»*
-* **2. Sondeo del Embudo:** *«Al **evaluar** la evolución de sus pacientes tratados habitualmente con `{comp1}`, ¿qué aspecto de tolerabilidad o rapidez considera clave optimizar para proteger el prestigio de su consulta?»*
-* **3. Apoyo & Storytelling:** *«Comprendo perfectamente su prioridad. Por ello en Gutis desarrollamos **{prod1}**, que aporta **{meta1['caracteristica'].lower()}**, traduciéndose en **{meta1['beneficio'].lower()}**. {meta1['love_brand']} ¿No es este el respaldo que busca para sus pacientes?»*
-* **4. Cierre & Puente Multi-Mercado:** *«¿Consideraría iniciar con **{prod1}** a sus próximos 3 a 5 pacientes esta semana mientras yo verifico el inventario en **{top_farmacias_ciudad_str}**? Y conectando con la recuperación integral, recuerde que para sus casos complementarios cuenta con **{prod2}** y **{prod3}** disponibles en las mismas farmacias.»*
+                if modo_tac1 == "LEALTAD":
+                    st.markdown(f"""
+* **1. Apertura de Reconocimiento y Gratitud (Socio Leal):** *«Doctor(a) {medico_sel}, qué gusto saludarlo(a). Antes que nada quiero agradecerle su respaldo y confianza sostenida en **{prod1}** ({m_primario['pxs_gutis']} recetas mensuales); para nosotros es un orgullo acompañarlo(a) en el cuidado de **{perfil_paciente_adaptado.lower()}**.»*
+* **2. Sondeo de Validación y Blindaje Sutil:** *«En la experiencia que ha tenido este mes con nuestros esquemas, ¿cómo ha notado la satisfacción de las familias con nuestras presentaciones (*{meta1['caracteristica'].lower()}*)? Le confirmo además que en **{top_farmacias_ciudad_str}** tenemos inventario completo para que ningún paciente sufra cambios de receta.»*
+* **3. Transición y Puente Fuerte hacia `{prod2}` (Unidad 6):** *«Y precisamente porque usted ya comprueba a diario la nobleza galénica de Gutis con **{prod1}**, quiero apoyarme en esa misma confianza para sus casos donde se requiere **{benef2.lower()}** (donde hoy todavía vemos prescripciones hacia `{rival2}`).»*
+* **4. Cierre Bilateral en el Producto Puente:** *«¿Me permite que esta semana extendamos esa alianza iniciando con **{prod2}** en sus próximos 3 a 5 pacientes de este perfil, y manteniendo presente a **{prod3}** como complemento seguro?»*
+""")
+                else:
+                    st.markdown(f"""
+* **1. Apertura Formal ({especialidad}):** *«Doctor(a) {medico_sel}, gracias por estos minutos. {('Recordaba su interés en ' + contexto_rapport_str + '. ') if contexto_rapport_str else ''}Quería proponerle analizar cómo asegurar un alivio más rápido y sin abandono en **{perfil_paciente_adaptado.lower()}**. ¿Le parece bien?»*
+* **2. Sondeo del Embudo:** *«Al **evaluar** la evolución de sus pacientes (donde en ocasiones se indica `{rival1}`), ¿qué aspecto de tolerabilidad o rapidez considera clave optimizar para proteger el éxito de su consulta?»*
+* **3. Apoyo & Storytelling:** *«Comprendo perfectamente su prioridad. Por ello en Gutis contamos con **{prod1}**, que aporta **{meta1['caracteristica'].lower()}**, traduciéndose en **{meta1['beneficio'].lower()}**. {meta1['love_brand']} ¿No es este el respaldo que busca para sus pacientes?»*
+* **4. Cierre & Puente Multi-Mercado:** *«¿Consideraría indicar **{prod1}** en sus próximos 3 a 5 pacientes esta semana mientras yo verifico el inventario en **{top_farmacias_ciudad_str}**? Y conectando con la recuperación integral en su consulta de **{especialidad}**, recuerde que también cuenta con **{prod2}** y **{prod3}** disponibles en las mismas farmacias.»*
 """)
 
         with st.expander("⚔️ [ENTRENADOR DE OBJECIONES TVP: ESCEPTICISMO, MALENTENDIDO, DESVENTAJA E INDIFERENCIA]"):
@@ -1312,10 +1461,10 @@ with nucleo_micro:
                 st.session_state.chat_history.append({"role": "user", "content": prompt_chat})
                 with chat_container.chat_message("user"): st.write(prompt_chat)
                 with st.spinner("Evaluando técnica TVP..."):
-                    prompt_sim = f"{REGLAS_FARMA}\nEntrena a Erick Calderón frente al Dr(a). {medico_sel}. Producto: {prod1} vs {comp1}. Erick dijo: '{prompt_chat}'. Responde en 2 bloques breves: 1) Respuesta realista del médico, 2) Coaching TVP."
+                    prompt_sim = f"{REGLAS_FARMA}\nEntrena a Erick Calderón frente al Dr(a). {medico_sel} ({especialidad}). Producto: {prod1} vs {rival1}. Erick dijo: '{prompt_chat}'. Responde en 2 bloques breves: 1) Respuesta realista del médico, 2) Coaching TVP."
                     res_sim = llamar_gemini(prompt_sim)
                     if not res_sim:
-                        res_sim = f"**🩺 Dr(a). {medico_sel}:** «Ya conozco `{comp1}` y me da resultados aceptables; además el paciente ya lo ubica.»\n\n**🛡️ Coaching TVP:** Clasificación: **Indiferencia / Hábito**. Aplica Unidad 7: 1) Demuestra comprensión sin ceder, 2) Pide permiso para 1 pregunta de agenda limitada sobre el beneficio exclusivo de **{prod1}** (*{meta1['caracteristica']}*)."
+                        res_sim = f"**🩺 Dr(a). {medico_sel}:** «Ya conozco `{rival1}` y me da resultados aceptables; además el paciente ya lo ubica.»\n\n**🛡️ Coaching TVP:** Clasificación: **Indiferencia / Hábito**. Aplica Unidad 7: 1) Demuestra comprensión sin ceder, 2) Pide permiso para 1 pregunta de agenda limitada sobre el beneficio exclusivo de **{prod1}** (*{meta1['caracteristica']}*)."
                 st.session_state.chat_history.append({"role": "assistant", "content": res_sim})
                 st.rerun()
 
@@ -1328,7 +1477,7 @@ with nucleo_micro:
 
         with sub_rx:
             if not rx_clean.empty:
-                rx_clean["Nivel_Mercado"] = rx_clean["MERCADO"].apply(lambda x: f"P{obtener_meta_mercado(x)['prioridad']}")
+                rx_clean["Nivel_Mercado"] = rx_clean["MERCADO"].apply(lambda x: f"P{obtener_meta_mercado(x, es_ped=es_pediatra)['prioridad']}")
                 col_f_p, col_f_c = st.columns([1.8, 1.2])
                 with col_f_p:
                     niv_rx_sel = st.multiselect("Filtrar Prioridad:", ["P1", "P2", "P3"], placeholder="Todas (P1, P2, P3)...")
@@ -1527,16 +1676,17 @@ with nucleo_copiloto:
                     base_cognitiva = construir_respuesta_cognitiva_medico(dossier_doc, input_chat_chira)
 
                     prompt_cognitivo_ia = f"""{REGLAS_FARMA}
-Eres CHIRA 3.0, Consultora Senior de Inteligencia Comercial y Master Coach TVP de Laboratorios Gutis.
+Eres CHIRA 3.0, Consultora Senior de Inteligencia Comercial y Master Coach TVP de Laboratorios Gutis en Nicaragua.
 El usuario (Erick Calderón) te acaba de escribir exactamente esto:
 "{input_chat_chira}"
 
-Aquí tienes el diagnóstico base y las cifras exactas extraídas de Close-Up y Sell-Out para el Dr(a). {dossier_doc['nombre']}:
+Aquí tienes el análisis táctico previo y las cifras exactas extraídas de Close-Up y Sell-Out para el Dr(a). {dossier_doc['nombre']} (Especialidad: {dossier_doc['especialidad']}):
 {base_cognitiva}
 
 INSTRUCCIONES ESTRICTAS:
-1. Empieza respondiendo DIRECTAMENTE a la duda o situación que plantea Erick (por ejemplo, si pregunta por qué el médico comparte la receta en ciertas marcas a pesar de tener compromiso con Gutis, analiza las causas reales usando los números exactos de cada marca).
-2. NO uses encabezados genéricos si no vienen al caso; conserva TODAS las cifras exactas de pacientes (Mes, YTD, rivales por mercado y farmacias de su ciudad) y entrega el guion quirúrgico TVP para resolverlo en la visita."""
+1. Empieza con un ANÁLISIS TÁCTICO directo respondiendo a la situación planteada por Erick antes de dar los pasos del guion.
+2. Verifica la Escala de Adopción en cada marca: si el médico ya nos da muchas recetas en una marca (ej. está en Lealtad >50% MS o Adopción Alta), NO le propongas un guion forzado de 'probar en 3 pacientes'; sugiérele agradecerle como socio estratégico, blindar sutilmente la marca recordando su importancia en nuestro portafolio y usar esa confianza como PUENTE hacia las marcas donde tenemos brecha.
+3. Respeta estrictamente el Vademécum Nicaragua 2026 (JAMÁS menciones Disflam, Conrelax ni Dalivium) y la especialidad del médico (si es PEDIATRA, habla solo de pacientes pediátricos)."""
 
                     res_ia_cog = llamar_gemini(prompt_cognitivo_ia)
                     resultado_final = res_ia_cog if (res_ia_cog and len(res_ia_cog.strip()) > 180) else base_cognitiva
@@ -1677,7 +1827,7 @@ INSTRUCCIONES ESTRICTAS:
             cb3, cb4 = st.columns(2)
             with cb3: resultado_obj = st.selectbox("3. Resultado SMART:", ["Objetivo Principal Logrado", "Objetivo de Respaldo Logrado", "Seguimiento Pendiente"])
             with cb4: escala_post = st.selectbox("4. Escalón Alcanzado:", ["1. No Consciente", "2. Consciente", "3. Prueba (2-10 Pxs)", "4. Adopción (25-50%)", "5. Lealtad (>50%)"])
-            compromiso_med = st.text_input("Compromiso del Médico:", value="Iniciar en próximos 3-5 pacientes")
+            compromiso_med = st.text_input("Compromiso del Médico:", value="Consolidar prescripción y puente clínico")
             compromiso_vis = st.text_input("Compromiso Visitador:", value=f"Garantizar stock en {top_farmacias_ciudad_str.split(',')[0]}")
             notas_visita = st.text_area("Acuerdos Clínicos y Observaciones Post-Visita:", height=68, placeholder="Registra hallazgos clínicos o seguimiento para la próxima apertura...")
 
