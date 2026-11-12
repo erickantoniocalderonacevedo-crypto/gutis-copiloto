@@ -1758,7 +1758,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
             st.write("")
 
             if st.session_state.sub_previsita_auditoria == "CLASES":
-                df_mat_ct = obtener_matriz_clases_terapeuticas_medico(df_productos, medico_sel)
+                df_mat_ct = obtener_matriz_clases_terapeuticas_medico(df_clases, df_productos, medico_sel)
                 render_html(f"""
                     <div class='notranslate' translate='no' style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
                         <div style='font-size:0.88rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> Matriz Corporativa de Clases Terapéuticas — Dr(a). {medico_sel}</div>
