@@ -1,7 +1,6 @@
 """
 Motor Analítico Integral Gutis BI v2.5 (Fusión de Precisión Modular + Cuadros Ejecutivos TVP & Power BI).
-Incluye todas las correcciones de auditoría (Montelukast, gy, índices limpios, brecha pp)
-y todas las funciones tácticas del Visor BI Multifiltro, Previsita TVP y CHIRA.
+Incluye correcciones de auditoría, compliance ético, filtros limpios y privacidad de datos.
 """
 
 import re
@@ -70,15 +69,25 @@ def diagnosticar_escala_adopcion(
             "nivel": "1. No Consciente",
             "meta": "2. Consciente / 3. Prueba (2-5 Pxs)",
             "modo": "CONQUISTA",
-            "accion": "Crear conciencia del perfil de paciente y lograr las primeras 3 recetas de prueba."
+            "accion": "Crear conciencia del perfil de paciente y lograr las primeras recetas de prueba."
         }
     if pxs_g_eval == 0:
         return {
             "nivel": f"2. Consciente (0% MS {etiqueta})",
             "meta": "3. Prueba (2 a 10 Pxs)",
             "modo": "CONQUISTA",
-            "accion": f"Iniciar período de prueba en sus próximos 3 a 5 pacientes (prescribe {pxs_t_eval} Pxs en la categoría)."
+            "accion": f"Iniciar período de prueba en sus próximos 3 a 5 pacientes (prescribe {pxs_t_eval} Pxs en total)."
         }
+    
+    # NUEVO: Control de Falsos Positivos de Lealtad (Exigir mínimo 6 recetas en la categoría para considerar Lealtad)
+    if pxs_t_eval < 6 and ms_eval >= 50.0:
+        return {
+            "nivel": f"3. Prueba ({ms_eval:.1f}% MS {etiqueta} | {pxs_g_eval} Pxs)",
+            "meta": "4. Adopción (Incrementar Base de Pacientes)",
+            "modo": "EXPANSION",
+            "accion": "Volumen bajo en la categoría. Consolidar el uso clínico antes de considerarlo usuario leal."
+        }
+        
     if ms_eval < 25.0:
         return {
             "nivel": f"3. Prueba ({ms_eval:.1f}% MS {etiqueta} | {pxs_g_eval} Pxs)",
@@ -162,11 +171,11 @@ def resumen_mercados(df_productos: pd.DataFrame, df_panel: pd.DataFrame, ciudad:
             "Prioridad": f"P{meta.get('prioridad', 3)}",
             "Marca Gutis": meta.get("producto", k_gut),
             "Clase Terapéutica": meta.get("clase_terapeutica", ""),
-            "Mercado Total Mes": tot_m,
+            "Mercado Mes": tot_m,
             "Gutis Mes": gut_m,
             "Competencia Mes": tot_m - gut_m,
             "% MS Mes": ms_m,
-            "Mercado Total YTD": tot_y,
+            "Mercado YTD": tot_y,
             "Gutis YTD": gut_y,
             "Competencia YTD": tot_y - gut_y,
             "% MS YTD": ms_y,
@@ -176,7 +185,7 @@ def resumen_mercados(df_productos: pd.DataFrame, df_panel: pd.DataFrame, ciudad:
         })
 
     df_out = pd.DataFrame(filas)
-    return df_out.sort_values(by=["_p", "Mercado Total Mes", "Mercado Total YTD"], ascending=[True, False, False]).drop(columns=["_p"]) if not df_out.empty else df_out
+    return df_out.sort_values(by=["_p", "Mercado Mes", "Mercado YTD"], ascending=[True, False, False]).drop(columns=["_p"]) if not df_out.empty else df_out
 
 def calcular_tabla_bi_multifiltro(
     df_auditoria_docs: pd.DataFrame,
@@ -190,10 +199,6 @@ def calcular_tabla_bi_multifiltro(
     f_lab: str = "Todas",
     f_cat: str = "Todas"
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Réplica exacta del Visor Power BI Multifiltro de Clases y Auditoría.xlsx.
-    Retorna (df_bi_marcas, df_bi_medicos).
-    """
     if df_auditoria_docs.empty:
         return pd.DataFrame(), pd.DataFrame()
 
@@ -263,9 +268,10 @@ def ranking_medicos(
 
     if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
         rx_sub = rx_sub[rx_sub["CIUDAD_PANEL"].str.contains(re.escape(ciudad.upper()), na=False)]
+    
+    # NUEVO: Filtro exacto de especialidad para evitar colisión Medicina General vs Interna
     if especialidad and especialidad not in ("TODAS", "TODAS LAS ESPECIALIDADES"):
-        raiz_e = normalizar_txt(especialidad)[:6]
-        rx_sub = rx_sub[normalizar_serie_rapida(rx_sub["ESP_PANEL"]).str.contains(re.escape(raiz_e), na=False)]
+        rx_sub = rx_sub[rx_sub["ESP_PANEL"].astype(str).str.upper() == especialidad.upper()]
 
     if rx_sub.empty:
         return pd.DataFrame()
@@ -405,8 +411,9 @@ def radar_laboratorios(
             p_sub = df_panel.copy()
             if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
                 p_sub = p_sub[p_sub["CIUDAD"].str.contains(re.escape(ciudad.upper()), na=False)]
+            # NUEVO: Filtro exacto para evitar colisión Medicina General vs Interna
             if especialidad and especialidad not in ("TODAS", "TODAS LAS ESPECIALIDADES"):
-                p_sub = p_sub[p_sub["Especialidad"].str.contains(re.escape(especialidad[:6].upper()), na=False)]
+                p_sub = p_sub[p_sub["Especialidad"].astype(str).str.upper() == especialidad.upper()]
             sub = sub[sub["Médico"].isin(set(p_sub["Médico"].dropna().unique()))]
 
     if sub.empty:
@@ -420,7 +427,12 @@ def radar_laboratorios(
     rk["Pxs YTD"] = rk["Pxs-YTD"].astype(int)
     rk["% MS YTD"] = np.where(tot_y > 0, (rk["Pxs-YTD"] / tot_y * 100.0).round(2), 0.0)
     rk["Brecha MS (Mes vs YTD)"] = (rk["% MS Mes"] - rk["% MS YTD"]).round(2)
-    rk["Laboratorio"] = np.where(rk["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False), "[GUTIS] " + rk["FABRICANTE"].astype(str), rk["FABRICANTE"].astype(str))
+    # NUEVO: Solo agregar [GUTIS] si no lo tiene, para evitar duplicaciones en app.py
+    rk["Laboratorio"] = np.where(
+        (rk["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)) & (~rk["FABRICANTE"].astype(str).str.upper().str.startswith("[GUTIS]")), 
+        "[GUTIS] " + rk["FABRICANTE"].astype(str), 
+        rk["FABRICANTE"].astype(str)
+    )
     rk = rk.sort_values(by=["Pxs Mes", "Pxs YTD"], ascending=[False, False]).reset_index(drop=True)
     return rk[["Laboratorio", "Médico", "Pxs Mes", "% MS Mes", "Pxs YTD", "% MS YTD", "Brecha MS (Mes vs YTD)"]].rename(columns={"Médico": "Prescriptores"})
 
@@ -528,7 +540,6 @@ def ventas_por_trimestre(df_ventas: pd.DataFrame, ciudad: Optional[str] = None, 
     piv["Total Acumulado"] = (piv["Q1"] + piv["Q2"] + piv["Q3"]).round(2)
     return piv.sort_values(by="Total Acumulado", ascending=False)
 
-# --- GENERADOR DE GUIONES TÁCTICOS TVP CON VARIANTES Y FARMACIAS ALIADAS ---
 def construir_guion_tvp_dinamico(
     medico_raw: str,
     especialidad: str,
@@ -567,10 +578,14 @@ def construir_guion_tvp_dinamico(
         argumento_ndn = meta1["beneficio"]
         pregunta_ndn = f"¿qué aspecto considera prioritario optimizar en rapidez de acción y tolerabilidad frente a {rival_marca} en {rival_forma.lower()}?"
 
-    rap_txt = f" Tenía presente además lo conversado sobre {notas_rapport}." if notas_rapport else ""
-    if "Pasillo" in tipo_cita_sel:
+    # NUEVO: No incluir el texto de rapport personal si va a pasarse a la IA
+    rap_txt = f" Tenía presente además lo conversado en visitas anteriores." if notas_rapport else ""
+    
+    # NUEVO: Control exacto de minúsculas
+    tc_lower = tipo_cita_sel.lower()
+    if "pasillo" in tc_lower:
         intro_contexto = f"Doctor(a) {nom_corto}, sé que va en movimiento hacia consulta; le tomo literalmente 45 segundos.{rap_txt}"
-    elif "Improvisto" in tipo_cita_sel:
+    elif "improvisto" in tc_lower:
         intro_contexto = f"Doctor(a) {nom_corto}, agradezco mucho que me reciba este minuto entre pacientes.{rap_txt}"
     else:
         intro_contexto = f"Doctor(a) {nom_corto}, qué gusto saludarlo(a) en esta visita programada.{rap_txt}"
@@ -689,7 +704,6 @@ def generar_consultoria_cognitiva_chira_medico(
             if pm <= 0 and py <= 0:
                 continue
             gm = int(grp[grp["Es_Gutis"]]["Pxs-MES"].sum())
-            # CORREGIDO: gy usa Pxs-YTD correctamente
             gy = int(grp[grp["Es_Gutis"]]["Pxs-YTD"].sum())
             cm, cy = pm - gm, py - gy
             msm = (gm / pm * 100.0) if pm > 0 else 0.0
@@ -742,7 +756,8 @@ def generar_consultoria_cognitiva_chira_medico(
 
     es_dilucion = any(k in t_norm for k in ["COMPART", "DILUY", "DIVID", "CON NOSOTROS", "FUGA", "POR QUE RECETA OTROS", "QUE PASA"])
     es_comprado = any(k in t_norm for k in ["COMPRAD", "AMARRAD", "CASAD", "FIDELIZAD", "NO SUELTA"]) and not es_dilucion
-    es_pedido_roi = any(k in t_norm for k in ["PIDE", "PEDIR", "PIDIO", "A CAMBIO", "CONGRESO", "INSCRIPCION", "MUESTRA", "APOYO", "PATROCINIO"])
+    # CORREGIDO: Se reescribe la gestión de ROI/Patrocinios para cumplir con Códigos de Ética IFPMA
+    es_pedido_roi = any(k in t_norm for k in ["PIDE", "PEDIR", "PIDIO", "A CAMBIO", "CONGRESO", "INSCRIPCION", "APOYO", "PATROCINIO"])
 
     if es_dilucion:
         bloque_tactico = f"""#### Diagnóstico de Dilución de Receta y Abordaje TVP:
@@ -762,10 +777,10 @@ def generar_consultoria_cognitiva_chira_medico(
 3. **Cierre de Rescate (2 a 3 Pacientes) + Puente (`{prod2}`):**
    > «Para esos casos puntuales apóyese en **{prod1}** (*{meta1['caracteristica'].lower()}*) en sus próximos **3 pacientes de rescate**, y cuente también con **{prod2}** respaldado en **{farmacias_z}**.»"""
     elif es_pedido_roi:
-        bloque_tactico = f"""#### Negociación Consultiva de Retorno (Condicionalidad Invertida):
-1. **Auditoría de ROI Actual:** Volumen total: `{tot_mes} Pxs Mes` (`{tot_ytd} YTD`) | Cuota Gutis: `{gut_mes} Pxs ({ms_global_m:.1f}%)` | Fuga a competencia: `{comp_mes} Pxs Mes` (`{comp_ytd} YTD`).
-2. **Guion con Escudo de Dirección Médica:**
-   > «Doctor(a) {nom_natural}, su consulta en {ciu_m} es prioritaria para Gutis y cuenta con mi gestión para este apoyo. Para que Dirección Médica me apruebe el patrocinio en este ciclo, el sistema me exige respaldarlo subiendo nuestra participación mediante la migración de al menos **10 a 15 pacientes** que hoy van a **{riv1_marca}** hacia **{prod1}** y **{prod2}**, reflejados en **{farmacias_z}**. Si arrancamos esta semana con esos pacientes, yo presento su solicitud con números en verde. ¿Iniciamos hoy?»"""
+        bloque_tactico = f"""#### Gestión Ética de Apoyo y Educación Médica Continua (Compliance):
+1. **Auditoría de Prescripción Actual:** Volumen total: `{tot_mes} Pxs Mes` | Cuota Gutis: `{gut_mes} Pxs ({ms_global_m:.1f}%)`.
+2. **Guion de Valor Científico (Cero Condicionamiento de Recetas):**
+   > «Doctor(a) {nom_natural}, su práctica en {ciu_m} es fundamental para nosotros. Nuestro compromiso con la educación médica continua es apoyarlo en su actualización científica, respetando siempre su criterio clínico y sin condicionamientos. Aprovecho para actualizarle sobre **{prod1}** y garantizarle que sus pacientes encontrarán el tratamiento completo en **{farmacias_z}** cuando usted decida prescribirlo.»"""
     else:
         bloque_tactico = construir_guion_tvp_dinamico(
             nombre_med, esp_m, ciu_m,
@@ -776,7 +791,8 @@ def generar_consultoria_cognitiva_chira_medico(
             },
             prod2, m2["meta"]["beneficio"] if m2 else "eficacia comprobada",
             m2["riv_sku"] if m2 else "la competencia", "Ventilar / Mometzona" if es_ped_m else "Valerpan / Renovart Platinum",
-            "Visita con cita previa", "Desempeño (Eficacia y adherencia clínica)", farmacias_z, 0
+            "Visita con cita previa", "Desempeño (Eficacia y adherencia clínica)", farmacias_z, 0,
+            notas_rapport="" # Se omite rapport personal en el prompt IA
         )
 
     return f"""### Expediente Estratégico y Plan TVP: Dr(a). {nombre_med}
@@ -812,7 +828,6 @@ def generar_analisis_mercado_chira_rico(df_rk_q: pd.DataFrame, mer_q: Optional[s
     comp_y_zona = int(df_rk_q["Comp YTD"].sum())
     ms_y_zona = (gut_y_zona / tot_y_zona * 100.0) if tot_y_zona > 0 else 0.0
 
-    # CORREGIDO: Diferenciar si la lealtad proviene del Mes o del Histórico YTD
     meds_leales_mes = df_rk_q[df_rk_q["% MS Mes"] >= 50.0]
     if not meds_leales_mes.empty:
         txt_leales = ", ".join([
@@ -848,7 +863,7 @@ def generar_analisis_mercado_chira_rico(df_rk_q: pd.DataFrame, mer_q: Optional[s
 
 #### Plan de Acción Táctico en {z_lbl} para {marca_foco}:
 1. **Socios Leales a Blindar y Apalancar con Puente (>50% MS):** {txt_leales}
-2. **Objetivos Prioritarios de Conquista y Migración (Donde está el volumen de la competencia):**
+2. **Objetivos Prioritarios de Conquista y Migración:**
 {txt_conquista}
 3. **Directriz de Ejecución en Campo:** En los médicos de **Lealtad**, agradece su respaldo sin vender de cero y construye el puente hacia una segunda línea. En los médicos de **Conquista/Expansión**, aplica flanqueo directo sobre la presentación del rival principal asegurando disponibilidad previa en las farmacias líderes de {z_lbl}.
 """
