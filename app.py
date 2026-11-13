@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+import html
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -14,7 +16,6 @@ from gutis_bi.analytics import (
     auditoria_marcas,
     calcular_tabla_bi_multifiltro,
     construir_guion_tvp_dinamico,
-    df_a_markdown_nativo,
     diagnosticar_escala_adopcion,
     formatear_nombre_medico,
     generar_analisis_mercado_chira_rico,
@@ -31,7 +32,7 @@ from gutis_bi.analytics import (
     resumen_ventas_ciudad,
     ventas_por_trimestre,
 )
-from gutis_bi.catalog import MERCADOS_PRIORITARIOS, REGLAS_FARMA
+from gutis_bi.catalog import MERCADOS_PRIORITARIOS
 from gutis_bi.crm import (
     exportar_visitas_csv,
     guardar_perfil_360,
@@ -41,7 +42,7 @@ from gutis_bi.crm import (
     leer_visitas,
     migrar_excels_anteriores,
 )
-from gutis_bi.data import clear_data_cache, load_data, normalizar_serie_rapida, normalizar_txt, resolver_clave_mercado_gutis
+from gutis_bi.data import clear_data_cache, load_data, normalizar_serie_rapida, normalizar_txt
 
 # -----------------------------------------------------------------------------
 # CONFIGURACIÓN DE PÁGINA Y RUTAS INTELIGENTES
@@ -76,7 +77,6 @@ def render_sb_html(html_str: str) -> None:
     st.sidebar.markdown(clean_html, unsafe_allow_html=True)
 
 def render_html(html_str: str) -> None:
-    """Elimina la indentacion izquierda de cada linea HTML para que Markdown no lo interprete como bloque de codigo."""
     clean_html = "\n".join(line.lstrip() for line in html_str.splitlines() if line.strip())
     st.markdown(clean_html, unsafe_allow_html=True)
 
@@ -725,13 +725,13 @@ with st.sidebar.expander("Estado de Bases Offline y Caché", expanded=False):
     st.caption(f"Carpeta activa: `{DATA_DIR}`")
     for k_f, v_f in bundle.archivos.items():
         st.caption(f"• **{k_f}:** `{v_f}`")
-    if st.button("Recargar Excels y Limpiar Caché", use_container_width=True):
+    if st.button("Recargar Excels y Limpiar Caché", width="stretch"):
         clear_data_cache()
         st.rerun()
 
 render_sb_html("""
     <div class='notranslate' translate='no' style='display:flex; align-items:center; justify-content:space-between; padding-top:8px; font-size:0.72rem; color:#475569; font-weight:700;'>
-        <span><span style='color:#10b981;'>●</span> Base Offline OK (100%)</span>
+        <span><span style='color:#10b981;'>●</span> Conexión Local Estable</span>
         <span>Erick Calderón (VM)</span>
     </div>
     """)
@@ -750,7 +750,7 @@ render_html(f"""
         </div>
         <div class='stitch-sync-status'>
             <span style='color:#64748b; font-weight:600;'>Auditoría Close-Up: <b>{corte_nombre}</b></span>
-            <span class='sync-badge'>● Base Sincronizada (100%)</span>
+            <span class='sync-badge'>● Sincronización Close-Up</span>
             <div class='vm-avatar-top'>
                 <span class='vm-circle'>EC</span>
                 <span>Erick Calderón <small style='display:block; font-size:0.64rem; color:#10b981; font-weight:700;'>Visitador Médico · Activo</small></span>
@@ -793,7 +793,7 @@ def show_table(df: pd.DataFrame, height: int = 420) -> None:
             cfg[col] = st.column_config.ProgressColumn(col, format="%.1f%%", min_value=0, max_value=100)
         elif "Dif %" in col or "Brecha" in col or "Delta" in col:
             cfg[col] = st.column_config.NumberColumn(col, format="%+.1f pp")
-    st.dataframe(df, hide_index=True, use_container_width=True, height=height, column_config=cfg)
+    st.dataframe(df, hide_index=True, width="stretch", height=height, column_config=cfg)
 
 
 # -----------------------------------------------------------------------------
@@ -815,7 +815,7 @@ if st.session_state.modulo_activo == "HUB":
                     <div class='hero-glass-lbl'>CENTRO DE COMPETENCIAS</div>
                     <div class='hero-glass-val'>Inteligencia de Negocio v2.5</div>
                 </div>
-                <div class='hero-ok-pill'>Auditado OK</div>
+                <div class='hero-ok-pill'>Motor Activo</div>
             </div>
         </div>
         """)
@@ -924,7 +924,7 @@ if st.session_state.modulo_activo == "HUB":
                 </div>
             </div>
             """)
-        if st.button("Abrir Visor Multifiltro  →", key="btn_hub_m1", use_container_width=True, type="primary"):
+        if st.button("Abrir Visor Multifiltro  →", key="btn_hub_m1", width="stretch", type="primary"):
             ir_a_modulo("TOP_MEDICOS")
             st.rerun()
 
@@ -941,7 +941,7 @@ if st.session_state.modulo_activo == "HUB":
                 </div>
             </div>
             """)
-        if st.button("Preparar Guion & Canvas  →", key="btn_hub_m2", use_container_width=True, type="primary"):
+        if st.button("Preparar Guion & Canvas  →", key="btn_hub_m2", width="stretch", type="primary"):
             ir_a_modulo("PREVISITA")
             st.rerun()
 
@@ -960,7 +960,7 @@ if st.session_state.modulo_activo == "HUB":
                 </div>
             </div>
             """)
-        if st.button("Explorar Radar de Mercado  →", key="btn_hub_m3", use_container_width=True):
+        if st.button("Explorar Radar de Mercado  →", key="btn_hub_m3", width="stretch"):
             ir_a_modulo("ANALISIS_MERCADO")
             st.rerun()
 
@@ -977,7 +977,7 @@ if st.session_state.modulo_activo == "HUB":
                 </div>
             </div>
             """)
-        if st.button("Comparar Curvas Rx / Sell-Out  →", key="btn_hub_m4", use_container_width=True):
+        if st.button("Comparar Curvas Rx / Sell-Out  →", key="btn_hub_m4", width="stretch"):
             ir_a_modulo("EVOLUCION")
             st.rerun()
 
@@ -991,11 +991,11 @@ if st.session_state.modulo_activo == "HUB":
                     <div style='font-size:1.05rem; font-weight:800; color:#ffffff;'>CHIRA — Copiloto Estratégico con Voz y Registro CRM Post-Visita</div>
                     <div style='font-size:0.78rem; color:#cbd5e1;'>Consultoría táctica en tiempo real sobre Close-Up, manejo de objeciones y bitácora relacional SQLite.</div>
                 </div>
-                <div class='hero-ok-pill'>IA + SQLite Activo</div>
+                <div class='hero-ok-pill'>Motor SQLite Activo</div>
             </div>
         </div>
         """)
-    if st.button("Iniciar Consola Cognitiva CHIRA & Bitácora CRM  →", key="btn_hub_m5", use_container_width=True, type="primary"):
+    if st.button("Iniciar Consola Cognitiva CHIRA & Bitácora CRM  →", key="btn_hub_m5", width="stretch", type="primary"):
         ir_a_modulo("CHIRA")
         st.rerun()
 
@@ -1006,7 +1006,7 @@ if st.session_state.modulo_activo == "HUB":
 elif st.session_state.modulo_activo == "TOP_MEDICOS":
     c_back, c_tit = st.columns([0.85, 3.15])
     with c_back:
-        if st.button("← Volver al Menú Principal", use_container_width=True):
+        if st.button("← Volver al Menú Principal", width="stretch"):
             ir_a_modulo("HUB")
             st.rerun()
     with c_tit:
@@ -1020,19 +1020,19 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
     st.markdown("<div class='subnav-label'>SELECCIONE LA VISTA ANALÍTICA (UNA COSA A LA VEZ):</div>", unsafe_allow_html=True)
     btm0, btm1, btm2, btm3 = st.columns(4)
     with btm0:
-        if st.button("1. Evolución - Mercado (Visor BI)", use_container_width=True, type="primary" if st.session_state.sub_top_medicos == "BI_EVOLUCION" else "secondary"):
+        if st.button("1. Evolución - Mercado (Visor BI)", width="stretch", type="primary" if st.session_state.sub_top_medicos == "BI_EVOLUCION" else "secondary"):
             st.session_state.sub_top_medicos = "BI_EVOLUCION"
             st.rerun()
     with btm1:
-        if st.button("2. Ranking por Volumen de Recetas", use_container_width=True, type="primary" if st.session_state.sub_top_medicos == "RANKING" else "secondary"):
+        if st.button("2. Ranking por Volumen de Recetas", width="stretch", type="primary" if st.session_state.sub_top_medicos == "RANKING" else "secondary"):
             st.session_state.sub_top_medicos = "RANKING"
             st.rerun()
     with btm2:
-        if st.button("3. Mercados que Crecen (Mes vs. YTD)", use_container_width=True, type="primary" if st.session_state.sub_top_medicos == "CRECIMIENTO" else "secondary"):
+        if st.button("3. Mercados que Crecen (Mes vs. YTD)", width="stretch", type="primary" if st.session_state.sub_top_medicos == "CRECIMIENTO" else "secondary"):
             st.session_state.sub_top_medicos = "CRECIMIENTO"
             st.rerun()
     with btm3:
-        if st.button("4. Médicos Fuera de Panel (Prospección)", use_container_width=True, type="primary" if st.session_state.sub_top_medicos == "FUERA_PANEL" else "secondary"):
+        if st.button("4. Médicos Fuera de Panel (Prospección)", width="stretch", type="primary" if st.session_state.sub_top_medicos == "FUERA_PANEL" else "secondary"):
             st.session_state.sub_top_medicos = "FUERA_PANEL"
             st.rerun()
 
@@ -1124,9 +1124,9 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                             "ORIGEN",
                             np.where(s_norm_m.str.contains("GPR|GUTIS", na=False), "GUTIS", "COMPETENCIA"),
                         )
-                    st.dataframe(df_m_show, hide_index=True, use_container_width=True, height=390, column_config=cfg_cols_bi)
+                    st.dataframe(df_m_show, hide_index=True, width="stretch", height=390, column_config=cfg_cols_bi)
 
-                    # Desglose Hijo (+): ¿Qué médicos recetan esta Marca / Producto bajo los filtros actuales? (Idéntico a Stitch)
+                    # Desglose Hijo (+): ¿Qué médicos recetan esta Marca / Producto bajo los filtros actuales?
                     st.markdown("<div class='drill-panel notranslate' translate='no'>", unsafe_allow_html=True)
                     c_dh1, c_dh2 = st.columns([1.8, 1.2])
                     lista_m_hijo = df_bi_marcas["MARCA"].dropna().unique().tolist()
@@ -1144,7 +1144,7 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                         f_mer=f_bi_mer, f_mar=marca_hijo_sel, f_lab=f_bi_lab, f_cat=f_bi_cat
                     )
                     if not df_meds_de_marca.empty:
-                        st.dataframe(df_meds_de_marca, hide_index=True, use_container_width=True, height=260, column_config=cfg_cols_bi)
+                        st.dataframe(df_meds_de_marca, hide_index=True, width="stretch", height=260, column_config=cfg_cols_bi)
                         j_c1, j_c2 = st.columns([2.2, 1.0])
                         with j_c1:
                             doc_hijo_jump = st.selectbox(
@@ -1154,7 +1154,7 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                             )
                         with j_c2:
                             st.write("")
-                            if st.button(f"Abrir en Previsita TVP →", type="primary", use_container_width=True, key="btn_bi_hijo_jump"):
+                            if st.button(f"Abrir en Previsita TVP →", type="primary", width="stretch", key="btn_bi_hijo_jump"):
                                 ir_a_modulo("PREVISITA", medico_destino=doc_hijo_jump)
                                 st.rerun()
                     else:
@@ -1164,7 +1164,7 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                     st.info("No hay registros de marcas para los filtros seleccionados.")
             else:
                 if not df_bi_medicos.empty:
-                    st.dataframe(df_bi_medicos, hide_index=True, use_container_width=True, height=420, column_config=cfg_cols_bi)
+                    st.dataframe(df_bi_medicos, hide_index=True, width="stretch", height=420, column_config=cfg_cols_bi)
                     doc_sel_bi = st.selectbox("Abrir especialista en Previsita TVP:", df_bi_medicos["Médico"].tolist(), key="bi_doc_jump")
                     if st.button("Ir a Previsita TVP con este médico →", type="primary"):
                         ir_a_modulo("PREVISITA", medico_destino=doc_sel_bi)
@@ -1220,7 +1220,7 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
 elif st.session_state.modulo_activo == "PREVISITA":
     c_back, c_tit = st.columns([0.85, 3.15])
     with c_back:
-        if st.button("← Volver al Menú Principal", use_container_width=True):
+        if st.button("← Volver al Menú Principal", width="stretch"):
             ir_a_modulo("HUB")
             st.rerun()
     with c_tit:
@@ -1306,7 +1306,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
         m_foco_top = lista_base_p[idx1]
 
-        # 2. Franja de 4 Tarjetas KPI del Especialista en Foco (Idéntica a Stitch)
+        # 2. Franja de 4 Tarjetas KPI del Especialista en Foco
         render_html(f"""
             <div class='kpi-strip notranslate' translate='no'>
                 <div class='kpi-card' style='border-top: 3px solid #002b5c;'>
@@ -1351,37 +1351,37 @@ elif st.session_state.modulo_activo == "PREVISITA":
             </div>
             """)
 
-        # 3. Pestañas de Navegación de Previsita (Las 4 Herramientas de Stitch)
+        # 3. Pestañas de Navegación de Previsita
         st.markdown("<div class='subnav-label'>SELECCIONE LA HERRAMIENTA DE PREVISITA:</div>", unsafe_allow_html=True)
         bp1, bp2, bp3, bp4 = st.columns(4)
         with bp1:
-            if st.button("1. Mapa de Mercado del Especialista", use_container_width=True, type="primary" if st.session_state.sub_previsita == "MAPA" else "secondary"):
+            if st.button("1. Mapa de Mercado del Especialista", width="stretch", type="primary" if st.session_state.sub_previsita == "MAPA" else "secondary"):
                 st.session_state.sub_previsita = "MAPA"
                 st.rerun()
         with bp2:
-            if st.button("2. Canvas TVP (4 Cuadrantes)", use_container_width=True, type="primary" if st.session_state.sub_previsita == "CANVAS" else "secondary"):
+            if st.button("2. Canvas TVP (4 Cuadrantes)", width="stretch", type="primary" if st.session_state.sub_previsita == "CANVAS" else "secondary"):
                 st.session_state.sub_previsita = "CANVAS"
                 st.rerun()
         with bp3:
-            if st.button("3. Mapa Conversacional del TVP", use_container_width=True, type="primary" if st.session_state.sub_previsita == "GUION" else "secondary"):
+            if st.button("3. Mapa Conversacional del TVP", width="stretch", type="primary" if st.session_state.sub_previsita == "GUION" else "secondary"):
                 st.session_state.sub_previsita = "GUION"
                 st.rerun()
         with bp4:
-            if st.button("4. Clases Terapéuticas, Labs & 360", use_container_width=True, type="primary" if st.session_state.sub_previsita == "AUDITORIA" else "secondary"):
+            if st.button("4. Clases Terapéuticas, Labs & 360", width="stretch", type="primary" if st.session_state.sub_previsita == "AUDITORIA" else "secondary"):
                 st.session_state.sub_previsita = "AUDITORIA"
                 st.rerun()
 
         st.write("")
 
         # ---------------------------------------------------------------------
-        # SUB-VISTA 1: MAPA DE MERCADOS ACTIVOS (CUADRÍCULA 3X3 CON BORDES ROJO/VERDE)
+        # SUB-VISTA 1: MAPA DE MERCADOS ACTIVOS
         # ---------------------------------------------------------------------
         if st.session_state.sub_previsita == "MAPA":
             with st.container(border=True):
                 c_mh1, c_mh2 = st.columns([3.0, 1.0])
                 with c_mh1:
                     st.markdown(
-                        "<div style='font-size:0.86rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> MAPA DE MERCADOS ACTIVOS DEL ESPECIALISTA (VADEMÉCUM NICARAGUA 2026 — 9 CATEGORÍAS AUDITADAS)</div>",
+                        "<div style='font-size:0.86rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> MAPA DE MERCADOS ACTIVOS DEL ESPECIALISTA (VADEMÉCUM NICARAGUA 2026)</div>",
                         unsafe_allow_html=True,
                     )
                 with c_mh2:
@@ -1441,7 +1441,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
                                     """)
 
         # ---------------------------------------------------------------------
-        # SUB-VISTA 2: CANVAS TVP (4 CUADRANTES SIMÉTRICOS VERTICALES ESTILO STITCH)
+        # SUB-VISTA 2: CANVAS TVP
         # ---------------------------------------------------------------------
         elif st.session_state.sub_previsita == "CANVAS":
             with st.container(border=True):
@@ -1577,7 +1577,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
                     """)
 
         # ---------------------------------------------------------------------
-        # SUB-VISTA 3: MAPA CONVERSACIONAL DEL TVP (TARJETAS DE FASES 1 A 4 ESTILO STITCH)
+        # SUB-VISTA 3: MAPA CONVERSACIONAL DEL TVP 
         # ---------------------------------------------------------------------
         elif st.session_state.sub_previsita == "GUION":
             with st.container(border=True):
@@ -1611,11 +1611,11 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
                 b_var1, b_var2 = st.columns([2.2, 1.0])
                 with b_var1:
-                    if st.button(f"✦ Generar / Cambiar Variante Táctica de Guion (Motor Cognitivo TVP + IA)   [VARIANTE A-{st.session_state.tvp_variant_counter + 1}]", type="primary", use_container_width=True):
+                    if st.button(f"✦ Generar / Cambiar Variante Táctica de Guion   [VARIANTE A-{st.session_state.tvp_variant_counter + 1}]", type="primary", width="stretch"):
                         st.session_state.tvp_variant_counter += 1
                         st.rerun()
                 with b_var2:
-                    btn_ia_guion = st.button("Potenciar Redacción con Gemini AI", use_container_width=True)
+                    btn_ia_guion = st.button("Potenciar Redacción con Gemini AI", width="stretch")
 
             m_p1 = mapa_clave_obj[opciones_claves_p[st.session_state.pos_m1_idx]]
             m_p2 = mapa_clave_obj[opciones_claves_p[st.session_state.pos_m2_idx]]
@@ -1630,7 +1630,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 else (meta1["arg_imagen"] if "Imagen" in ndn_corto else meta1["arg_finanzas"])
             )
 
-            # Construcción de las 4 Tarjetas Conversacionales Numeradas (Idéntico a Stitch)
             render_html(f"""
                 <div class='drill-panel notranslate' translate='no'>
                     <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin-bottom:2px;'>
@@ -1707,14 +1706,13 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 nec_detras_sel=ndn_sel,
                 top_farmacias_str=farmacias_aliadas_str,
                 num_variante=st.session_state.tvp_variant_counter,
-                notas_rapport=str(perfil_360_actual.get("Deporte") or ""),
+                notas_rapport=""
             )
 
             if btn_ia_guion:
                 if obtener_api_key():
                     with st.spinner("Gemini AI está estructurando una versión ejecutiva personalizada del guion TVP..."):
                         prompt_tvp = (
-                            f"{REGLAS_FARMA}\n\n"
                             f"Mejora este guion TVP para {medico_sel} ({especialidad} en {ciudad}) "
                             f"respetando las 4 etapas y las cifras reales:\n\n{guion_base}"
                         )
@@ -1731,27 +1729,28 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 data=guion_base.encode("utf-8"),
                 file_name=f"Guion_TVP_{medico_sel.replace(' ', '_')}.md",
                 mime="text/markdown",
+                width="stretch"
             )
 
         # ---------------------------------------------------------------------
-        # SUB-VISTA 4: CLASES TERAPÉUTICAS, LABS & FICHA 360 (4 BOTONES A, B, C, D DE STITCH)
+        # SUB-VISTA 4: CLASES TERAPÉUTICAS, LABS & FICHA 360
         # ---------------------------------------------------------------------
         elif st.session_state.sub_previsita == "AUDITORIA":
             ba1, ba2, ba3, ba4 = st.columns(4)
             with ba1:
-                if st.button("A. Matriz Clases Terapéuticas (LY/YTD/Mes)", use_container_width=True, type="primary" if st.session_state.sub_previsita_auditoria == "CLASES" else "secondary"):
+                if st.button("A. Matriz Clases Terapéuticas (LY/YTD/Mes)", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "CLASES" else "secondary"):
                     st.session_state.sub_previsita_auditoria = "CLASES"
                     st.rerun()
             with ba2:
-                if st.button("B. Marcas por Categoría Terapéutica", use_container_width=True, type="primary" if st.session_state.sub_previsita_auditoria == "MARCAS" else "secondary"):
+                if st.button("B. Marcas por Categoría Terapéutica", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "MARCAS" else "secondary"):
                     st.session_state.sub_previsita_auditoria = "MARCAS"
                     st.rerun()
             with ba3:
-                if st.button("C. Radar de Laboratorios (Doble Barra)", use_container_width=True, type="primary" if st.session_state.sub_previsita_auditoria == "LABS" else "secondary"):
+                if st.button("C. Radar de Laboratorios (Doble Barra)", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "LABS" else "secondary"):
                     st.session_state.sub_previsita_auditoria = "LABS"
                     st.rerun()
             with ba4:
-                if st.button("D. Ficha de Omnicanalidad 360", use_container_width=True, type="primary" if st.session_state.sub_previsita_auditoria == "FICHA360" else "secondary"):
+                if st.button("D. Ficha de Omnicanalidad 360", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "FICHA360" else "secondary"):
                     st.session_state.sub_previsita_auditoria = "FICHA360"
                     st.rerun()
 
@@ -1793,7 +1792,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
                             value=str(perfil_360_actual.get("Deporte") or ""),
                             height=90,
                         )
-                        guardar_360_btn = st.form_submit_button("Guardar Ficha 360 en Base de Datos", type="primary", use_container_width=True)
+                        guardar_360_btn = st.form_submit_button("Guardar Ficha 360 en Base de Datos", type="primary", width="stretch")
 
                     if guardar_360_btn:
                         guardar_perfil_360(
@@ -1808,7 +1807,8 @@ elif st.session_state.modulo_activo == "PREVISITA":
                             },
                             DB_PATH,
                         )
-                        st.success("Ficha 360 guardada correctamente en gutis_bi.db.")
+                        st.toast("✅ Ficha 360 guardada correctamente en gutis_bi.db.")
+                        time.sleep(1.5)
                         st.rerun()
 
                 with col_f360_r:
@@ -1826,7 +1826,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
 elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
     c_back, c_tit = st.columns([0.85, 3.15])
     with c_back:
-        if st.button("← Volver al Menú Principal", use_container_width=True):
+        if st.button("← Volver al Menú Principal", width="stretch"):
             ir_a_modulo("HUB")
             st.rerun()
     with c_tit:
@@ -1839,19 +1839,19 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
 
     bam1, bam2, bam3, bam4 = st.columns(4)
     with bam1:
-        if st.button("1. Radar de Laboratorios (% MS Mes vs. YTD)", use_container_width=True, type="primary" if st.session_state.sub_analisis_mercado == "LABS" else "secondary"):
+        if st.button("1. Radar de Laboratorios (% MS Mes vs. YTD)", width="stretch", type="primary" if st.session_state.sub_analisis_mercado == "LABS" else "secondary"):
             st.session_state.sub_analisis_mercado = "LABS"
             st.rerun()
     with bam2:
-        if st.button("2. Matriz de Penetración por Especialidad", use_container_width=True, type="primary" if st.session_state.sub_analisis_mercado == "PENETRACION" else "secondary"):
+        if st.button("2. Matriz de Penetración por Especialidad", width="stretch", type="primary" if st.session_state.sub_analisis_mercado == "PENETRACION" else "secondary"):
             st.session_state.sub_analisis_mercado = "PENETRACION"
             st.rerun()
     with bam3:
-        if st.button("3. Desempeño Mercados Prioritarios", use_container_width=True, type="primary" if st.session_state.sub_analisis_mercado == "MERCADOS" else "secondary"):
+        if st.button("3. Desempeño Mercados Prioritarios", width="stretch", type="primary" if st.session_state.sub_analisis_mercado == "MERCADOS" else "secondary"):
             st.session_state.sub_analisis_mercado = "MERCADOS"
             st.rerun()
     with bam4:
-        if st.button("4. Close-Up por Marca Competidora", use_container_width=True, type="primary" if st.session_state.sub_analisis_mercado == "AUDITORIA_MARCAS" else "secondary"):
+        if st.button("4. Close-Up por Marca Competidora", width="stretch", type="primary" if st.session_state.sub_analisis_mercado == "AUDITORIA_MARCAS" else "secondary"):
             st.session_state.sub_analisis_mercado = "AUDITORIA_MARCAS"
             st.rerun()
 
@@ -1884,7 +1884,6 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
             px_m_gut = int(fila_gut.iloc[0]["Pxs Mes"]) if not fila_gut.empty else 0
             delta_gut = round(ms_m_gut - ms_y_gut, 2)
 
-            # Cabecera de Ranking de Laboratorios Estilo Stitch
             render_html(f"""
                 <div class='quad-card notranslate' translate='no' style='margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;'>
                     <div style='display:flex; align-items:center; gap:12px;'>
@@ -1903,11 +1902,6 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
                 """)
 
             df_labs_vista = df_rk_labs.copy()
-            df_labs_vista["Laboratorio"] = np.where(
-                df_labs_vista["Laboratorio"].str.contains("GUTIS", case=False, na=False),
-                "★ LÍDER [GUTIS] " + df_labs_vista["Laboratorio"].astype(str),
-                df_labs_vista["Laboratorio"].astype(str),
-            )
             if "% MS Mes" in df_labs_vista.columns and "% MS YTD" in df_labs_vista.columns and "Delta MS (Mes vs YTD)" not in df_labs_vista.columns:
                 df_labs_vista["Delta MS (Mes vs YTD)"] = (df_labs_vista["% MS Mes"] - df_labs_vista["% MS YTD"]).round(2)
 
@@ -1994,12 +1988,12 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
 
 
 # -----------------------------------------------------------------------------
-# MÓDULO 4: EVOLUCIÓN RX CLOSE-UP vs. SELL-OUT TRIMESTRAL (Q1, Q2, Q3 ESTILO STITCH)
+# MÓDULO 4: EVOLUCIÓN RX CLOSE-UP vs. SELL-OUT TRIMESTRAL
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "EVOLUCION":
     c_back, c_tit = st.columns([0.85, 3.15])
     with c_back:
-        if st.button("← Volver al Menú Principal", use_container_width=True):
+        if st.button("← Volver al Menú Principal", width="stretch"):
             ir_a_modulo("HUB")
             st.rerun()
     with c_tit:
@@ -2012,11 +2006,11 @@ elif st.session_state.modulo_activo == "EVOLUCION":
 
     bev1, bev2 = st.columns(2)
     with bev1:
-        if st.button("1. Sincronía Temporal (Cuota Rx Mes/YTD vs. Sell-Out Trimestral)", use_container_width=True, type="primary" if st.session_state.sub_evolucion == "SINCRONIA" else "secondary"):
+        if st.button("1. Sincronía Temporal (Cuota Rx Mes/YTD vs. Sell-Out Trimestral)", width="stretch", type="primary" if st.session_state.sub_evolucion == "SINCRONIA" else "secondary"):
             st.session_state.sub_evolucion = "SINCRONIA"
             st.rerun()
     with bev2:
-        if st.button("2. Auditoría Detallada de Sell-Out por Sucursal Farmacéutica", use_container_width=True, type="primary" if st.session_state.sub_evolucion == "PDVS" else "secondary"):
+        if st.button("2. Auditoría Detallada de Sell-Out por Sucursal Farmacéutica", width="stretch", type="primary" if st.session_state.sub_evolucion == "PDVS" else "secondary"):
             st.session_state.sub_evolucion = "PDVS"
             st.rerun()
 
@@ -2043,13 +2037,12 @@ elif st.session_state.modulo_activo == "EVOLUCION":
     var_q2 = ((q2_tot - q1_tot) / q1_tot * 100.0) if q1_tot > 0 else 0.0
     var_q3 = ((q3_tot - q2_tot) / q2_tot * 100.0) if q2_tot > 0 else 0.0
 
-    # Las 4 Tarjetas Trimestrales de Sell-Out (3 Blancas + 1 Azul Marino Total YTD idéntica a Stitch)
     render_html(f"""
         <div class='kpi-strip notranslate' translate='no'>
             <div class='kpi-card'>
                 <div class='kpi-top-row'>
                     <div class='kpi-lbl'>Q1 SELL-OUT</div>
-                    <span class='kpi-pill-neutral'>Cerrado</span>
+                    <span class='kpi-pill-neutral'>Trimestre 1</span>
                 </div>
                 <div class='kpi-num' style='margin:6px 0;'>${q1_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
@@ -2061,7 +2054,7 @@ elif st.session_state.modulo_activo == "EVOLUCION":
             <div class='kpi-card'>
                 <div class='kpi-top-row'>
                     <div class='kpi-lbl'>Q2 SELL-OUT</div>
-                    <span class='kpi-pill-neutral'>Cerrado</span>
+                    <span class='kpi-pill-neutral'>Trimestre 2</span>
                 </div>
                 <div class='kpi-num' style='margin:6px 0;'>${q2_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
@@ -2073,7 +2066,7 @@ elif st.session_state.modulo_activo == "EVOLUCION":
             <div class='kpi-card'>
                 <div class='kpi-top-row'>
                     <div class='kpi-lbl'>Q3 SELL-OUT</div>
-                    <span class='kpi-pill-warn'>En curso</span>
+                    <span class='kpi-pill-neutral'>Trimestre 3</span>
                 </div>
                 <div class='kpi-num' style='margin:6px 0;'>${q3_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
@@ -2085,7 +2078,6 @@ elif st.session_state.modulo_activo == "EVOLUCION":
             <div class='kpi-card' style='background:linear-gradient(115deg, #001f44 0%, #002b5c 100%); color:#ffffff; border-color:#002b5c;'>
                 <div class='kpi-top-row'>
                     <div class='kpi-lbl' style='color:#93c5fd;'>TOTAL SELL-OUT YTD</div>
-                    <span style='background:rgba(16,185,129,0.22); color:#34d399; border:1px solid rgba(52,211,153,0.4); padding:2px 8px; border-radius:999px; font-size:0.66rem; font-weight:800;'>Tendencia Favorable</span>
                 </div>
                 <div class='kpi-num' style='color:#ffffff; margin:6px 0;'>${acum_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid rgba(255,255,255,0.14); padding-top:6px; color:#cbd5e1;'>
@@ -2157,7 +2149,7 @@ elif st.session_state.modulo_activo == "EVOLUCION":
 elif st.session_state.modulo_activo == "CHIRA":
     c_back, c_tit = st.columns([0.85, 3.15])
     with c_back:
-        if st.button("← Volver al Menú Principal", use_container_width=True):
+        if st.button("← Volver al Menú Principal", width="stretch"):
             ir_a_modulo("HUB")
             st.rerun()
     with c_tit:
@@ -2170,11 +2162,11 @@ elif st.session_state.modulo_activo == "CHIRA":
 
     bch1, bch2 = st.columns(2)
     with bch1:
-        if st.button("1. Consola Copiloto CHIRA (Voz y Consultoría Táctica)", use_container_width=True, type="primary" if st.session_state.sub_chira == "COPILOTO" else "secondary"):
+        if st.button("1. Consola Copiloto CHIRA (Voz y Consultoría Táctica)", width="stretch", type="primary" if st.session_state.sub_chira == "COPILOTO" else "secondary"):
             st.session_state.sub_chira = "COPILOTO"
             st.rerun()
     with bch2:
-        if st.button(f"2. Bitácora CRM Post-Visita ({medico_sel[:24] if medico_sel else 'SQLite'})", use_container_width=True, type="primary" if st.session_state.sub_chira == "CRM" else "secondary"):
+        if st.button(f"2. Bitácora CRM Post-Visita ({medico_sel[:24] if medico_sel else 'SQLite'})", width="stretch", type="primary" if st.session_state.sub_chira == "CRM" else "secondary"):
             st.session_state.sub_chira = "CRM"
             st.rerun()
 
@@ -2184,7 +2176,6 @@ elif st.session_state.modulo_activo == "CHIRA":
         sell_z_chira = resumen_ventas_ciudad(df_ventas, ciudad)
         riv_top_chira = dp_global.get("Rival Principal en la Clase", "Competencia directa")
 
-        # 1. Barra de Contexto y Hero Banner Oscuro CHIRA Neural Engine (Idéntico a Stitch)
         render_html(f"""
             <div class='chira-neural-hero notranslate' translate='no'>
                 <div style='display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;'>
@@ -2210,7 +2201,7 @@ elif st.session_state.modulo_activo == "CHIRA":
                         </div>
                         <div class='chira-mem-box'>
                             <div class='chira-mem-lbl'>CORTE CLOSE-UP</div>
-                            <div class='chira-mem-val'>100% Sincronizado</div>
+                            <div class='chira-mem-val'>Motor Sincronizado</div>
                             <div class='chira-mem-sub'>{corte_nombre[:22]}</div>
                         </div>
                         <div class='chira-mem-box'>
@@ -2223,7 +2214,6 @@ elif st.session_state.modulo_activo == "CHIRA":
             </div>
             """)
 
-        # 2. Cuadrícula de 4 Tarjetas de Disparadores Cognitivos Rápidos (One-Click Prompts de Stitch)
         render_html("""
             <div class='notranslate' translate='no' style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
                 <div class='subnav-label' style='color:#002b5c; margin-bottom:0;'>★ DISPARADORES COGNITIVOS RÁPIDOS (ONE-CLICK PROMPTS)</div>
@@ -2240,7 +2230,7 @@ elif st.session_state.modulo_activo == "CHIRA":
                     <div class='chira-prompt-desc'>«Genera el argumento táctico de migración y puente clínico para {medico_sel[:18]}...»</div>
                 </div>
                 """)
-            if st.button("Inyectar en prompt  →", key="ch_p1", use_container_width=True):
+            if st.button("Inyectar en prompt  →", key="ch_p1", width="stretch"):
                 quick_prompt = f"Analiza el expediente completo y dame el guion TVP para {medico_sel}"
 
         with q_b2:
@@ -2250,7 +2240,7 @@ elif st.session_state.modulo_activo == "CHIRA":
                     <div class='chira-prompt-desc'>«¿Por qué {medico_sel[:16]} mantiene {dp_global.get('Comp Mes', 0)} recetas con la competencia y cómo lo abordo?»</div>
                 </div>
                 """)
-            if st.button("Auditar Close-Up  →", key="ch_p2", use_container_width=True):
+            if st.button("Auditar Close-Up  →", key="ch_p2", width="stretch"):
                 quick_prompt = f"¿Por qué {medico_sel} comparte o diluye recetas con la competencia y cómo lo abordo?"
 
         with q_b3:
@@ -2260,20 +2250,19 @@ elif st.session_state.modulo_activo == "CHIRA":
                     <div class='chira-prompt-desc'>«Identifica el nicho clínico sin fricción para flanquear al rival líder en {medico_sel[:16]}...»</div>
                 </div>
                 """)
-            if st.button("Venta Cruzada  →", key="ch_p3", use_container_width=True):
+            if st.button("Venta Cruzada  →", key="ch_p3", width="stretch"):
                 quick_prompt = f"{medico_sel} está casado o fidelizado con la competencia, dame estrategia de flanqueo"
 
         with q_b4:
             render_html(f"""
                 <div class='chira-prompt-card notranslate' translate='no'>
-                    <div class='chira-prompt-title'>✦ Negociación & ROI Farmacia</div>
-                    <div class='chira-prompt-desc'>«Verifica disponibilidad en {sell_z_chira['top_farmacias'][:22]} para apalancar acuerdo...»</div>
+                    <div class='chira-prompt-title'>✦ Educación Médica (Apoyo)</div>
+                    <div class='chira-prompt-desc'>«¿Cómo respondo éticamente si me pide apoyo para un congreso a cambio de recetas?»</div>
                 </div>
                 """)
-            if st.button("Revisar Stock PDV  →", key="ch_p4", use_container_width=True):
-                quick_prompt = f"{medico_sel} me pide apoyo o patrocinio a cambio de recetas, ¿cómo negocio el ROI?"
+            if st.button("Compliance  →", key="ch_p4", width="stretch"):
+                quick_prompt = f"{medico_sel} me pide apoyo o patrocinio a cambio de recetas, ¿cómo negocio éticamente?"
 
-        # 3. Barra Acústica de Voz + Selector de Potenciación Gemini AI
         with st.container(border=True):
             v_col1, v_col2 = st.columns([1.8, 1.2])
             texto_voz = None
@@ -2292,24 +2281,24 @@ elif st.session_state.modulo_activo == "CHIRA":
                             else:
                                 st.warning("Configura GEMINI_API_KEY en tu entorno para transcribir notas de voz.")
             with v_col2:
-                st.caption("CHIRA calcula las métricas con 100% de exactitud local sobre tus Excels Close-Up.")
+                st.caption("CHIRA calcula las métricas con exactitud local sobre tus Excels Close-Up.")
                 allow_gemini = st.checkbox(
                     "Potenciar redacción estratégica con Gemini AI",
                     value=bool(obtener_api_key()),
                     key="chira_allow_gemini",
                 )
-                if st.button("Limpiar Historial de Conversación", use_container_width=True):
+                if st.button("Limpiar Historial de Conversación", width="stretch"):
                     st.session_state.chira_history = []
                     st.rerun()
 
-        # 4. Historial de Conversación con Tarjetas Ejecutivas CHIRA AI Strategic Advisor
         for msg in st.session_state.chira_history[-12:]:
             if msg["role"] == "user":
+                safe_msg = html.escape(msg["content"])
                 render_html(f"""
                     <div class='notranslate' translate='no' style='display:flex; justify-content:flex-end; margin: 10px 0;'>
                         <div style='background:#002b5c; color:#ffffff; padding:12px 18px; border-radius:12px 12px 2px 12px; max-width:78%; box-shadow:0 2px 6px rgba(0,43,92,0.15);'>
                             <div style='font-size:0.66rem; color:#93c5fd; font-weight:700; margin-bottom:4px;'>VISITADOR MÉDICO (ERICK CALDERÓN)</div>
-                            <div style='font-size:0.86rem; font-weight:600;'>«{msg["content"]}»</div>
+                            <div style='font-size:0.86rem; font-weight:600;'>«{safe_msg}»</div>
                         </div>
                     </div>
                     """)
@@ -2322,7 +2311,7 @@ elif st.session_state.modulo_activo == "CHIRA":
                                 <span style='font-size:0.82rem; font-weight:800; color:#0f172a;'>CHIRA AI Strategic Advisor</span>
                                 <span style='background:#e0f2fe; color:#0369a1; font-size:0.66rem; font-weight:800; padding:2px 8px; border-radius:999px;'>Recomendación Táctica</span>
                             </div>
-                            <span style='font-size:0.68rem; color:#64748b; font-weight:700;'>Auditoría Close-Up Verificada · Confianza: 99.2%</span>
+                            <span style='font-size:0.68rem; color:#64748b; font-weight:700;'>Auditoría Close-Up Verificada</span>
                         </div>
                     </div>
                     """)
@@ -2369,7 +2358,6 @@ elif st.session_state.modulo_activo == "CHIRA":
             if allow_gemini and obtener_api_key():
                 with st.spinner("CHIRA Neural Engine está sintetizando la estrategia con Gemini AI..."):
                     prompt_chira = (
-                        f"{REGLAS_FARMA}\n\n"
                         f"Consulta del Visitador Médico (Erick Calderón): {consulta_final}\n\n"
                         f"Expediente y datos exactos calculados por el motor Close-Up de Gutis BI (PROHIBIDO alterar cifras):\n"
                         f"{respuesta_local}\n\n"
@@ -2404,7 +2392,7 @@ elif st.session_state.modulo_activo == "CHIRA":
                 crm_ac_vis = st.text_input("Compromiso del Visitador (ej. Garantizar stock en Farmacia Saba / Kielsa):")
 
             crm_notas = st.text_area("Observaciones Clínicas y Seguimiento para Próxima Visita:", height=95)
-            btn_guardar_visita = st.form_submit_button(f"Guardar Visita a {medico_sel} en SQLite", type="primary", use_container_width=True)
+            btn_guardar_visita = st.form_submit_button(f"Guardar Visita a {medico_sel} en SQLite", type="primary", width="stretch")
 
         if btn_guardar_visita:
             guardar_visita(
@@ -2423,7 +2411,8 @@ elif st.session_state.modulo_activo == "CHIRA":
                 },
                 DB_PATH,
             )
-            st.success(f"Visita registrada exitosamente para {medico_sel} en gutis_bi.db.")
+            st.toast(f"✅ Visita registrada exitosamente para {medico_sel} en gutis_bi.db.")
+            time.sleep(1.2)
             st.rerun()
 
         st.write("")
@@ -2436,7 +2425,7 @@ elif st.session_state.modulo_activo == "CHIRA":
             data=exportar_visitas_csv(DB_PATH),
             file_name=f"Bitacora_CRM_Erick_Calderon_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
 
 # -----------------------------------------------------------------------------
