@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from gutis_bi.catalog import MERCADOS_PRIORITARIOS, PATRON_REGEX_GUTIS
 from gutis_bi.data import normalizar_txt, normalizar_serie_rapida, resolver_clave_mercado_gutis
 
+
 def df_a_markdown_nativo(df: pd.DataFrame) -> str:
     if df is None or df.empty:
         return "_Sin registros disponibles._"
@@ -19,6 +20,7 @@ def df_a_markdown_nativo(df: pd.DataFrame) -> str:
     for row in df.itertuples(index=False):
         filas.append("| " + " | ".join(str(val).replace("|", "/") for val in row) + " |")
     return "\n".join(filas)
+
 
 def formatear_nombre_medico(nombre_raw: Any) -> str:
     if not nombre_raw or pd.isna(nombre_raw):
@@ -30,19 +32,27 @@ def formatear_nombre_medico(nombre_raw: Any) -> str:
         return f"{partes[1]} {partes[0]}"
     return str(nombre_raw).title()
 
+
 def limpiar_sku_competencia(sku_raw: Any) -> Tuple[str, str, str]:
     if not sku_raw or pd.isna(sku_raw) or "SIN COMPETIDOR" in str(sku_raw).upper() or "DOMINIO" in str(sku_raw).upper():
         return "la marca tradicional", "presentación convencional", "la competencia de la categoría"
     s = str(sku_raw).strip()
     s_up = s.upper()
     forma_f = "presentación habitual"
-    if any(k in s_up for k in ["GOT", "GTS", "DROP"]): forma_f = "Solución Gotas"
-    elif any(k in s_up for k in ["JAR", "JBE", "SUSP", "SOL OR", "SYR", "LIQ"]): forma_f = "Jarabe / Suspensión oral"
-    elif any(k in s_up for k in ["SPRAY", "NAS", "AER", " INH"]): forma_f = "Spray nasal"
-    elif any(k in s_up for k in ["AMP", "INY", "VIAL", "JGA"]): forma_f = "Ampolla inyectable"
-    elif any(k in s_up for k in ["SOB", "STICK", "GRAN", "POLV"]): forma_f = "Sobres / Granulado"
-    elif any(k in s_up for k in ["CREM", "UNG", "POM", "GEL", "TOP"]): forma_f = "Crema / Ungüento tópico"
-    elif any(k in s_up for k in ["TAB", "COMP", "CAP", "GRAG"]): forma_f = "Tabletas / Cápsulas"
+    if any(k in s_up for k in ["GOT", "GTS", "DROP"]):
+        forma_f = "Solución Gotas"
+    elif any(k in s_up for k in ["JAR", "JBE", "SUSP", "SOL OR", "SYR", "LIQ"]):
+        forma_f = "Jarabe / Suspensión oral"
+    elif any(k in s_up for k in ["SPRAY", "NAS", "AER", " INH"]):
+        forma_f = "Spray nasal"
+    elif any(k in s_up for k in ["AMP", "INY", "VIAL", "JGA"]):
+        forma_f = "Ampolla inyectable"
+    elif any(k in s_up for k in ["SOB", "STICK", "GRAN", "POLV"]):
+        forma_f = "Sobres / Granulado"
+    elif any(k in s_up for k in ["CREM", "UNG", "POM", "GEL", "TOP"]):
+        forma_f = "Crema / Ungüento tópico"
+    elif any(k in s_up for k in ["TAB", "COMP", "CAP", "GRAG"]):
+        forma_f = "Tabletas / Cápsulas"
 
     izquierda = s.split("-")[0].strip()
     tokens_izq = izquierda.split()
@@ -50,6 +60,7 @@ def limpiar_sku_competencia(sku_raw: Any) -> Tuple[str, str, str]:
     if not marca_limpia:
         marca_limpia = s.split()[0].title()
     return marca_limpia, forma_f, f"{marca_limpia} ({forma_f})"
+
 
 def diagnosticar_escala_adopcion(
     pxs_gutis_mes: int,
@@ -78,8 +89,7 @@ def diagnosticar_escala_adopcion(
             "modo": "CONQUISTA",
             "accion": f"Iniciar período de prueba en sus próximos 3 a 5 pacientes (prescribe {pxs_t_eval} Pxs en total)."
         }
-    
-    # Control de Falsos Positivos de Lealtad (Exigir mínimo 6 recetas en la categoría para considerar Lealtad)
+
     if pxs_t_eval < 6 and ms_eval >= 50.0:
         return {
             "nivel": f"3. Prueba ({ms_eval:.1f}% MS {etiqueta} | {pxs_g_eval} Pxs)",
@@ -87,7 +97,7 @@ def diagnosticar_escala_adopcion(
             "modo": "EXPANSION",
             "accion": "Volumen bajo en la categoría. Consolidar el uso clínico antes de considerarlo usuario leal."
         }
-        
+
     if ms_eval < 25.0:
         return {
             "nivel": f"3. Prueba ({ms_eval:.1f}% MS {etiqueta} | {pxs_g_eval} Pxs)",
@@ -108,6 +118,7 @@ def diagnosticar_escala_adopcion(
         "modo": "LEALTAD",
         "accion": "Agradecer su lealtad como socio estratégico, blindar presentaciones y hacer Puente."
     }
+
 
 def resumen_global(df_panel: pd.DataFrame, df_productos: pd.DataFrame) -> Dict[str, Any]:
     tot_meds = len(df_panel["Médico"].dropna().unique()) if not df_panel.empty and "Médico" in df_panel.columns else 0
@@ -134,6 +145,7 @@ def resumen_global(df_panel: pd.DataFrame, df_productos: pd.DataFrame) -> Dict[s
         "pxs_mes": m_tot, "pxs_gutis_mes": m_gut, "ms_mes": ms_m,
         "pxs_ytd": y_tot, "pxs_gutis_ytd": y_gut, "ms_ytd": ms_y
     }
+
 
 def resumen_mercados(df_productos: pd.DataFrame, df_panel: pd.DataFrame, ciudad: Optional[str] = None, incluir_fuera_panel: bool = False) -> pd.DataFrame:
     if df_productos.empty:
@@ -187,6 +199,7 @@ def resumen_mercados(df_productos: pd.DataFrame, df_panel: pd.DataFrame, ciudad:
     df_out = pd.DataFrame(filas)
     return df_out.sort_values(by=["_p", "Mercado Mes", "Mercado YTD"], ascending=[True, False, False]).drop(columns=["_p"]) if not df_out.empty else df_out
 
+
 def calcular_tabla_bi_multifiltro(
     df_auditoria_docs: pd.DataFrame,
     df_auditoria_tot: pd.DataFrame,
@@ -198,21 +211,28 @@ def calcular_tabla_bi_multifiltro(
     f_mar: str = "Todas",
     f_lab: str = "Todas",
     f_cat: str = "Todas",
-    df_productos: Optional[pd.DataFrame] = None # Nuevo parámetro para volumen de recetas
+    df_productos: Optional[pd.DataFrame] = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     if df_auditoria_docs.empty:
         return pd.DataFrame(), pd.DataFrame()
 
     sub = df_auditoria_docs
-    if f_zona != "Todas": sub = sub[sub["Zona"] == f_zona]
-    if f_med != "Todas": sub = sub[sub["Médico"] == f_med]
-    if f_esp != "Todas": sub = sub[sub["Especialidad"] == f_esp]
-    if f_vis != "Todas" and "VISITADOR" in sub.columns: sub = sub[sub["VISITADOR"] == f_vis]
+    if f_zona != "Todas":
+        sub = sub[sub["Zona"] == f_zona]
+    if f_med != "Todas":
+        sub = sub[sub["Médico"] == f_med]
+    if f_esp != "Todas":
+        sub = sub[sub["Especialidad"] == f_esp]
+    if f_vis != "Todas" and "VISITADOR" in sub.columns:
+        sub = sub[sub["VISITADOR"] == f_vis]
     if f_mer != "Todas":
         sub = sub[(sub["Clave_Gutis"] == f_mer) | (sub["Mercado_BI"] == f_mer)]
-    if f_mar != "Todas": sub = sub[sub["MARCA"] == f_mar]
-    if f_lab != "Todas": sub = sub[sub["Laboratorio"] == f_lab]
-    if f_cat != "Todas": sub = sub[sub["Categoria_TAM"] == str(f_cat)]
+    if f_mar != "Todas":
+        sub = sub[sub["MARCA"] == f_mar]
+    if f_lab != "Todas":
+        sub = sub[sub["Laboratorio"] == f_lab]
+    if f_cat != "Todas":
+        sub = sub[sub["Categoria_TAM"] == str(f_cat)]
 
     if sub.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -243,48 +263,39 @@ def calcular_tabla_bi_multifiltro(
     for c_orig, c_w in zip(cols_p, w_cols):
         grp_d[c_orig] = np.where(tot_wd[c_w] > 0, (grp_d[c_w] / tot_wd[c_w]) * 100.0, 0.0)
     grp_d["Dif %"] = grp_d["% MS - Ytd"] - grp_d["% MS - LY"]
-    
+
     rk_d = grp_d[["Médico", "Especialidad", "Zona", "Categoria_TAM", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]].copy()
 
-    # NUEVO: Agregar Pxs reales si tenemos df_productos
     if df_productos is not None and not df_productos.empty:
-        # Filtramos df_productos para que coincida con el mercado y marca de la selección actual del visor
         df_p_sub = df_productos.copy()
         if f_mer != "Todas":
             df_p_sub = df_p_sub[df_p_sub["Clave_Gutis"] == f_mer]
         if f_mar != "Todas":
-             df_p_sub = df_p_sub[df_p_sub["NOMBRE_PRODUCTO"] == f_mar]
-             
+            df_p_sub = df_p_sub[df_p_sub["NOMBRE_PRODUCTO"] == f_mar]
+
         if not df_p_sub.empty:
-             # Agrupamos por médico para obtener totales de Pxs-MES
-             grp_pxs = df_p_sub.groupby("Médico")
-             pxs_totales_mes = grp_pxs["Pxs-MES"].sum()
-             
-             # Calculamos Pxs-MES solo para Gutis
-             pxs_gutis_mes = df_p_sub[df_p_sub["Es_Gutis"]].groupby("Médico")["Pxs-MES"].sum()
-             
-             # Unimos las nuevas columnas a rk_d usando 'Médico' como índice temporal
-             rk_d = rk_d.set_index("Médico")
-             rk_d["Total Pxs Mes"] = pxs_totales_mes
-             rk_d["Gutis Pxs Mes"] = pxs_gutis_mes
-             rk_d = rk_d.reset_index()
-             
-             # Llenamos nulos con 0 y convertimos a enteros
-             rk_d["Total Pxs Mes"] = rk_d["Total Pxs Mes"].fillna(0).astype(int)
-             rk_d["Gutis Pxs Mes"] = rk_d["Gutis Pxs Mes"].fillna(0).astype(int)
-             
-             # Reordenamos columnas para poner Pxs junto a los porcentajes
-             cols_orden = ["Médico", "Especialidad", "Zona", "Categoria_TAM", "Gutis Pxs Mes", "Total Pxs Mes", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]
-             rk_d = rk_d[[c for c in cols_orden if c in rk_d.columns]]
-             
-             # Ordenar por Total Pxs y luego % MS
-             rk_d = rk_d.sort_values(by=["Total Pxs Mes", "% MS - Ytd"], ascending=[False, False]).reset_index(drop=True).round(2)
+            grp_pxs = df_p_sub.groupby("Médico")
+            pxs_totales_mes = grp_pxs["Pxs-MES"].sum()
+            pxs_gutis_mes = df_p_sub[df_p_sub["Es_Gutis"]].groupby("Médico")["Pxs-MES"].sum()
+
+            rk_d = rk_d.set_index("Médico")
+            rk_d["Total Pxs Mes"] = pxs_totales_mes
+            rk_d["Gutis Pxs Mes"] = pxs_gutis_mes
+            rk_d = rk_d.reset_index()
+
+            rk_d["Total Pxs Mes"] = rk_d["Total Pxs Mes"].fillna(0).astype(int)
+            rk_d["Gutis Pxs Mes"] = rk_d["Gutis Pxs Mes"].fillna(0).astype(int)
+
+            cols_orden = ["Médico", "Especialidad", "Zona", "Categoria_TAM", "Gutis Pxs Mes", "Total Pxs Mes", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]
+            rk_d = rk_d[[c for c in cols_orden if c in rk_d.columns]]
+            rk_d = rk_d.sort_values(by=["Total Pxs Mes", "% MS - Ytd"], ascending=[False, False]).reset_index(drop=True).round(2)
         else:
-             rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
+            rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
     else:
         rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
 
     return rk_m, rk_d
+
 
 def ranking_medicos(
     df_productos: pd.DataFrame,
@@ -308,8 +319,7 @@ def ranking_medicos(
 
     if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
         rx_sub = rx_sub[rx_sub["CIUDAD_PANEL"].str.contains(re.escape(ciudad.upper()), na=False)]
-    
-    # Filtro exacto de especialidad para evitar colisión Medicina General vs Interna
+
     if especialidad and especialidad not in ("TODAS", "TODAS LAS ESPECIALIDADES"):
         rx_sub = rx_sub[rx_sub["ESP_PANEL"].astype(str).str.upper() == especialidad.upper()]
 
@@ -361,6 +371,7 @@ def ranking_medicos(
     df_res = pd.DataFrame(filas)
     return df_res.sort_values(by=["Pxs Mes", "Pxs YTD", "Comp Mes"], ascending=[False, False, False]).reset_index(drop=True) if not df_res.empty else df_res
 
+
 def perfil_medico(df_panel: pd.DataFrame, df_productos: pd.DataFrame, medico: str) -> Dict[str, Any]:
     res = {"Médico": medico, "CIUDAD": "NICARAGUA", "Especialidad": "ESPECIALISTA", "CATEGORIA": "FUERA DE PANEL"}
     if not df_panel.empty and "Médico" in df_panel.columns:
@@ -385,6 +396,7 @@ def perfil_medico(df_panel: pd.DataFrame, df_productos: pd.DataFrame, medico: st
         res["Comp YTD"] = py - gy
         res["% MS YTD"] = round((gy / py * 100.0), 1) if py > 0 else 0.0
     return res
+
 
 def productos_medico(df_productos: pd.DataFrame, medico: str, criterio_mercado: Optional[str] = None) -> pd.DataFrame:
     if df_productos.empty or "Médico" not in df_productos.columns:
@@ -419,6 +431,7 @@ def productos_medico(df_productos: pd.DataFrame, medico: str, criterio_mercado: 
         "Pxs-YTD": "Pxs YTD"
     }).sort_values(by=["Mercado", "Pxs Mes", "Pxs YTD"], ascending=[True, False, False])
 
+
 def obtener_matriz_clases_terapeuticas_medico(df_clases: pd.DataFrame, df_productos: pd.DataFrame, medico: str) -> pd.DataFrame:
     if not df_clases.empty and "Médico" in df_clases.columns:
         sub_c = df_clases[df_clases["Médico"] == medico].copy()
@@ -430,9 +443,11 @@ def obtener_matriz_clases_terapeuticas_medico(df_clases: pd.DataFrame, df_produc
                 for cn in cols_num:
                     sub_c[cn] = pd.to_numeric(sub_c[cn], errors="coerce").fillna(0)
                 col_ord = next((c for c in cols_num if "YTD" in c.upper() and "PXS" in c.upper()), cols_num[0] if cols_num else None)
-                if col_ord: sub_c = sub_c.sort_values(by=col_ord, ascending=False)
+                if col_ord:
+                    sub_c = sub_c.sort_values(by=col_ord, ascending=False)
                 return sub_c[[col_ct] + cols_num].reset_index(drop=True)
     return productos_medico(df_productos, medico)
+
 
 def radar_laboratorios(
     df_laboratorios: pd.DataFrame,
@@ -451,7 +466,6 @@ def radar_laboratorios(
             p_sub = df_panel.copy()
             if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
                 p_sub = p_sub[p_sub["CIUDAD"].str.contains(re.escape(ciudad.upper()), na=False)]
-            # Filtro exacto para evitar colisión Medicina General vs Interna
             if especialidad and especialidad not in ("TODAS", "TODAS LAS ESPECIALIDADES"):
                 p_sub = p_sub[p_sub["Especialidad"].astype(str).str.upper() == especialidad.upper()]
             sub = sub[sub["Médico"].isin(set(p_sub["Médico"].dropna().unique()))]
@@ -467,14 +481,14 @@ def radar_laboratorios(
     rk["Pxs YTD"] = rk["Pxs-YTD"].astype(int)
     rk["% MS YTD"] = np.where(tot_y > 0, (rk["Pxs-YTD"] / tot_y * 100.0).round(2), 0.0)
     rk["Brecha MS (Mes vs YTD)"] = (rk["% MS Mes"] - rk["% MS YTD"]).round(2)
-    # Solo agregar [GUTIS] si no lo tiene, para evitar duplicaciones en app.py
     rk["Laboratorio"] = np.where(
-        (rk["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)) & (~rk["FABRICANTE"].astype(str).str.upper().str.startswith("[GUTIS]")), 
-        "[GUTIS] " + rk["FABRICANTE"].astype(str), 
+        (rk["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)) & (~rk["FABRICANTE"].astype(str).str.upper().str.startswith("[GUTIS]")),
+        "[GUTIS] " + rk["FABRICANTE"].astype(str),
         rk["FABRICANTE"].astype(str)
     )
     rk = rk.sort_values(by=["Pxs Mes", "Pxs YTD"], ascending=[False, False]).reset_index(drop=True)
     return rk[["Laboratorio", "Médico", "Pxs Mes", "% MS Mes", "Pxs YTD", "% MS YTD", "Brecha MS (Mes vs YTD)"]].rename(columns={"Médico": "Prescriptores"})
+
 
 def matriz_penetracion(df_panel_sub: pd.DataFrame, df_laboratorios: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     if df_panel_sub.empty or df_laboratorios.empty:
@@ -529,6 +543,7 @@ def matriz_penetracion(df_panel_sub: pd.DataFrame, df_laboratorios: pd.DataFrame
     df_comp = pd.DataFrame(filas_top).sort_values(by="_orden", ascending=False).drop(columns=["_orden"]) if filas_top else pd.DataFrame()
     return df_rend, df_comp
 
+
 def auditoria_marcas(
     df_auditoria: pd.DataFrame,
     df_auditoria_tot: pd.DataFrame,
@@ -550,6 +565,7 @@ def auditoria_marcas(
     )
     return rk_m
 
+
 def resumen_ventas_ciudad(df_ventas: pd.DataFrame, ciudad: str) -> Dict[str, Any]:
     if df_ventas.empty or "DESCRIPCION_RUTA" not in df_ventas.columns:
         return {"total": 0.0, "pdvs": 0, "top_farmacias": "principales farmacias de la zona"}
@@ -561,6 +577,7 @@ def resumen_ventas_ciudad(df_ventas: pd.DataFrame, ciudad: str) -> Dict[str, Any
     rk_f = vz.groupby("NOMBRE_CLIENTE_1")["Monto Real"].sum().reset_index().sort_values(by="Monto Real", ascending=False)
     top_f = ", ".join(rk_f["NOMBRE_CLIENTE_1"].head(3).tolist()) if not rk_f.empty else "principales farmacias de la zona"
     return {"total": tot, "pdvs": len(rk_f), "top_farmacias": top_f}
+
 
 def ventas_por_trimestre(df_ventas: pd.DataFrame, ciudad: Optional[str] = None, producto: Optional[str] = None) -> pd.DataFrame:
     if df_ventas.empty:
@@ -575,10 +592,12 @@ def ventas_por_trimestre(df_ventas: pd.DataFrame, ciudad: Optional[str] = None, 
 
     piv = pd.pivot_table(sub, values="Monto Real", index=["NOMBRE_CLIENTE_1", "PRODUCTO_VENTA"], columns=["Trimestre"], aggfunc="sum", fill_value=0.0).reset_index()
     for q in ["Q1", "Q2", "Q3"]:
-        if q not in piv.columns: piv[q] = 0.0
+        if q not in piv.columns:
+            piv[q] = 0.0
         piv[q] = piv[q].round(2)
     piv["Total Acumulado"] = (piv["Q1"] + piv["Q2"] + piv["Q3"]).round(2)
     return piv.sort_values(by="Total Acumulado", ascending=False)
+
 
 def construir_guion_tvp_dinamico(
     medico_raw: str,
@@ -618,8 +637,8 @@ def construir_guion_tvp_dinamico(
         argumento_ndn = meta1["beneficio"]
         pregunta_ndn = f"¿qué aspecto considera prioritario optimizar en rapidez de acción y tolerabilidad frente a {rival_marca} en {rival_forma.lower()}?"
 
-    rap_txt = f" Tenía presente además lo conversado en visitas anteriores." if notas_rapport else ""
-    
+    rap_txt = " Tenía presente además lo conversado en visitas anteriores." if notas_rapport else ""
+
     tc_lower = tipo_cita_sel.lower()
     if "pasillo" in tc_lower:
         intro_contexto = f"Doctor(a) {nom_corto}, sé que va en movimiento hacia consulta; le tomo literalmente 45 segundos.{rap_txt}"
@@ -702,6 +721,7 @@ def construir_guion_tvp_dinamico(
    > «Para ese nicho exacto de pacientes, **{prod1}** ofrece **{meta1['caracteristica']}**, con lo cual **{argumento_ndn}**.»
 4. **Cierre de Rescate (2 a 3 Pacientes) + Puente (`{prod2}`):**
    > «Ponga a prueba a **{prod1}** únicamente en sus próximos **3 pacientes de ese perfil específico**, con abastecimiento listo en **{farmacia_top1}**, y evalúe a la par la respuesta de **{prod2}**. ¿Lo ponemos a prueba esta semana?»"""
+
 
 def generar_consultoria_cognitiva_chira_medico(
     bundle: Any,
@@ -843,6 +863,7 @@ def generar_consultoria_cognitiva_chira_medico(
 
 {bloque_tactico}
 """
+
 
 def generar_analisis_mercado_chira_rico(df_rk_q: pd.DataFrame, mer_q: Optional[str], ciu_q: Optional[str], nota_expansion: str = "") -> str:
     z_lbl = ciu_q or "TODO MI PANEL"
