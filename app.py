@@ -1092,7 +1092,8 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
             df_bi_marcas, df_bi_medicos = calcular_tabla_bi_multifiltro(
                 df_base_bi, df_auditoria_tot,
                 f_zona=f_bi_zona, f_med=f_bi_med, f_esp=f_bi_esp, f_vis=f_bi_vis,
-                f_mer=f_bi_mer, f_mar=f_bi_mar, f_lab=f_bi_lab, f_cat=f_bi_cat
+                f_mer=f_bi_mer, f_mar=f_bi_mar, f_lab=f_bi_lab, f_cat=f_bi_cat,
+            df_productos=df_productos
             )
 
             c_rad_bi, c_hint_bi = st.columns([1.8, 1.2])
@@ -1141,7 +1142,8 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                     _, df_meds_de_marca = calcular_tabla_bi_multifiltro(
                         df_base_bi, df_auditoria_tot,
                         f_zona=f_bi_zona, f_med=f_bi_med, f_esp=f_bi_esp, f_vis=f_bi_vis,
-                        f_mer=f_bi_mer, f_mar=marca_hijo_sel, f_lab=f_bi_lab, f_cat=f_bi_cat
+                        f_mer=f_bi_mer, f_mar=marca_hijo_sel, f_lab=f_bi_lab, f_cat=f_bi_cat,
+df_productos=df_productos
                     )
                     if not df_meds_de_marca.empty:
                         st.dataframe(df_meds_de_marca, hide_index=True, width="stretch", height=260, column_config=cfg_cols_bi)
