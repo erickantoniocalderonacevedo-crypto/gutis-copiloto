@@ -6,12 +6,10 @@ Implementa header x-goog-api-key, timeout controlado y sanitización estricta.
 import os
 import requests
 import base64
-from typing import Optional, List
+from typing import Optional
 import streamlit as st
 
 def obtener_api_key() -> str:
-    # Si no existe el archivo secrets.toml, Streamlit lanza StreamlitSecretNotFoundError.
-    # El try/except protege la ejecución local permitiendo funcionar sin secretos o con variables de entorno.
     try:
         val = st.secrets.get("GEMINI_API_KEY", "")
         if val:
@@ -25,7 +23,8 @@ def llamar_gemini(prompt_text: str, max_tok: int = 2500) -> Optional[str]:
     if not api_key:
         return None
 
-    modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    # Se eliminó 1.5-flash (obsoleto) y se prioriza 2.5-flash
+    modelos = ["gemini-2.5-flash", "gemini-2.0-flash"]
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}],
         "generationConfig": {
@@ -41,7 +40,8 @@ def llamar_gemini(prompt_text: str, max_tok: int = 2500) -> Optional[str]:
     for mod in modelos:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent"
-            res = requests.post(url, headers=headers, json=payload, timeout=12)
+            # Se aumenta el timeout a 25 segundos para prompts largos
+            res = requests.post(url, headers=headers, json=payload, timeout=25)
             if res.status_code == 200:
                 data = res.json()
                 cands = data.get("candidates", [])
@@ -49,7 +49,10 @@ def llamar_gemini(prompt_text: str, max_tok: int = 2500) -> Optional[str]:
                     text = cands[0]["content"]["parts"][0].get("text", "").strip()
                     if len(text) > 40:
                         return text
-        except Exception:
+            else:
+                print(f"Error de Gemini ({mod}): {res.status_code} - {res.text}")
+        except Exception as e:
+            print(f"Excepción al llamar a Gemini ({mod}): {e}")
             continue
     return None
 
@@ -72,11 +75,11 @@ def transcribir_audio_gemini(audio_bytes: bytes, mime_type: str = "audio/wav") -
         "x-goog-api-key": api_key
     }
 
-    modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    modelos = ["gemini-2.5-flash", "gemini-2.0-flash"]
     for mod in modelos:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent"
-            res = requests.post(url, headers=headers, json=payload, timeout=15)
+            res = requests.post(url, headers=headers, json=payload, timeout=25)
             if res.status_code == 200:
                 data = res.json()
                 cands = data.get("candidates", [])
