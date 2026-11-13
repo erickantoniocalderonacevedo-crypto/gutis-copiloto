@@ -79,7 +79,7 @@ def diagnosticar_escala_adopcion(
             "accion": f"Iniciar período de prueba en sus próximos 3 a 5 pacientes (prescribe {pxs_t_eval} Pxs en total)."
         }
     
-    # NUEVO: Control de Falsos Positivos de Lealtad (Exigir mínimo 6 recetas en la categoría para considerar Lealtad)
+    # Control de Falsos Positivos de Lealtad (Exigir mínimo 6 recetas en la categoría para considerar Lealtad)
     if pxs_t_eval < 6 and ms_eval >= 50.0:
         return {
             "nivel": f"3. Prueba ({ms_eval:.1f}% MS {etiqueta} | {pxs_g_eval} Pxs)",
@@ -197,7 +197,8 @@ def calcular_tabla_bi_multifiltro(
     f_mer: str = "Todas",
     f_mar: str = "Todas",
     f_lab: str = "Todas",
-    f_cat: str = "Todas"
+    f_cat: str = "Todas",
+    df_productos: Optional[pd.DataFrame] = None # Nuevo parámetro para volumen de recetas
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     if df_auditoria_docs.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -242,7 +243,46 @@ def calcular_tabla_bi_multifiltro(
     for c_orig, c_w in zip(cols_p, w_cols):
         grp_d[c_orig] = np.where(tot_wd[c_w] > 0, (grp_d[c_w] / tot_wd[c_w]) * 100.0, 0.0)
     grp_d["Dif %"] = grp_d["% MS - Ytd"] - grp_d["% MS - LY"]
-    rk_d = grp_d[["Médico", "Especialidad", "Zona", "Categoria_TAM", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]].sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
+    
+    rk_d = grp_d[["Médico", "Especialidad", "Zona", "Categoria_TAM", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]].copy()
+
+    # NUEVO: Agregar Pxs reales si tenemos df_productos
+    if df_productos is not None and not df_productos.empty:
+        # Filtramos df_productos para que coincida con el mercado y marca de la selección actual del visor
+        df_p_sub = df_productos.copy()
+        if f_mer != "Todas":
+            df_p_sub = df_p_sub[df_p_sub["Clave_Gutis"] == f_mer]
+        if f_mar != "Todas":
+             df_p_sub = df_p_sub[df_p_sub["NOMBRE_PRODUCTO"] == f_mar]
+             
+        if not df_p_sub.empty:
+             # Agrupamos por médico para obtener totales de Pxs-MES
+             grp_pxs = df_p_sub.groupby("Médico")
+             pxs_totales_mes = grp_pxs["Pxs-MES"].sum()
+             
+             # Calculamos Pxs-MES solo para Gutis
+             pxs_gutis_mes = df_p_sub[df_p_sub["Es_Gutis"]].groupby("Médico")["Pxs-MES"].sum()
+             
+             # Unimos las nuevas columnas a rk_d usando 'Médico' como índice temporal
+             rk_d = rk_d.set_index("Médico")
+             rk_d["Total Pxs Mes"] = pxs_totales_mes
+             rk_d["Gutis Pxs Mes"] = pxs_gutis_mes
+             rk_d = rk_d.reset_index()
+             
+             # Llenamos nulos con 0 y convertimos a enteros
+             rk_d["Total Pxs Mes"] = rk_d["Total Pxs Mes"].fillna(0).astype(int)
+             rk_d["Gutis Pxs Mes"] = rk_d["Gutis Pxs Mes"].fillna(0).astype(int)
+             
+             # Reordenamos columnas para poner Pxs junto a los porcentajes
+             cols_orden = ["Médico", "Especialidad", "Zona", "Categoria_TAM", "Gutis Pxs Mes", "Total Pxs Mes", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]
+             rk_d = rk_d[[c for c in cols_orden if c in rk_d.columns]]
+             
+             # Ordenar por Total Pxs y luego % MS
+             rk_d = rk_d.sort_values(by=["Total Pxs Mes", "% MS - Ytd"], ascending=[False, False]).reset_index(drop=True).round(2)
+        else:
+             rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
+    else:
+        rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
 
     return rk_m, rk_d
 
@@ -269,7 +309,7 @@ def ranking_medicos(
     if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
         rx_sub = rx_sub[rx_sub["CIUDAD_PANEL"].str.contains(re.escape(ciudad.upper()), na=False)]
     
-    # NUEVO: Filtro exacto de especialidad para evitar colisión Medicina General vs Interna
+    # Filtro exacto de especialidad para evitar colisión Medicina General vs Interna
     if especialidad and especialidad not in ("TODAS", "TODAS LAS ESPECIALIDADES"):
         rx_sub = rx_sub[rx_sub["ESP_PANEL"].astype(str).str.upper() == especialidad.upper()]
 
@@ -411,7 +451,7 @@ def radar_laboratorios(
             p_sub = df_panel.copy()
             if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
                 p_sub = p_sub[p_sub["CIUDAD"].str.contains(re.escape(ciudad.upper()), na=False)]
-            # NUEVO: Filtro exacto para evitar colisión Medicina General vs Interna
+            # Filtro exacto para evitar colisión Medicina General vs Interna
             if especialidad and especialidad not in ("TODAS", "TODAS LAS ESPECIALIDADES"):
                 p_sub = p_sub[p_sub["Especialidad"].astype(str).str.upper() == especialidad.upper()]
             sub = sub[sub["Médico"].isin(set(p_sub["Médico"].dropna().unique()))]
@@ -427,7 +467,7 @@ def radar_laboratorios(
     rk["Pxs YTD"] = rk["Pxs-YTD"].astype(int)
     rk["% MS YTD"] = np.where(tot_y > 0, (rk["Pxs-YTD"] / tot_y * 100.0).round(2), 0.0)
     rk["Brecha MS (Mes vs YTD)"] = (rk["% MS Mes"] - rk["% MS YTD"]).round(2)
-    # NUEVO: Solo agregar [GUTIS] si no lo tiene, para evitar duplicaciones en app.py
+    # Solo agregar [GUTIS] si no lo tiene, para evitar duplicaciones en app.py
     rk["Laboratorio"] = np.where(
         (rk["FABRICANTE"].astype(str).str.upper().str.contains("GUTIS", na=False)) & (~rk["FABRICANTE"].astype(str).str.upper().str.startswith("[GUTIS]")), 
         "[GUTIS] " + rk["FABRICANTE"].astype(str), 
@@ -578,10 +618,8 @@ def construir_guion_tvp_dinamico(
         argumento_ndn = meta1["beneficio"]
         pregunta_ndn = f"¿qué aspecto considera prioritario optimizar en rapidez de acción y tolerabilidad frente a {rival_marca} en {rival_forma.lower()}?"
 
-    # NUEVO: No incluir el texto de rapport personal si va a pasarse a la IA
     rap_txt = f" Tenía presente además lo conversado en visitas anteriores." if notas_rapport else ""
     
-    # NUEVO: Control exacto de minúsculas
     tc_lower = tipo_cita_sel.lower()
     if "pasillo" in tc_lower:
         intro_contexto = f"Doctor(a) {nom_corto}, sé que va en movimiento hacia consulta; le tomo literalmente 45 segundos.{rap_txt}"
@@ -664,7 +702,6 @@ def construir_guion_tvp_dinamico(
    > «Para ese nicho exacto de pacientes, **{prod1}** ofrece **{meta1['caracteristica']}**, con lo cual **{argumento_ndn}**.»
 4. **Cierre de Rescate (2 a 3 Pacientes) + Puente (`{prod2}`):**
    > «Ponga a prueba a **{prod1}** únicamente en sus próximos **3 pacientes de ese perfil específico**, con abastecimiento listo en **{farmacia_top1}**, y evalúe a la par la respuesta de **{prod2}**. ¿Lo ponemos a prueba esta semana?»"""
-
 
 def generar_consultoria_cognitiva_chira_medico(
     bundle: Any,
@@ -756,7 +793,6 @@ def generar_consultoria_cognitiva_chira_medico(
 
     es_dilucion = any(k in t_norm for k in ["COMPART", "DILUY", "DIVID", "CON NOSOTROS", "FUGA", "POR QUE RECETA OTROS", "QUE PASA"])
     es_comprado = any(k in t_norm for k in ["COMPRAD", "AMARRAD", "CASAD", "FIDELIZAD", "NO SUELTA"]) and not es_dilucion
-    # CORREGIDO: Se reescribe la gestión de ROI/Patrocinios para cumplir con Códigos de Ética IFPMA
     es_pedido_roi = any(k in t_norm for k in ["PIDE", "PEDIR", "PIDIO", "A CAMBIO", "CONGRESO", "INSCRIPCION", "APOYO", "PATROCINIO"])
 
     if es_dilucion:
@@ -792,7 +828,7 @@ def generar_consultoria_cognitiva_chira_medico(
             prod2, m2["meta"]["beneficio"] if m2 else "eficacia comprobada",
             m2["riv_sku"] if m2 else "la competencia", "Ventilar / Mometzona" if es_ped_m else "Valerpan / Renovart Platinum",
             "Visita con cita previa", "Desempeño (Eficacia y adherencia clínica)", farmacias_z, 0,
-            notas_rapport="" # Se omite rapport personal en el prompt IA
+            notas_rapport=""
         )
 
     return f"""### Expediente Estratégico y Plan TVP: Dr(a). {nombre_med}
