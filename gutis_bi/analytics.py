@@ -1,6 +1,6 @@
 """
 Motor Analítico Integral Gutis BI v2.5 (Fusión de Precisión Modular + Cuadros Ejecutivos TVP & Power BI).
-Incluye correcciones de auditoría, compliance ético, filtros limpios y privacidad de datos.
+Incluye correcciones de auditoría, compliance ético, filtros limpios y cruce de volumen real de recetas.
 """
 
 import re
@@ -9,7 +9,7 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 
 from gutis_bi.catalog import MERCADOS_PRIORITARIOS, PATRON_REGEX_GUTIS
-from gutis_bi.data import normalizar_txt, normalizar_serie_rapida, resolver_clave_mercado_gutis
+from gutis_bi.data import normalizar_txt, normalizar_serie_rapida
 
 
 def df_a_markdown_nativo(df: pd.DataFrame) -> str:
@@ -267,30 +267,44 @@ def calcular_tabla_bi_multifiltro(
     rk_d = grp_d[["Médico", "Especialidad", "Zona", "Categoria_TAM", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]].copy()
 
     if df_productos is not None and not df_productos.empty:
-        df_p_sub = df_productos.copy()
+        df_p_sub = df_productos[df_productos["Clave_Gutis"].notna()].copy()
         if f_mer != "Todas":
-            df_p_sub = df_p_sub[df_p_sub["Clave_Gutis"] == f_mer]
+            df_p_sub = df_p_sub[(df_p_sub["Clave_Gutis"] == f_mer) | (df_p_sub["MERCADO"] == f_mer)]
+
+        pxs_cat_mes = df_p_sub.groupby("Médico")["Pxs-MES"].sum()
+
         if f_mar != "Todas":
-            df_p_sub = df_p_sub[df_p_sub["NOMBRE_PRODUCTO"] == f_mar]
-
-        if not df_p_sub.empty:
-            grp_pxs = df_p_sub.groupby("Médico")
-            pxs_totales_mes = grp_pxs["Pxs-MES"].sum()
-            pxs_gutis_mes = df_p_sub[df_p_sub["Es_Gutis"]].groupby("Médico")["Pxs-MES"].sum()
-
-            rk_d = rk_d.set_index("Médico")
-            rk_d["Total Pxs Mes"] = pxs_totales_mes
-            rk_d["Gutis Pxs Mes"] = pxs_gutis_mes
-            rk_d = rk_d.reset_index()
-
-            rk_d["Total Pxs Mes"] = rk_d["Total Pxs Mes"].fillna(0).astype(int)
-            rk_d["Gutis Pxs Mes"] = rk_d["Gutis Pxs Mes"].fillna(0).astype(int)
-
-            cols_orden = ["Médico", "Especialidad", "Zona", "Categoria_TAM", "Gutis Pxs Mes", "Total Pxs Mes", "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]
-            rk_d = rk_d[[c for c in cols_orden if c in rk_d.columns]]
-            rk_d = rk_d.sort_values(by=["Total Pxs Mes", "% MS - Ytd"], ascending=[False, False]).reset_index(drop=True).round(2)
+            tokens_m = str(f_mar).strip().upper().split()
+            marca_raiz = " ".join(tokens_m[:-1]) if len(tokens_m) > 1 else tokens_m[0]
+            prod_norm = normalizar_serie_rapida(df_p_sub["NOMBRE_PRODUCTO"])
+            df_p_marca = df_p_sub[prod_norm.str.contains(re.escape(normalizar_txt(marca_raiz)), na=False)]
+            pxs_foco_mes = df_p_marca.groupby("Médico")["Pxs-MES"].sum()
+            pxs_foco_ytd = df_p_marca.groupby("Médico")["Pxs-YTD"].sum()
+            col_foco_m = "Pxs Marca Mes"
+            col_foco_y = "Pxs Marca YTD"
         else:
-            rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
+            pxs_foco_mes = df_p_sub[df_p_sub["Es_Gutis"]].groupby("Médico")["Pxs-MES"].sum()
+            pxs_foco_ytd = df_p_sub[df_p_sub["Es_Gutis"]].groupby("Médico")["Pxs-YTD"].sum()
+            col_foco_m = "Gutis Pxs Mes"
+            col_foco_y = "Gutis Pxs YTD"
+
+        rk_d = rk_d.set_index("Médico")
+        rk_d[col_foco_m] = pxs_foco_mes
+        rk_d[col_foco_y] = pxs_foco_ytd
+        rk_d["Total Pxs Cat. Mes"] = pxs_cat_mes
+        rk_d = rk_d.reset_index()
+
+        rk_d[col_foco_m] = rk_d[col_foco_m].fillna(0).astype(int)
+        rk_d[col_foco_y] = rk_d[col_foco_y].fillna(0).astype(int)
+        rk_d["Total Pxs Cat. Mes"] = rk_d["Total Pxs Cat. Mes"].fillna(0).astype(int)
+
+        cols_orden = [
+            "Médico", "Especialidad", "Zona", "Categoria_TAM",
+            col_foco_m, col_foco_y, "Total Pxs Cat. Mes",
+            "% MS - LY", "% MS - Ytd", "Dif %", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"
+        ]
+        rk_d = rk_d[[c for c in cols_orden if c in rk_d.columns]]
+        rk_d = rk_d.sort_values(by=[col_foco_m, col_foco_y, "% MS - Ytd"], ascending=[False, False, False]).reset_index(drop=True).round(2)
     else:
         rk_d = rk_d.sort_values(by=["% MS - Ytd", "% MS - Mes"], ascending=[False, False]).reset_index(drop=True).round(2)
 
