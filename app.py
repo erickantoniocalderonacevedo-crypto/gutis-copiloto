@@ -1394,6 +1394,9 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
                 st.write("")
                 top9_mercados = lista_base_p[:9]
+                if "mercado_drill_sel" not in st.session_state:
+                    st.session_state.mercado_drill_sel = None
+
                 for row_start in range(0, len(top9_mercados), 3):
                     cols_3 = st.columns(3)
                     for offset in range(3):
@@ -1401,16 +1404,25 @@ elif st.session_state.modulo_activo == "PREVISITA":
                         if idx_card < len(top9_mercados):
                             m_it = top9_mercados[idx_card]
                             es_lealtad = m_it["modo_tactico"] == "LEALTAD"
-                            borde_top = "#10b981" if es_lealtad else "#ef4444"
+                            # Detectar si es Líder #1 real en volumen aunque aún no supere el 50% de cuota
+                            es_lider_vol = (not es_lealtad) and (m_it["gutis_mes"] > 0) and (m_it["gutis_mes"] >= (m_it["comp_mes"] / 2.0))
+                            
+                            borde_top = "#10b981" if es_lealtad else ("#0284c7" if es_lider_vol else "#ef4444")
                             prio_lbl = f"P{m_it['prioridad']}"
                             bg_prio = "#002b5c" if m_it["prioridad"] == 1 else "#0284c7"
 
                             if es_lealtad:
-                                linea_riv = f"<span style='color:#059669; font-weight:800;'>Líder: {m_it['prod_gutis']} ({m_it['ms_mes']:.0f}% MS)</span>"
+                                linea_riv = f"<span style='color:#059669; font-weight:800;'>Líder Consolidado: {m_it['prod_gutis']} ({m_it['ms_mes']:.0f}% MS)</span>"
                                 cta_txt = "Agradecer, Blindar y Puente"
                                 cta_icon = "✓"
                                 bg_esc = "#dcfce7"
                                 col_esc = "#15803d"
+                            elif es_lider_vol:
+                                linea_riv = f"<span style='color:#0284c7; font-weight:800;'>Líder #1 ({m_it['ms_mes']:.0f}% MS)</span> · Rival: <b>{m_it['rival_corto']}</b>"
+                                cta_txt = f"Consolidar liderazgo ({m_it['prod_gutis']})"
+                                cta_icon = "★"
+                                bg_esc = "#e0f2fe"
+                                col_esc = "#0369a1"
                             else:
                                 linea_riv = f"Rival: <b style='color:#b91c1c;'>{m_it['rival_corto']}</b>"
                                 cta_txt = f"Conquistar con {m_it['prod_gutis']}"
@@ -1420,7 +1432,7 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
                             with cols_3[offset]:
                                 render_html(f"""
-                                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid {borde_top}; margin-bottom: 12px; padding: 14px 16px;'>
+                                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid {borde_top}; margin-bottom: 6px; padding: 14px 16px;'>
                                         <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
                                             <span style='font-size:0.82rem; font-weight:800; color:#0f172a; text-transform:uppercase;'>{m_it['prod_gutis']}</span>
                                             <span style='background:{bg_prio}; color:#ffffff; font-size:0.65rem; font-weight:800; padding:2px 7px; border-radius:4px;'>{prio_lbl}</span>
@@ -1429,18 +1441,52 @@ elif st.session_state.modulo_activo == "PREVISITA":
                                             {linea_riv}
                                         </div>
                                         <div style='font-size:0.76rem; color:#64748b; margin-bottom:8px;'>
-                                            Mes: <b style='color:#0f172a;'>{m_it['tot_mes']}</b> (Comp: {m_it['comp_mes']}) | YTD: <b style='color:#0f172a;'>{m_it['tot_ytd']}</b> (Comp: {m_it['comp_ytd']})
+                                            Mes: <b style='color:#0f172a;'>{m_it['tot_mes']}</b> (Gutis: {m_it['gutis_mes']} | Comp: {m_it['comp_mes']})<br>
+                                            YTD: <b style='color:#0f172a;'>{m_it['tot_ytd']}</b> (Gutis: {m_it['gutis_ytd']} | Comp: {m_it['comp_ytd']})
                                         </div>
-                                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:0.74rem; color:#64748b;'>
-                                            <span>Escala:</span>
+                                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.74rem; color:#64748b;'>
+                                            <span>Escala TVP:</span>
                                             <span style='background:{bg_esc}; color:{col_esc}; font-weight:800; padding:2px 8px; border-radius:4px;'>{m_it['escala_nivel']}</span>
                                         </div>
-                                        <div style='border-top:1px dashed #e2e8f0; padding-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:0.76rem; font-weight:800; color:#059669;'>
+                                        <div style='border-top:1px dashed #e2e8f0; padding-top:6px; display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; font-weight:800; color:#059669;'>
                                             <span>{cta_txt}</span>
                                             <span>{cta_icon}</span>
                                         </div>
                                     </div>
-                                    """)
+                                """)
+                                esta_abierto = (st.session_state.mercado_drill_sel == m_it["clave"])
+                                lbl_btn = f"Cerrar {m_it['prod_gutis']} ▲" if esta_abierto else f"Ver recetario {m_it['prod_gutis']} ↓"
+                                if st.button(lbl_btn, key=f"btn_drill_{m_it['clave']}_{idx_card}", use_container_width=True, type="primary" if esta_abierto else "secondary"):
+                                    st.session_state.mercado_drill_sel = None if esta_abierto else m_it["clave"]
+                                    st.rerun()
+
+                # Panel desplegable al toque con todas las marcas de la clase terapéutica seleccionada
+                if st.session_state.mercado_drill_sel:
+                    k_drill = st.session_state.mercado_drill_sel
+                    info_drill = mapa_clave_obj.get(k_drill, {})
+                    prod_drill_lbl = info_drill.get("prod_gutis", k_drill)
+                    st.write("")
+                    with st.container(border=True):
+                        cd1, cd2 = st.columns([4, 1])
+                        with cd1:
+                            st.markdown(
+                                f"<div style='font-size:0.86rem; font-weight:800; color:#002b5c;'>📋 DETALLE DE PRESCRIPCIÓN EN LA CLASE: {prod_drill_lbl.upper()} (GUTIS VS. COMPETENCIA)</div>",
+                                unsafe_allow_html=True,
+                            )
+                        with cd2:
+                            if st.button("Cerrar detalle ✕", key="btn_cerrar_drill_top", use_container_width=True):
+                                st.session_state.mercado_drill_sel = None
+                                st.rerun()
+
+                        df_drill = productos_medico(df_productos, med_sel, criterio_mercado=k_drill)
+                        if not df_drill.empty:
+                            st.dataframe(
+                                df_drill[["Marca Prescrita", "Origen", "Pxs Mes", "% MS Mes (Categoría)", "Pxs YTD", "% MS YTD (Categoría)"]],
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+                        else:
+                            st.info("Este médico aún no registra recetas auditadas en esta clase terapéutica.")
 
         # ---------------------------------------------------------------------
         # SUB-VISTA 2: CANVAS TVP
