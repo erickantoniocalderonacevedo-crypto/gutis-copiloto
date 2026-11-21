@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import html
 import os
 import re
-import html
 import time
 from datetime import datetime
 from pathlib import Path
@@ -42,7 +43,13 @@ from gutis_bi.crm import (
     leer_visitas,
     migrar_excels_anteriores,
 )
-from gutis_bi.data import clear_data_cache, load_data, normalizar_serie_rapida, normalizar_txt
+from gutis_bi.data import (
+    clear_data_cache,
+    load_data,
+    normalizar_serie_rapida,
+    normalizar_txt,
+    resolver_clave_mercado_gutis,
+)
 
 # -----------------------------------------------------------------------------
 # CONFIGURACIÓN DE PÁGINA Y RUTAS INTELIGENTES
@@ -68,7 +75,7 @@ else:
 DB_PATH = Path(os.environ.get("GUTIS_DB_PATH", str(BASE_DIR / "gutis_bi.db"))).resolve()
 
 # -----------------------------------------------------------------------------
-# PARTE 1: SISTEMA DE DISEÑO ENTERPRISE STITCH (CSS MAESTRO, SIDEBAR Y MENÚ PRINCIPAL)
+# PARTE 1: SISTEMA DE DISEÑO ENTERPRISE STITCH (CSS MAESTRO, SIDEBAR Y TOPBAR)
 # -----------------------------------------------------------------------------
 
 
@@ -76,9 +83,11 @@ def render_sb_html(html_str: str) -> None:
     clean_html = "\n".join(line.lstrip() for line in html_str.splitlines() if line.strip())
     st.sidebar.markdown(clean_html, unsafe_allow_html=True)
 
+
 def render_html(html_str: str) -> None:
     clean_html = "\n".join(line.lstrip() for line in html_str.splitlines() if line.strip())
     st.markdown(clean_html, unsafe_allow_html=True)
+
 
 render_html("""
     <meta name="google" content="notranslate">
@@ -567,12 +576,20 @@ render_html("""
     """)
 
 # -----------------------------------------------------------------------------
-# CARGA DE DATOS E INICIALIZACIÓN DE SQLITE
+# CARGA DE DATOS E INICIALIZACIÓN DE SQLITE (UNA SOLA VEZ POR SESIÓN)
 # -----------------------------------------------------------------------------
-init_db(DB_PATH)
-legacy_history = next((p for p in (BASE_DIR / "HISTORIAL_VISITAS.xlsx", DATA_DIR / "HISTORIAL_VISITAS.xlsx") if p.exists()), None)
-legacy_profile = next((p for p in (BASE_DIR / "PERFIL_360_MEDICOS.xlsx", DATA_DIR / "PERFIL_360_MEDICOS.xlsx") if p.exists()), None)
-legacy_migration = migrar_excels_anteriores(legacy_history, legacy_profile, DB_PATH)
+if not st.session_state.get("_db_inicializada"):
+    init_db(DB_PATH)
+    _legacy_history = next(
+        (p for p in (BASE_DIR / "HISTORIAL_VISITAS.xlsx", DATA_DIR / "HISTORIAL_VISITAS.xlsx") if p.exists()),
+        None,
+    )
+    _legacy_profile = next(
+        (p for p in (BASE_DIR / "PERFIL_360_MEDICOS.xlsx", DATA_DIR / "PERFIL_360_MEDICOS.xlsx") if p.exists()),
+        None,
+    )
+    migrar_excels_anteriores(_legacy_history, _legacy_profile, DB_PATH)
+    st.session_state["_db_inicializada"] = True
 
 bundle = load_data(str(DATA_DIR))
 df_panel = bundle.panel
@@ -583,11 +600,23 @@ df_auditoria_docs = bundle.auditoria
 df_auditoria_tot = bundle.auditoria_totales
 df_ventas = bundle.ventas
 
-LISTA_CIUDADES_REALES = sorted([c for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]]) if not df_panel.empty and "CIUDAD" in df_panel.columns else []
-LISTA_ESPECIALIDADES_REALES = sorted([e for e in df_panel["Especialidad"].dropna().unique() if str(e).strip() not in ["", "NAN"]]) if not df_panel.empty and "Especialidad" in df_panel.columns else []
+LISTA_CIUDADES_REALES = (
+    sorted([c for c in df_panel["CIUDAD"].dropna().unique() if str(c).strip() not in ["", "NAN"]])
+    if not df_panel.empty and "CIUDAD" in df_panel.columns
+    else []
+)
+LISTA_ESPECIALIDADES_REALES = (
+    sorted([e for e in df_panel["Especialidad"].dropna().unique() if str(e).strip() not in ["", "NAN"]])
+    if not df_panel.empty and "Especialidad" in df_panel.columns
+    else []
+)
 LISTA_MERCADOS_GUTIS_KEYS = list(MERCADOS_PRIORITARIOS.keys())
 
-meds_panel_default = sorted(df_panel["Médico"].dropna().unique().tolist()) if not df_panel.empty and "Médico" in df_panel.columns else []
+meds_panel_default = (
+    sorted(df_panel["Médico"].dropna().unique().tolist())
+    if not df_panel.empty and "Médico" in df_panel.columns
+    else []
+)
 
 # Estados de sesión
 for k_st, v_def in [
@@ -613,11 +642,14 @@ for k_st, v_def in [
     if k_st not in st.session_state:
         st.session_state[k_st] = v_def
 
+
 def ir_a_modulo(nombre_mod: str, medico_destino: str | None = None) -> None:
     st.session_state.modulo_activo = nombre_mod
     if medico_destino:
         st.session_state.medico_activo_global = medico_destino
         st.session_state.pos_m1_idx, st.session_state.pos_m2_idx, st.session_state.pos_m3_idx = 0, 1, 2
+        st.session_state.mercado_drill_sel = None
+
 
 def obtener_iniciales(nombre: str) -> str:
     partes = [p for p in str(nombre).strip().split() if p]
@@ -627,8 +659,84 @@ def obtener_iniciales(nombre: str) -> str:
         return partes[0][:2].upper()
     return "MD"
 
+
 # -----------------------------------------------------------------------------
-# BARRA LATERAL ESTILO STITCH (LOGO, NAVEGACIÓN, TARJETA AVATAR MÉDICO Y PERFIL ERICK)
+# UTILIDADES: META SMART REAL, VALIDADOR INTELIGENTE DE IA, CSV EXCEL-SAFE
+# -----------------------------------------------------------------------------
+def calcular_meta_objetivo(comp_mes: int) -> int:
+    """Meta SMART proporcional al volumen disponible en la categoría (~30%), nunca mayor al real."""
+    comp = int(comp_mes or 0)
+    if comp <= 0:
+        return 0
+    return max(1, min(comp, round(comp * 0.3)))
+
+
+def texto_objetivo_clinico(n: int) -> str:
+    if n <= 0:
+        return "consolidar la adherencia terapéutica en los pacientes actuales"
+    return f"evaluar como opción terapéutica en sus próximos {n} paciente{'s' if n != 1 else ''}"
+
+
+_RE_NUM_GENERAL = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?")
+_RE_CIFRAS_AUDITORIA = re.compile(
+    r"(?:\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:[.,]\d+)?))"
+    r"|(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:[.,]\d+)?)\s*(?:%|pxs?\b|rx\b|recetas?\b|pp\b)",
+    re.IGNORECASE,
+)
+
+
+def _normalizar_num(raw: str) -> list[str]:
+    s = raw.strip()
+    if "," in s and "." in s:
+        s = s.replace(",", "")
+    elif "," in s:
+        partes = s.split(",")
+        if len(partes[-1]) == 3 and all(len(p) <= 3 for p in partes):
+            s = s.replace(",", "")
+        else:
+            s = s.replace(",", ".")
+    try:
+        val = float(s)
+        return [f"{val:g}", str(int(round(val)))]
+    except ValueError:
+        return []
+
+
+def _todos_los_numeros(texto: str) -> set[str]:
+    out: set[str] = set()
+    for m in _RE_NUM_GENERAL.findall(texto or ""):
+        out.update(_normalizar_num(m))
+    return out
+
+
+def _cifras_auditoria(texto: str) -> set[str]:
+    out: set[str] = set()
+    for g1, g2 in _RE_CIFRAS_AUDITORIA.findall(texto or ""):
+        raw = g1 or g2
+        if raw:
+            nums = _normalizar_num(raw)
+            if nums:
+                out.add(nums[0])
+    return out
+
+
+def respuesta_ia_conserva_cifras(resp_ia: str, texto_base: str) -> bool:
+    """Valida que porcentajes, montos ($) y recetas (Pxs/Rx) de la IA existan en los datos locales, sin bloquear dosis ni tiempos clínicos."""
+    base_nums = _todos_los_numeros(texto_base)
+    ia_metricas = _cifras_auditoria(resp_ia)
+    return ia_metricas.issubset(base_nums)
+
+
+def csv_para_excel(data: object) -> bytes:
+    """Garantiza UTF-8 con BOM para que Excel respete tildes y eñes."""
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    data = bytes(data or b"")
+    return data if data.startswith(b"\xef\xbb\xbf") else b"\xef\xbb\xbf" + data
+
+
+# -----------------------------------------------------------------------------
+# BARRA LATERAL ESTILO STITCH (LOGO, NAVEGACIÓN, TARJETA AVATAR MÉDICO)
 # -----------------------------------------------------------------------------
 render_sb_html("""
     <div class='notranslate' translate='no' style='display:flex; align-items:center; gap:10px; padding:4px 0 12px 0; border-bottom:1px solid #e2e8f0; margin-bottom:10px;'>
@@ -692,6 +800,7 @@ med_elegido_sb = st.sidebar.selectbox("Especialista en Foco:", lista_meds_sb, in
 if med_elegido_sb != st.session_state.medico_activo_global:
     st.session_state.medico_activo_global = med_elegido_sb
     st.session_state.pos_m1_idx, st.session_state.pos_m2_idx, st.session_state.pos_m3_idx = 0, 1, 2
+    st.session_state.mercado_drill_sel = None
     st.rerun()
 
 medico_sel = st.session_state.medico_activo_global
@@ -702,7 +811,6 @@ categoria = dp_global.get("CATEGORIA", "S/C")
 es_pediatra = "PEDIAT" in especialidad.upper()
 ini_med = obtener_iniciales(medico_sel)
 
-# Tarjeta Avatar del Especialista en Foco en el Sidebar (Idéntica a Stitch)
 render_sb_html(f"""
     <div class='sidebar-doc-card notranslate' translate='no'>
         <div class='doc-avatar-row'>
@@ -721,7 +829,7 @@ render_sb_html(f"""
     """)
 
 st.sidebar.divider()
-with st.sidebar.expander("Estado de Bases Offline y Caché", expanded=False):
+with st.sidebar.expander("Estado de Bases de Datos y Caché", expanded=False):
     st.caption(f"Carpeta activa: `{DATA_DIR}`")
     for k_f, v_f in bundle.archivos.items():
         st.caption(f"• **{k_f}:** `{v_f}`")
@@ -759,12 +867,10 @@ render_html(f"""
     </div>
     """)
 
-kpi_hub = resumen_global(df_panel, df_productos)
-
-
+kpi_hub = resumen_global(df_panel, df_productos)# -----------------------------------------------------------------------------
+# PARTE 2: FUNCIONES AUXILIARES, MENÚ PRINCIPAL (HUB STITCH) Y MÓDULO 1 (VISOR BI)
 # -----------------------------------------------------------------------------
-# PARTE 2: FUNCIONES AUXILIARES, MENÚ PRINCIPAL (HUB STITCH) Y MÓDULO 1 (VISOR POWER BI)
-# -----------------------------------------------------------------------------
+
 
 def fmt_int(value: object) -> str:
     try:
@@ -772,16 +878,19 @@ def fmt_int(value: object) -> str:
     except (TypeError, ValueError):
         return "0"
 
+
 def fmt_pct(value: object) -> str:
     try:
         return f"{float(value):.1f}%"
     except (TypeError, ValueError):
         return "0.0%"
 
+
 def safe_text(value: object, default: str = "Sin dato") -> str:
     if value is None or str(value).strip().lower() in ("", "nan", "none"):
         return default
     return str(value)
+
 
 def show_table(df: pd.DataFrame, height: int = 420) -> None:
     if df is None or df.empty:
@@ -800,8 +909,7 @@ def show_table(df: pd.DataFrame, height: int = 420) -> None:
 # MÓDULO HUB (MENÚ PRINCIPAL ESTILO STITCH: HERO, 4 KPIS Y CARDS MOD-01 A MOD-05)
 # -----------------------------------------------------------------------------
 if st.session_state.modulo_activo == "HUB":
-    # 1. Hero Banner Principal
-    render_html(f"""
+    render_html("""
         <div class='stitch-hero notranslate' translate='no'>
             <div>
                 <div class='hero-left-tag'>GUTIS · INNOVACIÓN Y TECNOLOGÍA PARA LA VIDA</div>
@@ -820,12 +928,19 @@ if st.session_state.modulo_activo == "HUB":
         </div>
         """)
 
-    # 2. Las 4 Tarjetas KPI Superiores con Barras de Progreso y Pills (Idénticas a Stitch)
     tot_pan = max(kpi_hub["medicos_panel"], 1)
     pct_cob = round((kpi_hub["medicos_activos"] / tot_pan) * 100.0, 1)
     brecha_hub = round(kpi_hub["ms_mes"] - kpi_hub["ms_ytd"], 1)
-    signo_b = f"↑ +{brecha_hub:.1f}%" if brecha_hub >= 0 else f"↓ {brecha_hub:.1f}%"
+    signo_b = f"↑ +{brecha_hub:.1f} pp" if brecha_hub >= 0 else f"↓ {brecha_hub:.1f} pp"
     clase_pill_b = "kpi-pill-up" if brecha_hub >= 0 else "kpi-pill-warn"
+
+    if abs(brecha_hub) < 1.0:
+        txt_ytd_pill, clase_ytd_pill = "Estable", "kpi-pill-neutral"
+    elif brecha_hub > 0:
+        txt_ytd_pill, clase_ytd_pill = "Mes sobre YTD", "kpi-pill-up"
+    else:
+        txt_ytd_pill, clase_ytd_pill = "Mes bajo YTD", "kpi-pill-warn"
+
     w_mes = min(max(kpi_hub["ms_mes"], 4.0), 100.0)
     w_ytd = min(max(kpi_hub["ms_ytd"], 4.0), 100.0)
 
@@ -873,7 +988,7 @@ if st.session_state.modulo_activo == "HUB":
                 </div>
                 <div class='kpi-num-row'>
                     <div class='kpi-num'>{kpi_hub['ms_ytd']:.1f}%</div>
-                    <span class='kpi-pill-neutral'>Consistente</span>
+                    <span class='{clase_ytd_pill}'>{txt_ytd_pill}</span>
                 </div>
                 <div class='kpi-progress-track'>
                     <div class='kpi-progress-fill' style='width:{w_ytd:.0f}%;'></div>
@@ -902,7 +1017,6 @@ if st.session_state.modulo_activo == "HUB":
         </div>
         """)
 
-    # 3. Encabezado Central y Cuadrícula de Tarjetas Interactivas (MOD-01 a MOD-05)
     render_html("""
         <div class='notranslate' translate='no' style='text-align:center; margin: 18px 0 14px 0;'>
             <div style='font-size:1.08rem; font-weight:800; color:#0f172a; letter-spacing:0.02em;'>SELECCIONE EL MÓDULO DE INTELIGENCIA COMERCIAL</div>
@@ -982,7 +1096,6 @@ if st.session_state.modulo_activo == "HUB":
             st.rerun()
 
     st.write("")
-    # Card Especial de Ancho Completo para CHIRA (MOD-05)
     render_html("""
         <div class='chira-neural-hero notranslate' translate='no' style='padding:16px 22px; margin-bottom:8px;'>
             <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;'>
@@ -1048,7 +1161,7 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                     f_solo_panel_bi = st.checkbox(
                         "Solo Mi Panel (Erick)",
                         value=alcance_sb.startswith("SOLO"),
-                        key="bi_chk_panel_erick",
+                        key=f"bi_chk_panel_erick_{'solo' if alcance_sb.startswith('SOLO') else 'total'}",
                     )
 
                 df_base_bi = df_auditoria_docs[df_auditoria_docs["Zona"] != "FUERA DE PANEL"].copy() if f_solo_panel_bi else df_auditoria_docs.copy()
@@ -1059,24 +1172,35 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                 esps_bi = ["Todas"] + sorted(df_base_bi["Especialidad"].dropna().unique().tolist())
                 viss_bi = ["Todas"] + sorted(df_base_bi["VISITADOR"].dropna().unique().tolist()) if "VISITADOR" in df_base_bi.columns else ["Todas", "CALDERON ERICK"]
 
-                with r1_c1: f_bi_zona = st.selectbox("ZONA:", zonas_bi, key="bi_f_zona")
-                with r1_c2: f_bi_med = st.selectbox("MÉDICO:", meds_bi, key="bi_f_med")
-                with r1_c3: f_bi_esp = st.selectbox("ESPECIALIDAD:", esps_bi, key="bi_f_esp")
-                with r1_c4: f_bi_vis = st.selectbox("VISITADOR:", viss_bi, index=0, key="bi_f_vis")
+                with r1_c1:
+                    f_bi_zona = st.selectbox("ZONA:", zonas_bi, key="bi_f_zona")
+                with r1_c2:
+                    f_bi_med = st.selectbox("MÉDICO:", meds_bi, key="bi_f_med")
+                with r1_c3:
+                    f_bi_esp = st.selectbox("ESPECIALIDAD:", esps_bi, key="bi_f_esp")
+                with r1_c4:
+                    f_bi_vis = st.selectbox("VISITADOR:", viss_bi, index=0, key="bi_f_vis")
 
                 df_casc = df_base_bi
-                if f_bi_zona != "Todas": df_casc = df_casc[df_casc["Zona"] == f_bi_zona]
-                if f_bi_med != "Todas": df_casc = df_casc[df_casc["Médico"] == f_bi_med]
-                if f_bi_esp != "Todas": df_casc = df_casc[df_casc["Especialidad"] == f_bi_esp]
+                if f_bi_zona != "Todas":
+                    df_casc = df_casc[df_casc["Zona"] == f_bi_zona]
+                if f_bi_med != "Todas":
+                    df_casc = df_casc[df_casc["Médico"] == f_bi_med]
+                if f_bi_esp != "Todas":
+                    df_casc = df_casc[df_casc["Especialidad"] == f_bi_esp]
+                if f_bi_vis != "Todas" and "VISITADOR" in df_casc.columns:
+                    df_casc = df_casc[df_casc["VISITADOR"] == f_bi_vis]
 
                 r2_c1, r2_c2, r2_c3, r2_c4 = st.columns([1.4, 1.3, 1.1, 1.0])
-                mers_bi_keys = ["Todas"] + LISTA_MERCADOS_GUTIS_KEYS + sorted([m for m in df_casc["Mercado_BI"].dropna().unique() if m not in LISTA_MERCADOS_GUTIS_KEYS and m not in ["", "OTROS MERCADOS"]])
+                mers_bi_keys = ["Todas"] + LISTA_MERCADOS_GUTIS_KEYS + sorted(
+                    [m for m in df_casc["Mercado_BI"].dropna().unique() if m not in LISTA_MERCADOS_GUTIS_KEYS and m not in ["", "OTROS MERCADOS"]]
+                )
                 with r2_c1:
                     f_bi_mer = st.selectbox(
                         "MERCADO:",
                         mers_bi_keys,
                         format_func=lambda k: "Todas" if k == "Todas" else (f"MR {MERCADOS_PRIORITARIOS[k]['producto']} ({k})" if k in MERCADOS_PRIORITARIOS else k),
-                        key="bi_f_mer"
+                        key="bi_f_mer",
                     )
                 if f_bi_mer != "Todas":
                     df_casc = df_casc[(df_casc["Clave_Gutis"] == f_bi_mer) | (df_casc["Mercado_BI"] == f_bi_mer)]
@@ -1085,15 +1209,25 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                 labs_bi = ["Todas"] + sorted(df_casc["Laboratorio"].dropna().unique().tolist())
                 cats_bi = ["Todas"] + sorted(df_casc["Categoria_TAM"].dropna().astype(str).unique().tolist())
 
-                with r2_c2: f_bi_mar = st.selectbox("MARCA / PRODUCTO:", marcas_bi, key="bi_f_mar")
-                with r2_c3: f_bi_lab = st.selectbox("LABORATORIO:", labs_bi, key="bi_f_lab")
-                with r2_c4: f_bi_cat = st.selectbox("CATEGORÍA TAM:", cats_bi, key="bi_f_cat")
+                with r2_c2:
+                    f_bi_mar = st.selectbox("MARCA / PRODUCTO:", marcas_bi, key="bi_f_mar")
+                with r2_c3:
+                    f_bi_lab = st.selectbox("LABORATORIO:", labs_bi, key="bi_f_lab")
+                with r2_c4:
+                    f_bi_cat = st.selectbox("CATEGORÍA TAM:", cats_bi, key="bi_f_cat")
 
             df_bi_marcas, df_bi_medicos = calcular_tabla_bi_multifiltro(
-                df_base_bi, df_auditoria_tot,
-                f_zona=f_bi_zona, f_med=f_bi_med, f_esp=f_bi_esp, f_vis=f_bi_vis,
-                f_mer=f_bi_mer, f_mar=f_bi_mar, f_lab=f_bi_lab, f_cat=f_bi_cat,
-            df_productos=df_productos
+                df_base_bi,
+                df_auditoria_tot,
+                f_zona=f_bi_zona,
+                f_med=f_bi_med,
+                f_esp=f_bi_esp,
+                f_vis=f_bi_vis,
+                f_mer=f_bi_mer,
+                f_mar=f_bi_mar,
+                f_lab=f_bi_lab,
+                f_cat=f_bi_cat,
+                df_productos=df_productos,
             )
 
             c_rad_bi, c_hint_bi = st.columns([1.8, 1.2])
@@ -1127,7 +1261,6 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                         )
                     st.dataframe(df_m_show, hide_index=True, width="stretch", height=390, column_config=cfg_cols_bi)
 
-                    # Desglose Hijo (+): ¿Qué médicos recetan esta Marca / Producto bajo los filtros actuales?
                     st.markdown("<div class='drill-panel notranslate' translate='no'>", unsafe_allow_html=True)
                     c_dh1, c_dh2 = st.columns([1.8, 1.2])
                     lista_m_hijo = df_bi_marcas["MARCA"].dropna().unique().tolist()
@@ -1140,10 +1273,17 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
                         marca_hijo_sel = st.selectbox("Marca en auditoría:", lista_m_hijo, label_visibility="collapsed", key="bi_hijo_marca")
 
                     _, df_meds_de_marca = calcular_tabla_bi_multifiltro(
-                        df_base_bi, df_auditoria_tot,
-                        f_zona=f_bi_zona, f_med=f_bi_med, f_esp=f_bi_esp, f_vis=f_bi_vis,
-                        f_mer=f_bi_mer, f_mar=marca_hijo_sel, f_lab=f_bi_lab, f_cat=f_bi_cat,
-df_productos=df_productos
+                        df_base_bi,
+                        df_auditoria_tot,
+                        f_zona=f_bi_zona,
+                        f_med=f_bi_med,
+                        f_esp=f_bi_esp,
+                        f_vis=f_bi_vis,
+                        f_mer=f_bi_mer,
+                        f_mar=marca_hijo_sel,
+                        f_lab=f_bi_lab,
+                        f_cat=f_bi_cat,
+                        df_productos=df_productos,
                     )
                     if not df_meds_de_marca.empty:
                         st.dataframe(df_meds_de_marca, hide_index=True, width="stretch", height=260, column_config=cfg_cols_bi)
@@ -1156,7 +1296,7 @@ df_productos=df_productos
                             )
                         with j_c2:
                             st.write("")
-                            if st.button(f"Abrir en Previsita TVP →", type="primary", width="stretch", key="btn_bi_hijo_jump"):
+                            if st.button("Abrir en Previsita TVP →", type="primary", width="stretch", key="btn_bi_hijo_jump"):
                                 ir_a_modulo("PREVISITA", medico_destino=doc_hijo_jump)
                                 st.rerun()
                     else:
@@ -1178,18 +1318,27 @@ df_productos=df_productos
 
     elif st.session_state.sub_top_medicos in ["RANKING", "FUERA_PANEL", "CRECIMIENTO"]:
         f1, f2, f3 = st.columns(3)
-        with f1: tm_ciu = st.selectbox("Territorio:", ["TODO MI PANEL"] + LISTA_CIUDADES_REALES, key="tm_ciu")
-        with f2: tm_mer = st.selectbox("Mercado:", ["TODOS LOS MERCADOS"] + LISTA_MERCADOS_GUTIS_KEYS, format_func=lambda k: "TODOS LOS MERCADOS" if k == "TODOS LOS MERCADOS" else MERCADOS_PRIORITARIOS[k]["producto"], key="tm_mer")
-        with f3: tm_esp = st.selectbox("Especialidad:", ["TODAS"] + LISTA_ESPECIALIDADES_REALES, key="tm_esp")
+        with f1:
+            tm_ciu = st.selectbox("Territorio:", ["TODO MI PANEL"] + LISTA_CIUDADES_REALES, key="tm_ciu")
+        with f2:
+            tm_mer = st.selectbox(
+                "Mercado:",
+                ["TODOS LOS MERCADOS"] + LISTA_MERCADOS_GUTIS_KEYS,
+                format_func=lambda k: "TODOS LOS MERCADOS" if k == "TODOS LOS MERCADOS" else MERCADOS_PRIORITARIOS[k]["producto"],
+                key="tm_mer",
+            )
+        with f3:
+            tm_esp = st.selectbox("Especialidad:", ["TODAS"] + LISTA_ESPECIALIDADES_REALES, key="tm_esp")
 
         if st.session_state.sub_top_medicos in ["RANKING", "FUERA_PANEL"]:
             modo_p = "FUERA_PANEL" if st.session_state.sub_top_medicos == "FUERA_PANEL" else "PANEL"
             df_rk = ranking_medicos(
-                df_productos, df_panel,
+                df_productos,
+                df_panel,
                 ciudad=None if tm_ciu == "TODO MI PANEL" else tm_ciu,
                 especialidad=None if tm_esp == "TODAS" else tm_esp,
                 mercado=None if tm_mer == "TODOS LOS MERCADOS" else tm_mer,
-                modo_panel=modo_p
+                modo_panel=modo_p,
             )
             if not df_rk.empty:
                 c_k1, c_k2, c_k3 = st.columns(3)
@@ -1213,11 +1362,8 @@ df_productos=df_productos
             if not df_crec.empty:
                 show_table(df_crec, 450)
             else:
-                st.info("Sin datos de crecimiento para esta selección.")
-
-
-# -----------------------------------------------------------------------------
-# PARTE 3: MÓDULO 2 — PREVISITA TVP ESTILO STITCH (MAPA 3X3, CANVAS 4 CUADRANTES, GUION NUMERADO Y MATRIZ CLASES/360)
+                st.info("Sin datos de crecimiento para esta selección.")# -----------------------------------------------------------------------------
+# PARTE 3: MÓDULO 2 — PREVISITA TVP (MAPA 3X3 + DRILL-DOWN, CANVAS, GUION Y 360)
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "PREVISITA":
     c_back, c_tit = st.columns([0.85, 3.15])
@@ -1235,644 +1381,688 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
     if not medico_sel:
         st.warning("Selecciona un especialista en la barra lateral izquierda para abrir su Previsita TVP.")
-    else:
-        perfil_360_actual = leer_perfil_360(medico_sel, DB_PATH)
-        sell_z = resumen_ventas_ciudad(df_ventas, ciudad)
-        farmacias_aliadas_str = sell_z["top_farmacias"]
+        st.stop()
 
-        # 1. Evaluar mercados del Vademécum Nicaragua 2026 para el médico activo
-        claves_disponibles_med = [
-            k for k, v in MERCADOS_PRIORITARIOS.items()
-            if not (es_pediatra and not v.get("apto_pediatria", True))
-        ]
-        rx_med_raw = df_productos[
+    perfil_360_actual = leer_perfil_360(medico_sel, DB_PATH)
+    sell_z = resumen_ventas_ciudad(df_ventas, ciudad)
+    farmacias_aliadas_str = sell_z["top_farmacias"]
+
+    # 1. Evaluar mercados del Vademécum Nicaragua 2026 para el médico activo
+    claves_disponibles_med = [
+        k for k, v in MERCADOS_PRIORITARIOS.items()
+        if not (es_pediatra and not v.get("apto_pediatria", True))
+    ]
+    rx_med_raw = (
+        df_productos[
             (df_productos["Médico"] == medico_sel) & (df_productos["Clave_Gutis"].isin(claves_disponibles_med))
-        ].copy() if not df_productos.empty else pd.DataFrame()
+        ].copy()
+        if not df_productos.empty
+        else pd.DataFrame()
+    )
 
-        mercados_evaluados = []
-        for k_m in claves_disponibles_med:
-            meta_m = MERCADOS_PRIORITARIOS[k_m]
-            grp_m = rx_med_raw[rx_med_raw["Clave_Gutis"] == k_m] if not rx_med_raw.empty else pd.DataFrame()
-            pm = int(grp_m["Pxs-MES"].sum()) if not grp_m.empty else 0
-            py = int(grp_m["Pxs-YTD"].sum()) if not grp_m.empty else 0
-            gm = int(grp_m[grp_m["Es_Gutis"]]["Pxs-MES"].sum()) if not grp_m.empty else 0
-            gy = int(grp_m[grp_m["Es_Gutis"]]["Pxs-YTD"].sum()) if not grp_m.empty else 0
-            cm = max(pm - gm, 0)
-            cy = max(py - gy, 0)
-            msm = round((gm / pm * 100.0), 1) if pm > 0 else 0.0
-            msy = round((gy / py * 100.0), 1) if py > 0 else 0.0
-            diag_sc = diagnosticar_escala_adopcion(gm, pm, msm, gy, py, msy)
+    mercados_evaluados = []
+    for k_m in claves_disponibles_med:
+        meta_m = MERCADOS_PRIORITARIOS[k_m]
+        grp_m = rx_med_raw[rx_med_raw["Clave_Gutis"] == k_m] if not rx_med_raw.empty else pd.DataFrame()
+        pm = int(grp_m["Pxs-MES"].sum()) if not grp_m.empty else 0
+        py = int(grp_m["Pxs-YTD"].sum()) if not grp_m.empty else 0
+        gm = int(grp_m[grp_m["Es_Gutis"]]["Pxs-MES"].sum()) if not grp_m.empty else 0
+        gy = int(grp_m[grp_m["Es_Gutis"]]["Pxs-YTD"].sum()) if not grp_m.empty else 0
+        cm = max(pm - gm, 0)
+        cy = max(py - gy, 0)
+        msm = round((gm / pm * 100.0), 1) if pm > 0 else 0.0
+        msy = round((gy / py * 100.0), 1) if py > 0 else 0.0
+        diag_sc = diagnosticar_escala_adopcion(gm, pm, msm, gy, py, msy)
 
-            if not grp_m.empty:
-                grp_riv = grp_m[~grp_m["Es_Gutis"]].sort_values(by=["Pxs-MES", "Pxs-YTD"], ascending=False)
-                riv_str = f"{grp_riv.iloc[0]['NOMBRE_PRODUCTO']} ({int(grp_riv.iloc[0]['Pxs-MES'])}M / {int(grp_riv.iloc[0]['Pxs-YTD'])}Y)" if not grp_riv.empty else f"Líder: {meta_m['producto']} ({msm:.0f}% MS)"
-                riv_corto = str(grp_riv.iloc[0]["NOMBRE_PRODUCTO"])[:26] if not grp_riv.empty else f"{meta_m['producto']} ({msm:.0f}% MS)"
+        rival_mes_top = 0
+        if not grp_m.empty:
+            grp_riv = grp_m[~grp_m["Es_Gutis"]].sort_values(by=["Pxs-MES", "Pxs-YTD"], ascending=False)
+            if not grp_riv.empty:
+                rival_mes_top = int(grp_riv.iloc[0]["Pxs-MES"])
+                riv_str = f"{grp_riv.iloc[0]['NOMBRE_PRODUCTO']} ({int(grp_riv.iloc[0]['Pxs-MES'])}M / {int(grp_riv.iloc[0]['Pxs-YTD'])}Y)"
+                riv_corto = str(grp_riv.iloc[0]["NOMBRE_PRODUCTO"])[:26]
             else:
-                riv_str = "Sin prescripciones registradas en corte"
-                riv_corto = "Sin registro en corte"
+                riv_str = f"Líder: {meta_m['producto']} ({msm:.0f}% MS)"
+                riv_corto = f"{meta_m['producto']} ({msm:.0f}% MS)"
+        else:
+            riv_str = "Sin prescripciones registradas en corte"
+            riv_corto = "Sin registro en corte"
 
-            mercados_evaluados.append({
-                "clave": k_m,
-                "prod_gutis": meta_m["producto"],
-                "clase_terapeutica": meta_m["clase_terapeutica"],
-                "prioridad": meta_m.get("prioridad", 3),
-                "tot_mes": pm,
-                "gutis_mes": gm,
-                "comp_mes": cm,
-                "ms_mes": msm,
-                "tot_ytd": py,
-                "gutis_ytd": gy,
-                "comp_ytd": cy,
-                "ms_ytd": msy,
-                "escala_nivel": diag_sc["nivel"],
-                "escala_meta": diag_sc["meta"],
-                "modo_tactico": diag_sc["modo"],
-                "paso_recomendado": diag_sc["accion"],
-                "rival_principal": riv_str,
-                "rival_corto": riv_corto,
-                "meta_info": meta_m,
-            })
+        mercados_evaluados.append({
+            "clave": k_m,
+            "prod_gutis": meta_m["producto"],
+            "clase_terapeutica": meta_m["clase_terapeutica"],
+            "prioridad": meta_m.get("prioridad", 3),
+            "tot_mes": pm,
+            "gutis_mes": gm,
+            "comp_mes": cm,
+            "ms_mes": msm,
+            "tot_ytd": py,
+            "gutis_ytd": gy,
+            "comp_ytd": cy,
+            "ms_ytd": msy,
+            "rival_mes_top": rival_mes_top,
+            "meta_objetivo": calcular_meta_objetivo(cm),
+            "escala_nivel": diag_sc["nivel"],
+            "escala_meta": diag_sc["meta"],
+            "modo_tactico": diag_sc["modo"],
+            "paso_recomendado": diag_sc["accion"],
+            "rival_principal": riv_str,
+            "rival_corto": riv_corto,
+            "meta_info": meta_m,
+        })
 
-        mercados_evaluados.sort(key=lambda x: (-(x["tot_mes"] * 10 + x["tot_ytd"]), x["prioridad"]))
-        lista_base_p = mercados_evaluados if mercados_evaluados else []
-        opciones_claves_p = [m["clave"] for m in lista_base_p]
-        mapa_clave_obj = {m["clave"]: m for m in lista_base_p}
+    mercados_evaluados.sort(key=lambda x: (-(x["tot_mes"] * 10 + x["tot_ytd"]), x["prioridad"]))
+    lista_base_p = mercados_evaluados if mercados_evaluados else []
 
-        idx1 = min(st.session_state.pos_m1_idx, max(len(opciones_claves_p) - 1, 0))
-        idx2 = min(st.session_state.pos_m2_idx, max(len(opciones_claves_p) - 1, 0))
-        if idx2 == idx1 and len(opciones_claves_p) > 1:
-            idx2 = (idx1 + 1) % len(opciones_claves_p)
-        idx3 = min(st.session_state.pos_m3_idx, max(len(opciones_claves_p) - 1, 0))
-        if idx3 in (idx1, idx2) and len(opciones_claves_p) > 2:
-            idx3 = next((i for i in range(len(opciones_claves_p)) if i not in (idx1, idx2)), 0)
+    if not lista_base_p:
+        st.info("Este especialista no tiene mercados evaluables en el corte actual.")
+        st.stop()
 
-        m_foco_top = lista_base_p[idx1]
+    opciones_claves_p = [m["clave"] for m in lista_base_p]
+    mapa_clave_obj = {m["clave"]: m for m in lista_base_p}
 
-        # 2. Franja de 4 Tarjetas KPI del Especialista en Foco
-        render_html(f"""
-            <div class='kpi-strip notranslate' translate='no'>
-                <div class='kpi-card' style='border-top: 3px solid #002b5c;'>
-                    <div class='kpi-lbl'>ESPECIALISTA EN FOCO</div>
-                    <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin:6px 0 4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
-                        {medico_sel}
-                    </div>
-                    <div style='font-size:0.74rem; color:#475569; font-weight:700;'>
-                        {especialidad} | Cat {categoria} | <span style='background:#e0f2fe; color:#0369a1; padding:1px 6px; border-radius:4px;'>{ciudad}</span>
-                    </div>
+    idx1 = min(st.session_state.pos_m1_idx, max(len(opciones_claves_p) - 1, 0))
+    idx2 = min(st.session_state.pos_m2_idx, max(len(opciones_claves_p) - 1, 0))
+    if idx2 == idx1 and len(opciones_claves_p) > 1:
+        idx2 = (idx1 + 1) % len(opciones_claves_p)
+    idx3 = min(st.session_state.pos_m3_idx, max(len(opciones_claves_p) - 1, 0))
+    if idx3 in (idx1, idx2) and len(opciones_claves_p) > 2:
+        idx3 = next((i for i in range(len(opciones_claves_p)) if i not in (idx1, idx2)), 0)
+
+    m_foco_top = lista_base_p[idx1]
+
+    # 2. Franja de 4 Tarjetas KPI del Especialista en Foco
+    render_html(f"""
+        <div class='kpi-strip notranslate' translate='no'>
+            <div class='kpi-card' style='border-top: 3px solid #002b5c;'>
+                <div class='kpi-lbl'>ESPECIALISTA EN FOCO</div>
+                <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin:6px 0 4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
+                    {medico_sel}
                 </div>
-
-                <div class='kpi-card' style='border-top: 3px solid #0284c7;'>
-                    <div class='kpi-lbl'>AUDITORÍA DE RECETAS (RX)</div>
-                    <div style='font-size:1.25rem; font-weight:800; color:#0f172a; margin:4px 0;'>
-                        {dp_global.get('Pxs Mes', 0):,} Pxs Mes <span style='font-size:0.82rem; color:#0284c7;'>({dp_global.get('Pxs YTD', 0):,} YTD)</span>
-                    </div>
-                    <div style='font-size:0.74rem; color:#64748b; font-weight:600;'>
-                        Gutis Mes: <b>{dp_global.get('Gutis Mes', 0)}</b> ({dp_global.get('Gutis YTD', 0)} YTD) | Comp Mes: <b>{dp_global.get('Comp Mes', 0)}</b>
-                    </div>
-                </div>
-
-                <div class='kpi-card' style='border-top: 3px solid #f59e0b;'>
-                    <div class='kpi-lbl'>FOCO PRIMARIO ({m_foco_top['prod_gutis'].upper()})</div>
-                    <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin:6px 0 4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
-                        {m_foco_top['rival_corto']}
-                    </div>
-                    <div style='font-size:0.74rem; color:#475569; font-weight:700;'>
-                        Escala TVP: <span style='background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px;'>{m_foco_top['escala_nivel']}</span>
-                    </div>
-                </div>
-
-                <div class='kpi-card' style='border-top: 3px solid #10b981;'>
-                    <div class='kpi-lbl'>SELL-OUT ZONAL ({ciudad} - {sell_z['pdvs']} PDV)</div>
-                    <div style='font-size:1.25rem; font-weight:800; color:#047857; margin:4px 0;'>
-                        ${sell_z['total']:,.2f}
-                    </div>
-                    <div style='font-size:0.73rem; color:#64748b; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
-                        Aliadas: {farmacias_aliadas_str}
-                    </div>
+                <div style='font-size:0.74rem; color:#475569; font-weight:700;'>
+                    {especialidad} | Cat {categoria} | <span style='background:#e0f2fe; color:#0369a1; padding:1px 6px; border-radius:4px;'>{ciudad}</span>
                 </div>
             </div>
-            """)
 
-        # 3. Pestañas de Navegación de Previsita
-        st.markdown("<div class='subnav-label'>SELECCIONE LA HERRAMIENTA DE PREVISITA:</div>", unsafe_allow_html=True)
-        bp1, bp2, bp3, bp4 = st.columns(4)
-        with bp1:
-            if st.button("1. Mapa de Mercado del Especialista", width="stretch", type="primary" if st.session_state.sub_previsita == "MAPA" else "secondary"):
-                st.session_state.sub_previsita = "MAPA"
-                st.rerun()
-        with bp2:
-            if st.button("2. Canvas TVP (4 Cuadrantes)", width="stretch", type="primary" if st.session_state.sub_previsita == "CANVAS" else "secondary"):
-                st.session_state.sub_previsita = "CANVAS"
-                st.rerun()
-        with bp3:
-            if st.button("3. Mapa Conversacional del TVP", width="stretch", type="primary" if st.session_state.sub_previsita == "GUION" else "secondary"):
-                st.session_state.sub_previsita = "GUION"
-                st.rerun()
-        with bp4:
-            if st.button("4. Clases Terapéuticas, Labs & 360", width="stretch", type="primary" if st.session_state.sub_previsita == "AUDITORIA" else "secondary"):
-                st.session_state.sub_previsita = "AUDITORIA"
-                st.rerun()
+            <div class='kpi-card' style='border-top: 3px solid #0284c7;'>
+                <div class='kpi-lbl'>AUDITORÍA DE RECETAS (RX)</div>
+                <div style='font-size:1.25rem; font-weight:800; color:#0f172a; margin:4px 0;'>
+                    {dp_global.get('Pxs Mes', 0):,} Pxs Mes <span style='font-size:0.82rem; color:#0284c7;'>({dp_global.get('Pxs YTD', 0):,} YTD)</span>
+                </div>
+                <div style='font-size:0.74rem; color:#64748b; font-weight:600;'>
+                    Gutis Mes: <b>{dp_global.get('Gutis Mes', 0)}</b> ({dp_global.get('Gutis YTD', 0)} YTD) | Comp Mes: <b>{dp_global.get('Comp Mes', 0)}</b>
+                </div>
+            </div>
 
-        st.write("")
+            <div class='kpi-card' style='border-top: 3px solid #f59e0b;'>
+                <div class='kpi-lbl'>FOCO PRIMARIO ({m_foco_top['prod_gutis'].upper()})</div>
+                <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin:6px 0 4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
+                    {m_foco_top['rival_corto']}
+                </div>
+                <div style='font-size:0.74rem; color:#475569; font-weight:700;'>
+                    Escala TVP: <span style='background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px;'>{m_foco_top['escala_nivel']}</span>
+                </div>
+            </div>
 
-        # ---------------------------------------------------------------------
-        # SUB-VISTA 1: MAPA DE MERCADOS ACTIVOS
-        # ---------------------------------------------------------------------
-        if st.session_state.sub_previsita == "MAPA":
-            with st.container(border=True):
-                c_mh1, c_mh2 = st.columns([3.0, 1.0])
-                with c_mh1:
-                    st.markdown(
-                        "<div style='font-size:0.86rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> MAPA DE MERCADOS ACTIVOS DEL ESPECIALISTA (VADEMÉCUM NICARAGUA 2026)</div>",
-                        unsafe_allow_html=True,
-                    )
-                with c_mh2:
-                    st.markdown(
-                        f"<div style='text-align:right;'><span style='background:#f1f5f9; color:#475569; font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:6px;'>{min(len(lista_base_p), 9)} Productos Monitoreados</span></div>",
-                        unsafe_allow_html=True,
-                    )
+            <div class='kpi-card' style='border-top: 3px solid #10b981;'>
+                <div class='kpi-lbl'>SELL-OUT ZONAL ({ciudad} - {sell_z['pdvs']} PDV)</div>
+                <div style='font-size:1.25rem; font-weight:800; color:#047857; margin:4px 0;'>
+                    ${sell_z['total']:,.2f}
+                </div>
+                <div style='font-size:0.73rem; color:#64748b; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
+                    Aliadas: {farmacias_aliadas_str}
+                </div>
+            </div>
+        </div>
+        """)
 
-                st.write("")
-                top9_mercados = lista_base_p[:9]
-                if "mercado_drill_sel" not in st.session_state:
-                    st.session_state.mercado_drill_sel = None
+    # 3. Pestañas de Navegación de Previsita
+    st.markdown("<div class='subnav-label'>SELECCIONE LA HERRAMIENTA DE PREVISITA:</div>", unsafe_allow_html=True)
+    bp1, bp2, bp3, bp4 = st.columns(4)
+    with bp1:
+        if st.button("1. Mapa de Mercado del Especialista", width="stretch", type="primary" if st.session_state.sub_previsita == "MAPA" else "secondary"):
+            st.session_state.sub_previsita = "MAPA"
+            st.rerun()
+    with bp2:
+        if st.button("2. Canvas TVP (4 Cuadrantes)", width="stretch", type="primary" if st.session_state.sub_previsita == "CANVAS" else "secondary"):
+            st.session_state.sub_previsita = "CANVAS"
+            st.rerun()
+    with bp3:
+        if st.button("3. Mapa Conversacional del TVP", width="stretch", type="primary" if st.session_state.sub_previsita == "GUION" else "secondary"):
+            st.session_state.sub_previsita = "GUION"
+            st.rerun()
+    with bp4:
+        if st.button("4. Clases Terapéuticas, Labs & 360", width="stretch", type="primary" if st.session_state.sub_previsita == "AUDITORIA" else "secondary"):
+            st.session_state.sub_previsita = "AUDITORIA"
+            st.rerun()
 
-                for row_start in range(0, len(top9_mercados), 3):
-                    cols_3 = st.columns(3)
-                    for offset in range(3):
-                        idx_card = row_start + offset
-                        if idx_card < len(top9_mercados):
-                            m_it = top9_mercados[idx_card]
-                            es_lealtad = m_it["modo_tactico"] == "LEALTAD"
-                            # Detectar si es Líder #1 real en volumen aunque aún no supere el 50% de cuota
-                            es_lider_vol = (not es_lealtad) and (m_it["gutis_mes"] > 0) and (m_it["gutis_mes"] >= (m_it["comp_mes"] / 2.0))
-                            
-                            borde_top = "#10b981" if es_lealtad else ("#0284c7" if es_lider_vol else "#ef4444")
-                            prio_lbl = f"P{m_it['prioridad']}"
-                            bg_prio = "#002b5c" if m_it["prioridad"] == 1 else "#0284c7"
+    st.write("")
 
-                            if es_lealtad:
-                                linea_riv = f"<span style='color:#059669; font-weight:800;'>Líder Consolidado: {m_it['prod_gutis']} ({m_it['ms_mes']:.0f}% MS)</span>"
-                                cta_txt = "Agradecer, Blindar y Puente"
-                                cta_icon = "✓"
-                                bg_esc = "#dcfce7"
-                                col_esc = "#15803d"
-                            elif es_lider_vol:
-                                linea_riv = f"<span style='color:#0284c7; font-weight:800;'>Líder #1 ({m_it['ms_mes']:.0f}% MS)</span> · Rival: <b>{m_it['rival_corto']}</b>"
-                                cta_txt = f"Consolidar liderazgo ({m_it['prod_gutis']})"
-                                cta_icon = "★"
-                                bg_esc = "#e0f2fe"
-                                col_esc = "#0369a1"
-                            else:
-                                linea_riv = f"Rival: <b style='color:#b91c1c;'>{m_it['rival_corto']}</b>"
-                                cta_txt = f"Conquistar con {m_it['prod_gutis']}"
-                                cta_icon = "→"
-                                bg_esc = "#f1f5f9"
-                                col_esc = "#1e293b"
+    # ---------------------------------------------------------------------
+    # SUB-VISTA 1: MAPA DE MERCADOS ACTIVOS (CON LÍDER #1 REAL Y DRILL-DOWN)
+    # ---------------------------------------------------------------------
+    if st.session_state.sub_previsita == "MAPA":
+        with st.container(border=True):
+            c_mh1, c_mh2 = st.columns([3.0, 1.0])
+            with c_mh1:
+                st.markdown(
+                    "<div style='font-size:0.86rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> MAPA DE MERCADOS ACTIVOS DEL ESPECIALISTA (VADEMÉCUM NICARAGUA 2026)</div>",
+                    unsafe_allow_html=True,
+                )
+            with c_mh2:
+                st.markdown(
+                    f"<div style='text-align:right;'><span style='background:#f1f5f9; color:#475569; font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:6px;'>{min(len(lista_base_p), 9)} Productos Monitoreados</span></div>",
+                    unsafe_allow_html=True,
+                )
 
-                            with cols_3[offset]:
-                                render_html(f"""
-                                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid {borde_top}; margin-bottom: 6px; padding: 14px 16px;'>
-                                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-                                            <span style='font-size:0.82rem; font-weight:800; color:#0f172a; text-transform:uppercase;'>{m_it['prod_gutis']}</span>
-                                            <span style='background:{bg_prio}; color:#ffffff; font-size:0.65rem; font-weight:800; padding:2px 7px; border-radius:4px;'>{prio_lbl}</span>
-                                        </div>
-                                        <div style='font-size:0.78rem; color:#475569; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
-                                            {linea_riv}
-                                        </div>
-                                        <div style='font-size:0.76rem; color:#64748b; margin-bottom:8px;'>
-                                            Mes: <b style='color:#0f172a;'>{m_it['tot_mes']}</b> (Gutis: {m_it['gutis_mes']} | Comp: {m_it['comp_mes']})<br>
-                                            YTD: <b style='color:#0f172a;'>{m_it['tot_ytd']}</b> (Gutis: {m_it['gutis_ytd']} | Comp: {m_it['comp_ytd']})
-                                        </div>
-                                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.74rem; color:#64748b;'>
-                                            <span>Escala TVP:</span>
-                                            <span style='background:{bg_esc}; color:{col_esc}; font-weight:800; padding:2px 8px; border-radius:4px;'>{m_it['escala_nivel']}</span>
-                                        </div>
-                                        <div style='border-top:1px dashed #e2e8f0; padding-top:6px; display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; font-weight:800; color:#059669;'>
-                                            <span>{cta_txt}</span>
-                                            <span>{cta_icon}</span>
-                                        </div>
+            st.write("")
+            top9_mercados = lista_base_p[:9]
+            if "mercado_drill_sel" not in st.session_state:
+                st.session_state.mercado_drill_sel = None
+
+            for row_start in range(0, len(top9_mercados), 3):
+                cols_3 = st.columns(3)
+                for offset in range(3):
+                    idx_card = row_start + offset
+                    if idx_card < len(top9_mercados):
+                        m_it = top9_mercados[idx_card]
+                        es_lealtad = m_it["modo_tactico"] == "LEALTAD"
+                        es_lider_vol = (not es_lealtad) and (m_it["gutis_mes"] > 0) and (m_it["gutis_mes"] >= m_it["rival_mes_top"])
+
+                        borde_top = "#10b981" if es_lealtad else ("#0284c7" if es_lider_vol else "#ef4444")
+                        prio_lbl = f"P{m_it['prioridad']}"
+                        bg_prio = "#002b5c" if m_it["prioridad"] == 1 else "#0284c7"
+
+                        if es_lealtad:
+                            linea_riv = f"<span style='color:#059669; font-weight:800;'>Líder Consolidado: {m_it['prod_gutis']} ({m_it['ms_mes']:.0f}% MS)</span>"
+                            cta_txt = "Agradecer, Blindar y Puente"
+                            cta_icon = "✓"
+                            bg_esc = "#dcfce7"
+                            col_esc = "#15803d"
+                        elif es_lider_vol:
+                            linea_riv = f"<span style='color:#0284c7; font-weight:800;'>Líder #1 ({m_it['ms_mes']:.0f}% MS)</span> · Rival: <b>{m_it['rival_corto']}</b>"
+                            cta_txt = f"Consolidar liderazgo ({m_it['prod_gutis']})"
+                            cta_icon = "★"
+                            bg_esc = "#e0f2fe"
+                            col_esc = "#0369a1"
+                        else:
+                            linea_riv = f"Rival: <b style='color:#b91c1c;'>{m_it['rival_corto']}</b>"
+                            cta_txt = f"Impulsar {m_it['prod_gutis']}"
+                            cta_icon = "→"
+                            bg_esc = "#f1f5f9"
+                            col_esc = "#1e293b"
+
+                        with cols_3[offset]:
+                            render_html(f"""
+                                <div class='quad-card notranslate' translate='no' style='border-top: 4px solid {borde_top}; margin-bottom: 6px; padding: 14px 16px;'>
+                                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
+                                        <span style='font-size:0.82rem; font-weight:800; color:#0f172a; text-transform:uppercase;'>{m_it['prod_gutis']}</span>
+                                        <span style='background:{bg_prio}; color:#ffffff; font-size:0.65rem; font-weight:800; padding:2px 7px; border-radius:4px;'>{prio_lbl}</span>
                                     </div>
-                                """)
-                                esta_abierto = (st.session_state.mercado_drill_sel == m_it["clave"])
-                                lbl_btn = f"Cerrar {m_it['prod_gutis']} ▲" if esta_abierto else f"Ver recetario {m_it['prod_gutis']} ↓"
-                                if st.button(lbl_btn, key=f"btn_drill_{m_it['clave']}_{idx_card}", use_container_width=True, type="primary" if esta_abierto else "secondary"):
-                                    st.session_state.mercado_drill_sel = None if esta_abierto else m_it["clave"]
-                                    st.rerun()
-
-                # Panel desplegable al toque con todas las marcas de la clase terapéutica seleccionada
-                if st.session_state.mercado_drill_sel:
-                    k_drill = st.session_state.mercado_drill_sel
-                    info_drill = mapa_clave_obj.get(k_drill, {})
-                    prod_drill_lbl = info_drill.get("prod_gutis", k_drill)
-                    st.write("")
-                    with st.container(border=True):
-                        cd1, cd2 = st.columns([4, 1])
-                        with cd1:
-                            st.markdown(
-                                f"<div style='font-size:0.86rem; font-weight:800; color:#002b5c;'>📋 DETALLE DE PRESCRIPCIÓN EN LA CLASE: {prod_drill_lbl.upper()} (GUTIS VS. COMPETENCIA)</div>",
-                                unsafe_allow_html=True,
-                            )
-                        with cd2:
-                            if st.button("Cerrar detalle ✕", key="btn_cerrar_drill_top", use_container_width=True):
-                                st.session_state.mercado_drill_sel = None
+                                    <div style='font-size:0.78rem; color:#475569; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
+                                        {linea_riv}
+                                    </div>
+                                    <div style='font-size:0.76rem; color:#64748b; margin-bottom:8px;'>
+                                        Mes: <b style='color:#0f172a;'>{m_it['tot_mes']}</b> (Gutis: {m_it['gutis_mes']} | Comp: {m_it['comp_mes']})<br>
+                                        YTD: <b style='color:#0f172a;'>{m_it['tot_ytd']}</b> (Gutis: {m_it['gutis_ytd']} | Comp: {m_it['comp_ytd']})
+                                    </div>
+                                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.74rem; color:#64748b;'>
+                                        <span>Escala TVP:</span>
+                                        <span style='background:{bg_esc}; color:{col_esc}; font-weight:800; padding:2px 8px; border-radius:4px;'>{m_it['escala_nivel']}</span>
+                                    </div>
+                                    <div style='border-top:1px dashed #e2e8f0; padding-top:6px; display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; font-weight:800; color:#059669;'>
+                                        <span>{cta_txt}</span>
+                                        <span>{cta_icon}</span>
+                                    </div>
+                                </div>
+                            """)
+                            esta_abierto = st.session_state.mercado_drill_sel == m_it["clave"]
+                            lbl_btn = f"Cerrar {m_it['prod_gutis']} ▲" if esta_abierto else f"Ver recetario {m_it['prod_gutis']} ↓"
+                            if st.button(
+                                lbl_btn,
+                                key=f"btn_drill_{m_it['clave']}_{idx_card}",
+                                width="stretch",
+                                type="primary" if esta_abierto else "secondary",
+                            ):
+                                st.session_state.mercado_drill_sel = None if esta_abierto else m_it["clave"]
                                 st.rerun()
 
-                        doc_activo = next((v for k, v in locals().items() if k in ("medico_sel", "med_foco", "medico_foco", "doc_sel", "nombre_med", "med_tvp", "medico_tvp") and isinstance(v, str) and v), "")
-                        if not doc_activo:
-                            doc_activo = next((v for k, v in st.session_state.items() if "med" in k.lower() and isinstance(v, str) and len(v) > 4 and v != "Todas"), "")
-                        df_drill = productos_medico(df_productos, doc_activo, criterio_mercado=k_drill)
-                        if not df_drill.empty:
-                            st.dataframe(
-                                df_drill[["Marca Prescrita", "Origen", "Pxs Mes", "% MS Mes (Categoría)", "Pxs YTD", "% MS YTD (Categoría)"]],
-                                use_container_width=True,
-                                hide_index=True,
-                            )
-                        else:
-                            st.info("Este médico aún no registra recetas auditadas en esta clase terapéutica.")
+            if st.session_state.mercado_drill_sel:
+                k_drill = st.session_state.mercado_drill_sel
+                info_drill = mapa_clave_obj.get(k_drill, {})
+                prod_drill_lbl = info_drill.get("prod_gutis", k_drill)
+                st.write("")
+                with st.container(border=True):
+                    cd1, cd2 = st.columns([4, 1])
+                    with cd1:
+                        st.markdown(
+                            f"<div style='font-size:0.86rem; font-weight:800; color:#002b5c;'>📋 DETALLE DE PRESCRIPCIÓN EN LA CLASE: {prod_drill_lbl.upper()} (GUTIS VS. COMPETENCIA)</div>",
+                            unsafe_allow_html=True,
+                        )
+                    with cd2:
+                        if st.button("Cerrar detalle ✕", key="btn_cerrar_drill_top", width="stretch"):
+                            st.session_state.mercado_drill_sel = None
+                            st.rerun()
 
-        # ---------------------------------------------------------------------
-        # SUB-VISTA 2: CANVAS TVP
-        # ---------------------------------------------------------------------
-        elif st.session_state.sub_previsita == "CANVAS":
-            with st.container(border=True):
-                sp1, sp2, sp3 = st.columns(3)
-                with sp1:
-                    k_p1 = st.selectbox(
-                        "1RA POSICIÓN (FOCO / ANCLA):",
-                        opciones_claves_p,
-                        index=idx1,
-                        format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} | Mes: {mapa_clave_obj[k]['tot_mes']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS) | YTD: {mapa_clave_obj[k]['tot_ytd']} ({mapa_clave_obj[k]['ms_ytd']:.1f}% MS)",
-                        key="canvas_k_p1",
-                    )
-                    st.session_state.pos_m1_idx = opciones_claves_p.index(k_p1)
-                with sp2:
-                    k_p2 = st.selectbox(
-                        "2DA POSICIÓN (PUENTE CLÍNICO):",
-                        opciones_claves_p,
-                        index=idx2,
-                        format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} | Mes: {mapa_clave_obj[k]['tot_mes']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS) | YTD: {mapa_clave_obj[k]['tot_ytd']} ({mapa_clave_obj[k]['ms_ytd']:.1f}% MS)",
-                        key="canvas_k_p2",
-                    )
-                    st.session_state.pos_m2_idx = opciones_claves_p.index(k_p2)
-                with sp3:
-                    k_p3 = st.selectbox(
-                        "3RA POSICIÓN (RECORDACIÓN):",
-                        opciones_claves_p,
-                        index=idx3,
-                        format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} | Mes: {mapa_clave_obj[k]['tot_mes']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS) | YTD: {mapa_clave_obj[k]['tot_ytd']} ({mapa_clave_obj[k]['ms_ytd']:.1f}% MS)",
-                        key="canvas_k_p3",
-                    )
-                    st.session_state.pos_m3_idx = opciones_claves_p.index(k_p3)
+                    df_drill = productos_medico(df_productos, medico_sel, criterio_mercado=k_drill)
+                    if not df_drill.empty:
+                        st.dataframe(
+                            df_drill[["Marca Prescrita", "Origen", "Pxs Mes", "% MS Mes (Categoría)", "Pxs YTD", "% MS YTD (Categoría)"]],
+                            width="stretch",
+                            hide_index=True,
+                        )
+                    else:
+                        st.info("Este médico aún no registra recetas auditadas en esta clase terapéutica.")
 
-                sc1, sc2 = st.columns(2)
-                opciones_cita = ["Visita con cita previa", "Visita de pasillo (45 seg)", "Visita de improvisto"]
-                opciones_ndn = [
-                    "Desempeño (Eficacia y adherencia clínica)",
-                    "Imagen (Prestigio clínico y satisfacción familiar)",
-                    "Finanzas (Economía del paciente y apego completo)",
-                ]
-                with sc1:
-                    st.session_state.ctx_cita_global = st.selectbox(
-                        "CONTEXTO DE VISITA:",
-                        opciones_cita,
-                        index=opciones_cita.index(st.session_state.ctx_cita_global) if st.session_state.ctx_cita_global in opciones_cita else 0,
-                        key="canvas_ctx_cita",
-                    )
-                with sc2:
-                    st.session_state.ctx_ndn_global = st.selectbox(
-                        "NECESIDAD DETRÁS DE LA NECESIDAD (NDN):",
-                        opciones_ndn,
-                        index=opciones_ndn.index(st.session_state.ctx_ndn_global) if st.session_state.ctx_ndn_global in opciones_ndn else 0,
-                        key="canvas_ctx_ndn",
-                    )
+    # ---------------------------------------------------------------------
+    # SUB-VISTA 2: CANVAS TVP (4 CUADRANTES)
+    # ---------------------------------------------------------------------
+    elif st.session_state.sub_previsita == "CANVAS":
+        with st.container(border=True):
+            sp1, sp2, sp3 = st.columns(3)
+            with sp1:
+                k_p1 = st.selectbox(
+                    "1RA POSICIÓN (FOCO / ANCLA):",
+                    opciones_claves_p,
+                    index=idx1,
+                    format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} | Mes: {mapa_clave_obj[k]['tot_mes']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS) | YTD: {mapa_clave_obj[k]['tot_ytd']} ({mapa_clave_obj[k]['ms_ytd']:.1f}% MS)",
+                    key="canvas_k_p1",
+                )
+                st.session_state.pos_m1_idx = opciones_claves_p.index(k_p1)
+            with sp2:
+                k_p2 = st.selectbox(
+                    "2DA POSICIÓN (PUENTE CLÍNICO):",
+                    opciones_claves_p,
+                    index=idx2,
+                    format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} | Mes: {mapa_clave_obj[k]['tot_mes']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS) | YTD: {mapa_clave_obj[k]['tot_ytd']} ({mapa_clave_obj[k]['ms_ytd']:.1f}% MS)",
+                    key="canvas_k_p2",
+                )
+                st.session_state.pos_m2_idx = opciones_claves_p.index(k_p2)
+            with sp3:
+                k_p3 = st.selectbox(
+                    "3RA POSICIÓN (RECORDACIÓN):",
+                    opciones_claves_p,
+                    index=idx3,
+                    format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} | Mes: {mapa_clave_obj[k]['tot_mes']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS) | YTD: {mapa_clave_obj[k]['tot_ytd']} ({mapa_clave_obj[k]['ms_ytd']:.1f}% MS)",
+                    key="canvas_k_p3",
+                )
+                st.session_state.pos_m3_idx = opciones_claves_p.index(k_p3)
 
-            m_p1 = mapa_clave_obj[k_p1]
-            m_p2 = mapa_clave_obj[k_p2]
-            m_p3 = mapa_clave_obj[k_p3]
-            meta1 = m_p1["meta_info"]
-            meta2 = m_p2["meta_info"]
-            riv1_marca, riv1_forma, _ = limpiar_sku_competencia(m_p1["rival_principal"])
-            pac_meta_1 = meta1.get("paciente_meta_ped", meta1["paciente_meta"]) if es_pediatra else meta1["paciente_meta"]
-            ndn_corto = st.session_state.ctx_ndn_global.split("(")[0].strip()
-            arg_ndn_txt = (
-                meta1["beneficio"] if "Desempeño" in ndn_corto
-                else (meta1["arg_imagen"] if "Imagen" in ndn_corto else meta1["arg_finanzas"])
-            )
-            num_migrar = max(min(m_p1["comp_mes"], 6), 4) if m_p1["comp_mes"] > 0 else 4
-            farmacia_top1 = farmacias_aliadas_str.split(",")[0].strip() if farmacias_aliadas_str else "Farmacia Aliada"
+            sc1, sc2 = st.columns(2)
+            opciones_cita = ["Visita con cita previa", "Visita de pasillo (45 seg)", "Visita de improvisto"]
+            opciones_ndn = [
+                "Desempeño (Eficacia y adherencia clínica)",
+                "Imagen (Prestigio clínico y satisfacción familiar)",
+                "Finanzas (Economía del paciente y apego completo)",
+            ]
+            with sc1:
+                st.session_state.ctx_cita_global = st.selectbox(
+                    "CONTEXTO DE VISITA:",
+                    opciones_cita,
+                    index=opciones_cita.index(st.session_state.ctx_cita_global) if st.session_state.ctx_cita_global in opciones_cita else 0,
+                    key="canvas_ctx_cita",
+                )
+            with sc2:
+                st.session_state.ctx_ndn_global = st.selectbox(
+                    "NECESIDAD DETRÁS DE LA NECESIDAD (NDN):",
+                    opciones_ndn,
+                    index=opciones_ndn.index(st.session_state.ctx_ndn_global) if st.session_state.ctx_ndn_global in opciones_ndn else 0,
+                    key="canvas_ctx_ndn",
+                )
 
-            q_col1, q_col2, q_col3, q_col4 = st.columns(4)
-            with q_col1:
-                render_html(f"""
-                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #002b5c; min-height: 390px;'>
-                        <div class='quad-title' style='color:#002b5c;'>I. DIAGNÓSTICO Y OBJETIVO SMART ({m_p1['modo_tactico']})</div>
-                        <div class='quad-body'>
-                            • <b>Escala Actual:</b><br>
-                            <div style='background:#eff6ff; color:#002b5c; font-weight:700; padding:6px 8px; border-radius:6px; margin:4px 0;'>
-                                {m_p1['escala_nivel']} ({m_p1['ms_mes']:.1f}% MS Mes | {m_p1['gutis_mes']} Pxs)
-                            </div>
-                            • <b>Escalón Meta Hoy:</b><br>
-                            <div style='background:#dcfce7; color:#15803d; font-weight:700; padding:5px 8px; border-radius:6px; margin:4px 0 8px 0;'>
-                                {m_p1['escala_meta']}
-                            </div>
-                            • <b>Meta SMART:</b> Agradecer sus recetas en <b>{m_p1['prod_gutis']}</b> y migrar <b>4 a {num_migrar} pacientes</b> que aún van a <b>{riv1_marca} ({riv1_forma})</b>.<br><br>
-                            • <b>Plan de Respaldo:</b> Capturar el subgrupo de <i>{meta1['nicho_flanqueo']}</i>.
-                        </div>
-                    </div>
-                    """)
-            with q_col2:
-                render_html(f"""
-                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #0284c7; min-height: 390px;'>
-                        <div class='quad-title' style='color:#0284c7;'>II. APERTURA ADAPTADA ({especialidad})</div>
-                        <div class='quad-body'>
-                            • <b>Postura ({st.session_state.ctx_cita_global}):</b> Explorar su experiencia positiva con los pacientes ya tratados con la molécula y formulación actual.<br><br>
-                            • <b>Agenda ({especialidad}):</b> Analizar evolución en <i>{pac_meta_1}</i>.<br><br>
-                            • <b>Pregunta Sutil:</b><br>
-                            <div style='background:#f8fafc; border-left:3px solid #0284c7; padding:8px; border-radius:4px; font-style:italic; margin-top:4px;'>
-                                «En los casos donde ya prescribió {m_p1['prod_gutis']} frente a {riv1_marca}, ¿qué diferencias observó en tolerabilidad y apego?»
-                            </div>
-                        </div>
-                    </div>
-                    """)
-            with q_col3:
-                render_html(f"""
-                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #10b981; min-height: 390px;'>
-                        <div class='quad-title' style='color:#059669;'>III. EMBUDO, APOYO Y MENSAJE DE MARCA</div>
-                        <div class='quad-body'>
-                            • <b>Sondeo de Migración:</b><br>
-                            <div style='background:#f8fafc; border-left:3px solid #10b981; padding:8px; border-radius:4px; font-style:italic; margin:4px 0 8px 0;'>
-                                «¿En qué perfil específico siente que todavía alterna con {riv1_marca} en {riv1_forma.lower()}?»
-                            </div>
-                            • <b>Ventaja Diferencial ({m_p1['prod_gutis']}):</b> {meta1['caracteristica']}.<br><br>
-                            • <b>Enfoque ({ndn_corto}):</b> {arg_ndn_txt.capitalize()}.
-                        </div>
-                    </div>
-                    """)
-            with q_col4:
-                render_html(f"""
-                    <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #f59e0b; min-height: 390px;'>
-                        <div class='quad-title' style='color:#d97706;'>IV. CIERRE BILATERAL Y PUENTE P1 - P2 - P3</div>
-                        <div class='quad-body'>
-                            • <b>Pido al Médico:</b> Consolidar a <b>{m_p1['prod_gutis']}</b> como primera elección en el segmento que compartía con <b>{riv1_marca}</b>.<br><br>
-                            • <b>Mi Compromiso:</b><br>
-                            <div style='background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-weight:700; padding:6px 8px; border-radius:6px; margin:4px 0 8px 0;'>
-                                Garantizar inventario en {farmacia_top1}.
-                            </div>
-                            • <b>Puente a 2da Posición ({m_p2['prod_gutis']}):</b><br>
-                            <div style='background:#f8fafc; border-left:3px solid #f59e0b; padding:8px; border-radius:4px; font-style:italic; margin-top:4px;'>
-                                «Y siguiendo con eficacia clínica, cuente con <b>{m_p2['prod_gutis']}</b> ({meta2['beneficio']}) y respaldo de <b>{m_p3['prod_gutis']}</b>.»
-                            </div>
-                        </div>
-                    </div>
-                    """)
+        m_p1 = mapa_clave_obj[k_p1]
+        m_p2 = mapa_clave_obj[k_p2]
+        m_p3 = mapa_clave_obj[k_p3]
+        meta1 = m_p1["meta_info"]
+        meta2 = m_p2["meta_info"]
+        riv1_marca, riv1_forma, _ = limpiar_sku_competencia(m_p1["rival_principal"])
+        pac_meta_1 = meta1.get("paciente_meta_ped", meta1["paciente_meta"]) if es_pediatra else meta1["paciente_meta"]
+        ndn_corto = st.session_state.ctx_ndn_global.split("(")[0].strip()
+        arg_ndn_txt = (
+            meta1["beneficio"]
+            if "Desempeño" in ndn_corto
+            else (meta1["arg_imagen"] if "Imagen" in ndn_corto else meta1["arg_finanzas"])
+        )
+        n_obj_p1 = m_p1["meta_objetivo"]
+        txt_meta_smart = (
+            f"Agradecer su confianza en <b>{m_p1['prod_gutis']}</b> y <b>{texto_objetivo_clinico(n_obj_p1)}</b> "
+            f"con este perfil clínico (categoría donde también figura <b>{riv1_marca}</b> en {riv1_forma.lower()})."
+            if n_obj_p1 > 0
+            else f"Agradecer su respaldo en <b>{m_p1['prod_gutis']}</b> y <b>{texto_objetivo_clinico(0)}</b>."
+        )
+        farmacia_top1 = farmacias_aliadas_str.split(",")[0].strip() if farmacias_aliadas_str else "Farmacia Aliada"
 
-        # ---------------------------------------------------------------------
-        # SUB-VISTA 3: MAPA CONVERSACIONAL DEL TVP 
-        # ---------------------------------------------------------------------
-        elif st.session_state.sub_previsita == "GUION":
-            with st.container(border=True):
-                st.markdown("<div class='subnav-label'>PARÁMETROS DE SELECCIÓN TÁCTICA:</div>", unsafe_allow_html=True)
-                g_c1, g_c2, g_c3 = st.columns(3)
-                with g_c1:
-                    k_p1_g = st.selectbox(
-                        "PRODUCTO FOCO (1RA POSICIÓN):",
-                        opciones_claves_p,
-                        index=idx1,
-                        format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS)",
-                        key="guion_sel_p1",
-                    )
-                    st.session_state.pos_m1_idx = opciones_claves_p.index(k_p1_g)
-                with g_c2:
-                    cita_sel = st.selectbox(
-                        "CONTEXTO DE VISITA:",
-                        ["Visita con cita previa", "Visita de pasillo (45 seg)", "Visita de improvisto"],
-                        key="guion_tipo_cita",
-                    )
-                with g_c3:
-                    ndn_sel = st.selectbox(
-                        "RESORTE PSICOLÓGICO (NDN):",
-                        [
-                            "Desempeño (Eficacia y adherencia clínica)",
-                            "Imagen (Prestigio clínico y satisfacción familiar)",
-                            "Finanzas (Economía del paciente y apego completo)",
-                        ],
-                        key="guion_ndn",
-                    )
-
-                b_var1, b_var2 = st.columns([2.2, 1.0])
-                with b_var1:
-                    if st.button(f"✦ Generar / Cambiar Variante Táctica de Guion   [VARIANTE A-{st.session_state.tvp_variant_counter + 1}]", type="primary", width="stretch"):
-                        st.session_state.tvp_variant_counter += 1
-                        st.rerun()
-                with b_var2:
-                    btn_ia_guion = st.button("Potenciar Redacción con Gemini AI", width="stretch")
-
-            m_p1 = mapa_clave_obj[opciones_claves_p[st.session_state.pos_m1_idx]]
-            m_p2 = mapa_clave_obj[opciones_claves_p[st.session_state.pos_m2_idx]]
-            m_p3 = mapa_clave_obj[opciones_claves_p[st.session_state.pos_m3_idx]]
-            meta1 = m_p1["meta_info"]
-            riv1_marca, riv1_forma, _ = limpiar_sku_competencia(m_p1["rival_principal"])
-            pac_meta_1 = meta1.get("paciente_meta_ped", meta1["paciente_meta"]) if es_pediatra else meta1["paciente_meta"]
-            vocativo_doc = formatear_nombre_medico(medico_sel)
-            ndn_corto = ndn_sel.split("(")[0].strip()
-            arg_ndn_txt = (
-                meta1["beneficio"] if "Desempeño" in ndn_corto
-                else (meta1["arg_imagen"] if "Imagen" in ndn_corto else meta1["arg_finanzas"])
-            )
-
+        q_col1, q_col2, q_col3, q_col4 = st.columns(4)
+        with q_col1:
             render_html(f"""
-                <div class='drill-panel notranslate' translate='no'>
-                    <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin-bottom:2px;'>
-                        Guion Táctico TVP — {m_p1['modo_tactico'].capitalize()} de Cuota ({ndn_sel})
-                    </div>
-                    <div style='font-size:0.78rem; color:#64748b; margin-bottom:14px;'>
-                        Adaptado a la matriz de prescripción actual ({m_p1['gutis_mes']} pacientes {m_p1['prod_gutis']} vs. {m_p1['comp_mes']} pacientes {riv1_marca} en el mes)
-                    </div>
-
-                    <div class='quad-card' style='margin-bottom:12px; border-left:4px solid #0284c7;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-                            <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
-                                <span style='background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:999px; margin-right:6px;'>1</span>
-                                Apertura de Seguimiento Clínico ({cita_sel}):
-                            </div>
-                            <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 1: Conexión</span>
+                <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #002b5c; min-height: 390px;'>
+                    <div class='quad-title' style='color:#002b5c;'>I. DIAGNÓSTICO Y OBJETIVO SMART ({m_p1['modo_tactico']})</div>
+                    <div class='quad-body'>
+                        • <b>Escala Actual:</b><br>
+                        <div style='background:#eff6ff; color:#002b5c; font-weight:700; padding:6px 8px; border-radius:6px; margin:4px 0;'>
+                            {m_p1['escala_nivel']} ({m_p1['ms_mes']:.1f}% MS Mes | {m_p1['gutis_mes']} Pxs)
                         </div>
-                        <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
-                            «<b>{vocativo_doc}</b>, qué gusto saludarlo(a) en esta {cita_sel.lower()}. Quiero agradecerle los pacientes que ya está tratando con <b>{m_p1['prod_gutis']} ({m_p1['gutis_mes']} en el mes / {m_p1['gutis_ytd']} en el año)</b> y proponerle revisar cómo consolidar la adherencia en <b>{pac_meta_1.lower()}</b>. ¿Le parece bien?»
+                        • <b>Escalón Meta Hoy:</b><br>
+                        <div style='background:#dcfce7; color:#15803d; font-weight:700; padding:5px 8px; border-radius:6px; margin:4px 0 8px 0;'>
+                            {m_p1['escala_meta']}
                         </div>
+                        • <b>Meta SMART:</b> {txt_meta_smart}<br><br>
+                        • <b>Plan de Respaldo:</b> Atender el subgrupo clínico de <i>{meta1['nicho_flanqueo']}</i>.
                     </div>
-
-                    <div class='quad-card' style='margin-bottom:12px; border-left:4px solid #f59e0b;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-                            <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
-                                <span style='background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:999px; margin-right:6px;'>2</span>
-                                Sondeo de Valor Mutuo (Aislar el Segmento que Comparte con {riv1_marca}):
-                            </div>
-                            <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 2: Indagación</span>
-                        </div>
-                        <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
-                            «Al comparar la evolución de sus pacientes tratados con <b>{m_p1['prod_gutis']}</b> frente a los casos donde aún indica <span style='background:#fef3c7; color:#92400e; font-weight:700; padding:1px 5px; border-radius:4px;'>{riv1_marca} ({riv1_forma}) ({m_p1['comp_mes']} recetas en el mes)</span>, ¿en qué perfil específico siente que todavía alterna con esa opción y qué aspecto considera prioritario optimizar en rapidez de acción y tolerabilidad frente a {riv1_marca} en {riv1_forma.lower()}?»
+                </div>
+                """)
+        with q_col2:
+            render_html(f"""
+                <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #0284c7; min-height: 390px;'>
+                    <div class='quad-title' style='color:#0284c7;'>II. APERTURA ADAPTADA ({especialidad})</div>
+                    <div class='quad-body'>
+                        • <b>Postura ({st.session_state.ctx_cita_global}):</b> Explorar su experiencia positiva con los pacientes ya tratados con la molécula y formulación actual.<br><br>
+                        • <b>Agenda ({especialidad}):</b> Analizar evolución clínica en <i>{pac_meta_1}</i>.<br><br>
+                        • <b>Pregunta Sutil:</b><br>
+                        <div style='background:#f8fafc; border-left:3px solid #0284c7; padding:8px; border-radius:4px; font-style:italic; margin-top:4px;'>
+                            «En los casos donde ya prescribió {m_p1['prod_gutis']} frente a otras opciones como {riv1_marca}, ¿qué diferencias observó en tolerabilidad y apego?»
                         </div>
                     </div>
-
-                    <div class='quad-card' style='margin-bottom:12px; border-left:4px solid #10b981;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-                            <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
-                                <span style='background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; margin-right:6px;'>3</span>
-                                Apoyo Galénico Diferencial y Love Brand:
-                            </div>
-                            <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 3: Argumentación Galénica</span>
+                </div>
+                """)
+        with q_col3:
+            render_html(f"""
+                <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #10b981; min-height: 390px;'>
+                    <div class='quad-title' style='color:#059669;'>III. EMBUDO, APOYO Y MENSAJE DE MARCA</div>
+                    <div class='quad-body'>
+                        • <b>Sondeo de Valor Clínico:</b><br>
+                        <div style='background:#f8fafc; border-left:3px solid #10b981; padding:8px; border-radius:4px; font-style:italic; margin:4px 0 8px 0;'>
+                            «¿En qué perfil específico de paciente suele alternar con opciones como {riv1_marca} en {riv1_forma.lower()}?»
                         </div>
-                        <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
-                            «Comprendo su criterio, <b>{vocativo_doc}</b>. Justamente para cubrir también a ese subgrupo de <b>{meta1['nicho_flanqueo']}</b>, <b>{m_p1['prod_gutis']}</b> cuenta con <b>{meta1['caracteristica']}</b>, con lo cual <b>{arg_ndn_txt}</b>. <i>{meta1['love_brand']}</i>»
-                        </div>
+                        • <b>Ventaja Diferencial ({m_p1['prod_gutis']}):</b> {meta1['caracteristica']}.<br><br>
+                        • <b>Enfoque ({ndn_corto}):</b> {arg_ndn_txt.capitalize()}.
                     </div>
-
-                    <div class='quad-card' style='border-left:4px solid #002b5c;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-                            <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
-                                <span style='background:#e0e7ff; color:#1e40af; padding:2px 8px; border-radius:999px; margin-right:6px;'>4</span>
-                                Cierre de Migración y Puente hacia {m_p2['prod_gutis']}:
-                            </div>
-                            <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 4: Acuerdo SMART & Puente</span>
+                </div>
+                """)
+        with q_col4:
+            render_html(f"""
+                <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #f59e0b; min-height: 390px;'>
+                    <div class='quad-title' style='color:#d97706;'>IV. CIERRE BILATERAL Y PUENTE P1 - P2 - P3</div>
+                    <div class='quad-body'>
+                        • <b>Propuesta Clínica:</b> Considerar a <b>{m_p1['prod_gutis']}</b> como primera alternativa en el perfil clínico evaluado.<br><br>
+                        • <b>Mi Compromiso:</b><br>
+                        <div style='background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-weight:700; padding:6px 8px; border-radius:6px; margin:4px 0 8px 0;'>
+                            Garantizar inventario en {farmacia_top1}.
                         </div>
-                        <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
-                            «Ya que conoce de primera mano la respuesta de <b>{m_p1['prod_gutis']}</b>, ¿migramos esta semana a esos próximos 4 a 6 pacientes que antes alternaba con {riv1_marca}, con disponibilidad garantizada en <b>{farmacias_aliadas_str}</b>? Y como puente clínico, recuerde que cuenta también con <b>{m_p2['prod_gutis']}</b> ({m_p2['meta_info']['beneficio']}) y <b>{m_p3['prod_gutis']}</b>.»
+                        • <b>Puente a 2da Posición ({m_p2['prod_gutis']}):</b><br>
+                        <div style='background:#f8fafc; border-left:3px solid #f59e0b; padding:8px; border-radius:4px; font-style:italic; margin-top:4px;'>
+                            «Y siguiendo con eficacia clínica, cuente con <b>{m_p2['prod_gutis']}</b> ({meta2['beneficio']}) y respaldo de <b>{m_p3['prod_gutis']}</b>.»
                         </div>
                     </div>
                 </div>
                 """)
 
-            guion_base = construir_guion_tvp_dinamico(
-                medico_raw=medico_sel,
-                especialidad=especialidad,
-                ciudad=ciudad,
-                m_primario=m_p1,
-                prod2=m_p2["prod_gutis"],
-                benef2=m_p2["meta_info"]["beneficio"],
-                rival2_raw=m_p2["rival_principal"],
-                prod3=m_p3["prod_gutis"],
-                tipo_cita_sel=cita_sel,
-                nec_detras_sel=ndn_sel,
-                top_farmacias_str=farmacias_aliadas_str,
-                num_variante=st.session_state.tvp_variant_counter,
-                notas_rapport=""
+    # ---------------------------------------------------------------------
+    # SUB-VISTA 3: MAPA CONVERSACIONAL DEL TVP
+    # ---------------------------------------------------------------------
+    elif st.session_state.sub_previsita == "GUION":
+        with st.container(border=True):
+            st.markdown("<div class='subnav-label'>PARÁMETROS DE SELECCIÓN TÁCTICA:</div>", unsafe_allow_html=True)
+            g_c1, g_c2, g_c3 = st.columns(3)
+            with g_c1:
+                k_p1_g = st.selectbox(
+                    "PRODUCTO FOCO (1RA POSICIÓN):",
+                    opciones_claves_p,
+                    index=idx1,
+                    format_func=lambda k: f"[{mapa_clave_obj[k]['modo_tactico']}] {mapa_clave_obj[k]['prod_gutis']} ({mapa_clave_obj[k]['ms_mes']:.1f}% MS)",
+                    key="guion_sel_p1",
+                )
+                st.session_state.pos_m1_idx = opciones_claves_p.index(k_p1_g)
+            with g_c2:
+                cita_sel = st.selectbox(
+                    "CONTEXTO DE VISITA:",
+                    ["Visita con cita previa", "Visita de pasillo (45 seg)", "Visita de improvisto"],
+                    key="guion_tipo_cita",
+                )
+            with g_c3:
+                ndn_sel = st.selectbox(
+                    "RESORTE PSICOLÓGICO (NDN):",
+                    [
+                        "Desempeño (Eficacia y adherencia clínica)",
+                        "Imagen (Prestigio clínico y satisfacción familiar)",
+                        "Finanzas (Economía del paciente y apego completo)",
+                    ],
+                    key="guion_ndn",
+                )
+
+            b_var1, b_var2 = st.columns([2.2, 1.0])
+            with b_var1:
+                if st.button(f"✦ Generar / Cambiar Variante Táctica de Guion   [VARIANTE A-{st.session_state.tvp_variant_counter + 1}]", type="primary", width="stretch"):
+                    st.session_state.tvp_variant_counter += 1
+                    st.rerun()
+            with b_var2:
+                btn_ia_guion = st.button("Potenciar Redacción con Gemini AI", width="stretch")
+
+        n_claves = len(opciones_claves_p)
+        i1g = min(st.session_state.pos_m1_idx, n_claves - 1)
+        i2g = min(st.session_state.pos_m2_idx, n_claves - 1)
+        i3g = min(st.session_state.pos_m3_idx, n_claves - 1)
+        m_p1 = mapa_clave_obj[opciones_claves_p[i1g]]
+        m_p2 = mapa_clave_obj[opciones_claves_p[i2g]]
+        m_p3 = mapa_clave_obj[opciones_claves_p[i3g]]
+        meta1 = m_p1["meta_info"]
+        riv1_marca, riv1_forma, _ = limpiar_sku_competencia(m_p1["rival_principal"])
+        pac_meta_1 = meta1.get("paciente_meta_ped", meta1["paciente_meta"]) if es_pediatra else meta1["paciente_meta"]
+        vocativo_doc = formatear_nombre_medico(medico_sel)
+        ndn_corto = ndn_sel.split("(")[0].strip()
+        arg_ndn_txt = (
+            meta1["beneficio"]
+            if "Desempeño" in ndn_corto
+            else (meta1["arg_imagen"] if "Imagen" in ndn_corto else meta1["arg_finanzas"])
+        )
+        n_obj_g = m_p1["meta_objetivo"]
+        if n_obj_g > 0:
+            frase_cierre_clinico = (
+                f"¿consideramos a <b>{m_p1['prod_gutis']}</b> como alternativa terapéutica en "
+                f"{'ese próximo paciente' if n_obj_g == 1 else f'sus próximos {n_obj_g} pacientes'} con este perfil clínico, "
+                f"con disponibilidad garantizada en <b>{farmacias_aliadas_str}</b>?"
+            )
+        else:
+            frase_cierre_clinico = (
+                f"¿cómo seguimos consolidando la adherencia de sus pacientes actuales con disponibilidad garantizada en <b>{farmacias_aliadas_str}</b>?"
             )
 
-            if btn_ia_guion:
-                if obtener_api_key():
-                    with st.spinner("Gemini AI está estructurando una versión ejecutiva personalizada del guion TVP..."):
-                        prompt_tvp = (
-                            f"Mejora este guion TVP para {medico_sel} ({especialidad} en {ciudad}) "
-                            f"respetando las 4 etapas y las cifras reales:\n\n{guion_base}"
-                        )
-                        resp_ia = llamar_gemini(prompt_tvp, max_tok=2200)
-                        if resp_ia:
+        render_html(f"""
+            <div class='drill-panel notranslate' translate='no'>
+                <div style='font-size:1.05rem; font-weight:800; color:#0f172a; margin-bottom:2px;'>
+                    Guion Táctico TVP — {m_p1['modo_tactico'].capitalize()} ({ndn_sel})
+                </div>
+                <div style='font-size:0.78rem; color:#64748b; margin-bottom:14px;'>
+                    Adaptado a la matriz de prescripción actual ({m_p1['gutis_mes']} Pxs {m_p1['prod_gutis']} vs. {m_p1['comp_mes']} Pxs competencia en el mes)
+                </div>
+
+                <div class='quad-card' style='margin-bottom:12px; border-left:4px solid #0284c7;'>
+                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
+                        <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
+                            <span style='background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:999px; margin-right:6px;'>1</span>
+                            Apertura de Seguimiento Clínico ({cita_sel}):
+                        </div>
+                        <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 1: Conexión</span>
+                    </div>
+                    <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
+                        «<b>{vocativo_doc}</b>, qué gusto saludarlo(a) en esta {cita_sel.lower()}. Quiero agradecerle los pacientes que ya está tratando con <b>{m_p1['prod_gutis']} ({m_p1['gutis_mes']} en el mes / {m_p1['gutis_ytd']} en el año)</b> y proponerle revisar cómo consolidar la adherencia en <b>{pac_meta_1.lower()}</b>. ¿Le parece bien?»
+                    </div>
+                </div>
+
+                <div class='quad-card' style='margin-bottom:12px; border-left:4px solid #f59e0b;'>
+                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
+                        <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
+                            <span style='background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:999px; margin-right:6px;'>2</span>
+                            Sondeo de Valor Mutuo (Perfil Clínico frente a {riv1_marca}):
+                        </div>
+                        <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 2: Indagación</span>
+                    </div>
+                    <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
+                        «Al comparar la evolución de sus pacientes tratados con <b>{m_p1['prod_gutis']}</b> frente a los casos donde se emplean alternativas como <span style='background:#fef3c7; color:#92400e; font-weight:700; padding:1px 5px; border-radius:4px;'>{riv1_marca} ({riv1_forma}) ({m_p1['comp_mes']} recetas categoría en el mes)</span>, ¿en qué perfil específico considera prioritario optimizar la rapidez de acción y tolerabilidad?»
+                    </div>
+                </div>
+
+                <div class='quad-card' style='margin-bottom:12px; border-left:4px solid #10b981;'>
+                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
+                        <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
+                            <span style='background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; margin-right:6px;'>3</span>
+                            Apoyo Galénico Diferencial y Love Brand:
+                        </div>
+                        <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 3: Argumentación Galénica</span>
+                    </div>
+                    <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
+                        «Comprendo su criterio, <b>{vocativo_doc}</b>. Justamente para atender también a ese subgrupo de <b>{meta1['nicho_flanqueo']}</b>, <b>{m_p1['prod_gutis']}</b> cuenta con <b>{meta1['caracteristica']}</b>, con lo cual <b>{arg_ndn_txt}</b>. <i>{meta1['love_brand']}</i>»
+                    </div>
+                </div>
+
+                <div class='quad-card' style='border-left:4px solid #002b5c;'>
+                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
+                        <div style='font-size:0.82rem; font-weight:800; color:#0f172a;'>
+                            <span style='background:#e0e7ff; color:#1e40af; padding:2px 8px; border-radius:999px; margin-right:6px;'>4</span>
+                            Acuerdo Clínico y Puente hacia {m_p2['prod_gutis']}:
+                        </div>
+                        <span style='background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:4px;'>Fase 4: Acuerdo SMART & Puente</span>
+                    </div>
+                    <div style='background:#f8fafc; padding:10px 14px; border-radius:8px; font-style:italic; font-size:0.84rem; color:#1e293b;'>
+                        «Ya que conoce de primera mano la respuesta de <b>{m_p1['prod_gutis']}</b>, {frase_cierre_clinico} Y como puente clínico, recuerde que cuenta también con <b>{m_p2['prod_gutis']}</b> ({m_p2['meta_info']['beneficio']}) y <b>{m_p3['prod_gutis']}</b>.»
+                    </div>
+                </div>
+            </div>
+            """)
+
+        guion_base = construir_guion_tvp_dinamico(
+            medico_raw=medico_sel,
+            especialidad=especialidad,
+            ciudad=ciudad,
+            m_primario=m_p1,
+            prod2=m_p2["prod_gutis"],
+            benef2=m_p2["meta_info"]["beneficio"],
+            rival2_raw=m_p2["rival_principal"],
+            prod3=m_p3["prod_gutis"],
+            tipo_cita_sel=cita_sel,
+            nec_detras_sel=ndn_sel,
+            top_farmacias_str=farmacias_aliadas_str,
+            num_variante=st.session_state.tvp_variant_counter,
+            notas_rapport="",
+        )
+
+        if btn_ia_guion:
+            if obtener_api_key():
+                with st.spinner("Gemini AI está estructurando una versión ejecutiva personalizada del guion TVP..."):
+                    prompt_tvp = (
+                        f"Mejora la redacción de este guion TVP para {medico_sel} ({especialidad} en {ciudad}) "
+                        f"con tono ético, consultivo y basado en valor clínico, respetando las 4 etapas y sin alterar "
+                        f"los porcentajes ni las cifras de recetas Close-Up:\n\n{guion_base}"
+                    )
+                    resp_ia = llamar_gemini(prompt_tvp, max_tok=2200)
+                    if resp_ia:
+                        if respuesta_ia_conserva_cifras(resp_ia, guion_base):
                             st.info("Versión Generada por Gemini AI:")
                             st.markdown(resp_ia)
-                else:
-                    st.warning("No se detectó GEMINI_API_KEY configurada. Se muestran las 4 fases tácticas locales.")
-
-            st.write("")
-            st.download_button(
-                "Descargar Guion TVP (.md)",
-                data=guion_base.encode("utf-8"),
-                file_name=f"Guion_TVP_{medico_sel.replace(' ', '_')}.md",
-                mime="text/markdown",
-                width="stretch"
-            )
-
-        # ---------------------------------------------------------------------
-        # SUB-VISTA 4: CLASES TERAPÉUTICAS, LABS & FICHA 360
-        # ---------------------------------------------------------------------
-        elif st.session_state.sub_previsita == "AUDITORIA":
-            ba1, ba2, ba3, ba4 = st.columns(4)
-            with ba1:
-                if st.button("A. Matriz Clases Terapéuticas (LY/YTD/Mes)", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "CLASES" else "secondary"):
-                    st.session_state.sub_previsita_auditoria = "CLASES"
-                    st.rerun()
-            with ba2:
-                if st.button("B. Marcas por Categoría Terapéutica", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "MARCAS" else "secondary"):
-                    st.session_state.sub_previsita_auditoria = "MARCAS"
-                    st.rerun()
-            with ba3:
-                if st.button("C. Radar de Laboratorios (Doble Barra)", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "LABS" else "secondary"):
-                    st.session_state.sub_previsita_auditoria = "LABS"
-                    st.rerun()
-            with ba4:
-                if st.button("D. Ficha de Omnicanalidad 360", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "FICHA360" else "secondary"):
-                    st.session_state.sub_previsita_auditoria = "FICHA360"
-                    st.rerun()
-
-            st.write("")
-
-            if st.session_state.sub_previsita_auditoria == "CLASES":
-                df_mat_ct = obtener_matriz_clases_terapeuticas_medico(df_clases, df_productos, medico_sel)
-                render_html(f"""
-                    <div class='notranslate' translate='no' style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-                        <div style='font-size:0.88rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> Matriz Corporativa de Clases Terapéuticas — Dr(a). {medico_sel}</div>
-                        <span style='background:#eff6ff; color:#0284c7; font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:6px;'>Fuente: Close-Up Audit · {len(df_mat_ct)} Registros Activos</span>
-                    </div>
-                    """)
-                show_table(df_mat_ct, 440)
-
-            elif st.session_state.sub_previsita_auditoria == "MARCAS":
-                st.markdown(f"##### Desglose Completo de Marcas Prescritas por {medico_sel}")
-                show_table(productos_medico(df_productos, medico_sel), 440)
-
-            elif st.session_state.sub_previsita_auditoria == "LABS":
-                st.markdown(f"##### Radar de Laboratorios en el Recetario de {medico_sel} (Doble Barra: % MS Mes vs. % MS YTD)")
-                df_lab_doc = radar_laboratorios(df_labs, df_panel, medico=medico_sel)
-                show_table(df_lab_doc, 420)
-
-            elif st.session_state.sub_previsita_auditoria == "FICHA360":
-                col_f360_l, col_f360_r = st.columns([1.2, 1.2])
-                with col_f360_l:
-                    st.markdown("##### Ficha Omnicanal 360 del Especialista (Guardado Seguro SQLite)")
-                    with st.form("form_ficha_360_previsita"):
-                        f_minsa = st.text_input("Código MINSA:", value=str(perfil_360_actual.get("MINSA") or ""))
-                        f_cel = st.text_input("Celular / WhatsApp:", value=str(perfil_360_actual.get("Celular") or ""))
-                        f_cumple = st.text_input("Cumpleaños (DD/MM):", value=str(perfil_360_actual.get("Cumpleaños") or ""))
-                        estilos_op = ["Científica / Basada en Evidencia", "Ultra-ejecutiva (Al grano)", "Casos Clínicos / Práctica", "Relacional / Empática"]
-                        est_act = perfil_360_actual.get("Estilo_Visita")
-                        idx_est = estilos_op.index(est_act) if est_act in estilos_op else 0
-                        f_estilo = st.selectbox("Estilo de Visita Preferido:", estilos_op, index=idx_est)
-                        f_deporte = st.text_area(
-                            "Afinidad / Hobby / Notas Personales de Rapport:",
-                            value=str(perfil_360_actual.get("Deporte") or ""),
-                            height=90,
-                        )
-                        guardar_360_btn = st.form_submit_button("Guardar Ficha 360 en Base de Datos", type="primary", width="stretch")
-
-                    if guardar_360_btn:
-                        guardar_perfil_360(
-                            {
-                                "Médico": medico_sel,
-                                "MINSA": f_minsa,
-                                "Celular": f_cel,
-                                "Cumpleaños": f_cumple,
-                                "Deporte": f_deporte,
-                                "Estilo_Visita": f_estilo,
-                                "Ultima_Actualizacion": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            },
-                            DB_PATH,
-                        )
-                        st.toast("✅ Ficha 360 guardada correctamente en gutis_bi.db.")
-                        time.sleep(1.5)
-                        st.rerun()
-
-                with col_f360_r:
-                    st.markdown("##### Últimas Visitas Registradas a este Médico (SQLite)")
-                    df_vis_med = leer_visitas(medico_sel, DB_PATH)
-                    if not df_vis_med.empty:
-                        show_table(df_vis_med[["Fecha", "Producto_Foco", "Producto_Puente", "Escala_TVP", "Acuerdo_Medico"]], 320)
+                        else:
+                            st.warning("La versión de IA alteró métricas de auditoría (%, Pxs o $). Se mantiene el guion calculado localmente.")
                     else:
-                        st.info("Aún no hay visitas registradas en el CRM para este especialista.")
+                        st.warning("Gemini no devolvió respuesta. Se mantiene el guion calculado localmente.")
+            else:
+                st.warning("No se detectó GEMINI_API_KEY configurada. Se muestran las 4 fases tácticas locales.")
 
+        st.write("")
+        st.download_button(
+            "Descargar Guion TVP (.md)",
+            data=guion_base.encode("utf-8"),
+            file_name=f"Guion_TVP_{medico_sel.replace(' ', '_')}.md",
+            mime="text/markdown",
+            width="stretch",
+        )
 
-# -----------------------------------------------------------------------------
-# PARTE 4: MÓDULO 3 (ANÁLISIS DE MERCADO), MÓDULO 4 (EVOLUCIÓN RX vs SELL-OUT) Y MÓDULO 5 (CHIRA NEURAL ENGINE & CRM)
+    # ---------------------------------------------------------------------
+    # SUB-VISTA 4: CLASES TERAPÉUTICAS, LABS & FICHA 360
+    # ---------------------------------------------------------------------
+    elif st.session_state.sub_previsita == "AUDITORIA":
+        ba1, ba2, ba3, ba4 = st.columns(4)
+        with ba1:
+            if st.button("A. Matriz Clases Terapéuticas (LY/YTD/Mes)", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "CLASES" else "secondary"):
+                st.session_state.sub_previsita_auditoria = "CLASES"
+                st.rerun()
+        with ba2:
+            if st.button("B. Marcas por Categoría Terapéutica", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "MARCAS" else "secondary"):
+                st.session_state.sub_previsita_auditoria = "MARCAS"
+                st.rerun()
+        with ba3:
+            if st.button("C. Radar de Laboratorios (Doble Barra)", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "LABS" else "secondary"):
+                st.session_state.sub_previsita_auditoria = "LABS"
+                st.rerun()
+        with ba4:
+            if st.button("D. Ficha de Omnicanalidad 360", width="stretch", type="primary" if st.session_state.sub_previsita_auditoria == "FICHA360" else "secondary"):
+                st.session_state.sub_previsita_auditoria = "FICHA360"
+                st.rerun()
+
+        st.write("")
+
+        if st.session_state.sub_previsita_auditoria == "CLASES":
+            df_mat_ct = obtener_matriz_clases_terapeuticas_medico(df_clases, df_productos, medico_sel)
+            render_html(f"""
+                <div class='notranslate' translate='no' style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
+                    <div style='font-size:0.88rem; font-weight:800; color:#0f172a;'><span style='color:#0284c7;'>●</span> Matriz Corporativa de Clases Terapéuticas — Dr(a). {medico_sel}</div>
+                    <span style='background:#eff6ff; color:#0284c7; font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:6px;'>Fuente: Close-Up Audit · {len(df_mat_ct)} Registros Activos</span>
+                </div>
+                """)
+            show_table(df_mat_ct, 440)
+
+        elif st.session_state.sub_previsita_auditoria == "MARCAS":
+            st.markdown(f"##### Desglose Completo de Marcas Prescritas por {medico_sel}")
+            show_table(productos_medico(df_productos, medico_sel), 440)
+
+        elif st.session_state.sub_previsita_auditoria == "LABS":
+            st.markdown(f"##### Radar de Laboratorios en el Recetario de {medico_sel} (Doble Barra: % MS Mes vs. % MS YTD)")
+            df_lab_doc = radar_laboratorios(df_labs, df_panel, medico=medico_sel)
+            show_table(df_lab_doc, 420)
+
+        elif st.session_state.sub_previsita_auditoria == "FICHA360":
+            col_f360_l, col_f360_r = st.columns([1.2, 1.2])
+            with col_f360_l:
+                st.markdown("##### Ficha Omnicanal 360 del Especialista (Guardado Seguro SQLite)")
+                with st.form("form_ficha_360_previsita"):
+                    f_minsa = st.text_input("Código MINSA:", value=str(perfil_360_actual.get("MINSA") or ""))
+                    f_cel = st.text_input("Celular / WhatsApp:", value=str(perfil_360_actual.get("Celular") or ""))
+                    f_cumple = st.text_input("Cumpleaños (DD/MM):", value=str(perfil_360_actual.get("Cumpleaños") or ""))
+                    estilos_op = ["Científica / Basada en Evidencia", "Ultra-ejecutiva (Al grano)", "Casos Clínicos / Práctica", "Relacional / Empática"]
+                    est_act = perfil_360_actual.get("Estilo_Visita")
+                    idx_est = estilos_op.index(est_act) if est_act in estilos_op else 0
+                    f_estilo = st.selectbox("Estilo de Visita Preferido:", estilos_op, index=idx_est)
+                    f_deporte = st.text_area(
+                        "Afinidad / Hobby / Notas Personales de Rapport:",
+                        value=str(perfil_360_actual.get("Deporte") or ""),
+                        height=90,
+                    )
+                    guardar_360_btn = st.form_submit_button("Guardar Ficha 360 en Base de Datos", type="primary", width="stretch")
+
+                if guardar_360_btn:
+                    guardar_perfil_360(
+                        {
+                            "Médico": medico_sel,
+                            "MINSA": f_minsa,
+                            "Celular": f_cel,
+                            "Cumpleaños": f_cumple,
+                            "Deporte": f_deporte,
+                            "Estilo_Visita": f_estilo,
+                            "Ultima_Actualizacion": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        },
+                        DB_PATH,
+                    )
+                    st.toast("✅ Ficha 360 guardada correctamente en gutis_bi.db.")
+                    time.sleep(1.5)
+                    st.rerun()
+
+            with col_f360_r:
+                st.markdown("##### Últimas Visitas Registradas a este Médico (SQLite)")
+                df_vis_med = leer_visitas(medico_sel, DB_PATH)
+                if not df_vis_med.empty:
+                    show_table(df_vis_med[["Fecha", "Producto_Foco", "Producto_Puente", "Escala_TVP", "Acuerdo_Medico"]], 320)
+                else:
+                    st.info("Aún no hay visitas registradas en el CRM para este especialista.")# -----------------------------------------------------------------------------
+# PARTE 4: MÓDULO 3 (ANÁLISIS DE MERCADO), MÓDULO 4 (EVOLUCIÓN) Y MÓDULO 5 (CHIRA & CRM)
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
     c_back, c_tit = st.columns([0.85, 3.15])
@@ -1928,11 +2118,11 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
         )
 
         if not df_rk_labs.empty:
+            df_rk_labs = df_rk_labs.reset_index(drop=True)
             fila_gut = df_rk_labs[df_rk_labs["Laboratorio"].str.contains("GUTIS", case=False, na=False)]
             pos_gut = int(fila_gut.index[0]) + 1 if not fila_gut.empty else 0
             ms_m_gut = float(fila_gut.iloc[0]["% MS Mes"]) if not fila_gut.empty else 0.0
             ms_y_gut = float(fila_gut.iloc[0]["% MS YTD"]) if not fila_gut.empty else 0.0
-            px_m_gut = int(fila_gut.iloc[0]["Pxs Mes"]) if not fila_gut.empty else 0
             delta_gut = round(ms_m_gut - ms_y_gut, 2)
 
             render_html(f"""
@@ -1960,6 +2150,7 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
 
             tot_px_m_all = int(df_rk_labs["Pxs Mes"].sum()) if "Pxs Mes" in df_rk_labs.columns else 0
             tot_px_y_all = int(df_rk_labs["Pxs YTD"].sum()) if "Pxs YTD" in df_rk_labs.columns else 0
+            clase_delta_tot = "background:#dcfce7; color:#15803d;" if delta_gut >= 0 else "background:#fee2e2; color:#b91c1c;"
             render_html(f"""
                 <div class='stitch-nav-header notranslate' translate='no' style='margin-top:8px; background:#f8fafc;'>
                     <div style='font-size:0.78rem; font-weight:800; color:#0f172a;'>TOTAL AUDITORÍA SELECCIÓN</div>
@@ -1967,7 +2158,7 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
                         <span>Volumen Mes: <b>{tot_px_m_all:,} Pxs</b></span>
                         <span>Volumen YTD: <b>{tot_px_y_all:,} Pxs</b></span>
                         <span>Cuota Gutis: <b>{ms_m_gut:.2f}% Mes | {ms_y_gut:.2f}% YTD</b></span>
-                        <span style='background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px;'>{delta_gut:+.2f} pts</span>
+                        <span style='{clase_delta_tot} padding:2px 8px; border-radius:4px;'>{delta_gut:+.2f} pp</span>
                     </div>
                 </div>
                 """)
@@ -2087,6 +2278,10 @@ elif st.session_state.modulo_activo == "EVOLUCION":
 
     var_q2 = ((q2_tot - q1_tot) / q1_tot * 100.0) if q1_tot > 0 else 0.0
     var_q3 = ((q3_tot - q2_tot) / q2_tot * 100.0) if q2_tot > 0 else 0.0
+    col_q2 = "#059669" if var_q2 >= 0 else "#dc2626"
+    col_q3 = "#059669" if var_q3 >= 0 else "#dc2626"
+    flecha_q2 = "▲" if var_q2 >= 0 else "▼"
+    flecha_q3 = "▲" if var_q3 >= 0 else "▼"
 
     render_html(f"""
         <div class='kpi-strip notranslate' translate='no'>
@@ -2097,7 +2292,7 @@ elif st.session_state.modulo_activo == "EVOLUCION":
                 </div>
                 <div class='kpi-num' style='margin:6px 0;'>${q1_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
-                    <span style='color:#059669; font-weight:700;'>● Base Trimestral Q1</span>
+                    <span style='color:#0284c7; font-weight:700;'>● Base Trimestral Q1</span>
                     <span>PDVs: {n_pdvs}</span>
                 </div>
             </div>
@@ -2109,8 +2304,8 @@ elif st.session_state.modulo_activo == "EVOLUCION":
                 </div>
                 <div class='kpi-num' style='margin:6px 0;'>${q2_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
-                    <span style='color:#059669; font-weight:700;'>{var_q2:+.1f}% vs Q1</span>
-                    <span>Ruta Activa</span>
+                    <span style='color:{col_q2}; font-weight:700;'>{flecha_q2} {var_q2:+.1f}% vs Q1</span>
+                    <span>PDVs: {n_pdvs}</span>
                 </div>
             </div>
 
@@ -2121,8 +2316,8 @@ elif st.session_state.modulo_activo == "EVOLUCION":
                 </div>
                 <div class='kpi-num' style='margin:6px 0;'>${q3_tot:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
-                    <span style='color:#0284c7; font-weight:700;'>{var_q3:+.1f}% vs Q2</span>
-                    <span>Corte Vigente</span>
+                    <span style='color:{col_q3}; font-weight:700;'>{flecha_q3} {var_q3:+.1f}% vs Q2</span>
+                    <span>PDVs: {n_pdvs}</span>
                 </div>
             </div>
 
@@ -2147,11 +2342,11 @@ elif st.session_state.modulo_activo == "EVOLUCION":
             df_ev_tabla["Delta % MS (Mes vs YTD)"] = (df_ev_tabla["% MS Mes"] - df_ev_tabla["% MS YTD"]).round(2)
             df_ev_tabla["Diagnóstico de Evolución"] = np.where(
                 df_ev_tabla["Delta % MS (Mes vs YTD)"] >= 1.0,
-                "▲ CRECE CUOTA (" + df_ev_tabla["Delta % MS (Mes vs YTD)"].map(lambda x: f"{x:+.1f} pts vs YTD") + ")",
+                "▲ CRECE CUOTA (" + df_ev_tabla["Delta % MS (Mes vs YTD)"].map(lambda x: f"{x:+.1f} pp vs YTD") + ")",
                 np.where(
                     df_ev_tabla["Delta % MS (Mes vs YTD)"] <= -1.0,
-                    "▼ PIERDE CUOTA (" + df_ev_tabla["Delta % MS (Mes vs YTD)"].map(lambda x: f"{x:+.1f} pts vs YTD") + ")",
-                    "● ESTABLE (" + df_ev_tabla["Delta % MS (Mes vs YTD)"].map(lambda x: f"{x:+.1f} pts vs YTD") + ")",
+                    "▼ PIERDE CUOTA (" + df_ev_tabla["Delta % MS (Mes vs YTD)"].map(lambda x: f"{x:+.1f} pp vs YTD") + ")",
+                    "● ESTABLE (" + df_ev_tabla["Delta % MS (Mes vs YTD)"].map(lambda x: f"{x:+.1f} pp vs YTD") + ")",
                 ),
             )
 
@@ -2225,7 +2420,6 @@ elif st.session_state.modulo_activo == "CHIRA":
 
     if st.session_state.sub_chira == "COPILOTO":
         sell_z_chira = resumen_ventas_ciudad(df_ventas, ciudad)
-        riv_top_chira = dp_global.get("Rival Principal en la Clase", "Competencia directa")
 
         render_html(f"""
             <div class='chira-neural-hero notranslate' translate='no'>
@@ -2236,7 +2430,7 @@ elif st.session_state.modulo_activo == "CHIRA":
                             Copiloto Táctico Farmacéutico & Síntesis Competitiva <span style='color:#38bdf8; font-size:0.88rem;'>✦ Enterprise AI</span>
                         </div>
                         <div style='font-size:0.8rem; color:#cbd5e1; line-height:1.45;'>
-                            Asistente analítico conectado en vivo con tus bases Close-Up, auditoría TVP y Sell-Out trimestral para el diseño de guiones, flanqueo competitivo y superación de objeciones.
+                            Asistente analítico conectado en vivo con tus bases Close-Up, auditoría TVP y Sell-Out trimestral para el diseño de guiones, enfoque diferencial y superación de objeciones.
                         </div>
                     </div>
                     <div class='chira-mem-grid' style='flex: 1 1 420px; margin-top:0;'>
@@ -2278,7 +2472,7 @@ elif st.session_state.modulo_activo == "CHIRA":
             render_html(f"""
                 <div class='chira-prompt-card notranslate' translate='no'>
                     <div class='chira-prompt-title'>✦ Expediente & Guion TVP</div>
-                    <div class='chira-prompt-desc'>«Genera el argumento táctico de migración y puente clínico para {medico_sel[:18]}...»</div>
+                    <div class='chira-prompt-desc'>«Genera el argumento táctico de valor clínico y puente para {medico_sel[:18]}...»</div>
                 </div>
                 """)
             if st.button("Inyectar en prompt  →", key="ch_p1", width="stretch"):
@@ -2298,14 +2492,14 @@ elif st.session_state.modulo_activo == "CHIRA":
             render_html(f"""
                 <div class='chira-prompt-card notranslate' translate='no'>
                     <div class='chira-prompt-title'>✦ Estrategia de Flanqueo</div>
-                    <div class='chira-prompt-desc'>«Identifica el nicho clínico sin fricción para flanquear al rival líder en {medico_sel[:16]}...»</div>
+                    <div class='chira-prompt-desc'>«Identifica el nicho clínico sin fricción para diferenciar frente al rival líder en {medico_sel[:16]}...»</div>
                 </div>
                 """)
-            if st.button("Venta Cruzada  →", key="ch_p3", width="stretch"):
+            if st.button("Enfoque Clínico  →", key="ch_p3", width="stretch"):
                 quick_prompt = f"{medico_sel} está casado o fidelizado con la competencia, dame estrategia de flanqueo"
 
         with q_b4:
-            render_html(f"""
+            render_html("""
                 <div class='chira-prompt-card notranslate' translate='no'>
                     <div class='chira-prompt-title'>✦ Educación Médica (Apoyo)</div>
                     <div class='chira-prompt-desc'>«¿Cómo respondo éticamente si me pide apoyo para un congreso a cambio de recetas?»</div>
@@ -2323,12 +2517,15 @@ elif st.session_state.modulo_activo == "CHIRA":
                     audio_grabado = widget_audio("🎙️ Captura de Consulta por Voz a CHIRA (Transcripción en vivo con IA):")
                     if audio_grabado is not None:
                         bytes_a = audio_grabado.getvalue()
-                        hash_a = hash(bytes_a)
+                        hash_a = hashlib.md5(bytes_a).hexdigest()
                         if hash_a != st.session_state.ultimo_audio_hash:
-                            st.session_state.ultimo_audio_hash = hash_a
                             if obtener_api_key():
                                 with st.spinner("Transcribiendo consulta por voz con Gemini..."):
                                     texto_voz = transcribir_audio_gemini(bytes_a, getattr(audio_grabado, "type", "audio/wav"))
+                                if texto_voz:
+                                    st.session_state.ultimo_audio_hash = hash_a
+                                else:
+                                    st.warning("No se pudo transcribir el audio. Vuelve a intentarlo.")
                             else:
                                 st.warning("Configura GEMINI_API_KEY en tu entorno para transcribir notas de voz.")
             with v_col2:
@@ -2383,9 +2580,16 @@ elif st.session_state.modulo_activo == "CHIRA":
             st.session_state.chira_history.append({"role": "user", "content": consulta_final})
             q_norm = normalizar_txt(consulta_final)
 
-            todos_medicos = sorted(set(meds_panel_default) | set(df_productos["Médico"].dropna().unique().tolist())) if not df_productos.empty else meds_panel_default
+            todos_medicos = (
+                sorted(set(meds_panel_default) | set(df_productos["Médico"].dropna().unique().tolist()))
+                if not df_productos.empty
+                else meds_panel_default
+            )
             medico_detectado = next((d for d in todos_medicos if normalizar_txt(d) in q_norm), None)
-            if not medico_detectado and any(k in q_norm for k in ["MEDICO EN FOCO", "ESTE MEDICO", "ESTA DOCTORA", "ESTE DOCTOR", "DILUYE", "COMPARTE", "CASADO", "FIDELIZADO", "PATROCINIO", "CONGRESO", "EXPEDIENTE", "GUION"]):
+            if not medico_detectado and any(
+                k in q_norm
+                for k in ["MEDICO EN FOCO", "ESTE MEDICO", "ESTA DOCTORA", "ESTE DOCTOR", "DILUYE", "COMPARTE", "CASADO", "FIDELIZADO", "PATROCINIO", "CONGRESO", "EXPEDIENTE", "GUION"]
+            ):
                 medico_detectado = medico_sel
 
             if medico_detectado:
@@ -2410,14 +2614,19 @@ elif st.session_state.modulo_activo == "CHIRA":
                 with st.spinner("CHIRA Neural Engine está sintetizando la estrategia con Gemini AI..."):
                     prompt_chira = (
                         f"Consulta del Visitador Médico (Erick Calderón): {consulta_final}\n\n"
-                        f"Expediente y datos exactos calculados por el motor Close-Up de Gutis BI (PROHIBIDO alterar cifras):\n"
+                        f"Expediente y datos exactos calculados por el motor Close-Up de Gutis BI (NO alteres porcentajes, recetas ni montos):\n"
                         f"{respuesta_local}\n\n"
-                        f"Con base únicamente en estos datos reales, entrega una respuesta ejecutiva, clara y accionable "
+                        f"Con base únicamente en estos datos reales, entrega una respuesta ejecutiva, clara, ética y accionable "
                         f"con recomendaciones tácticas TVP listas para aplicar hoy en consultorio y farmacia."
                     )
                     mejora_ia = llamar_gemini(prompt_chira, max_tok=2500)
-                    if mejora_ia:
+                    if mejora_ia and respuesta_ia_conserva_cifras(mejora_ia, respuesta_local):
                         respuesta_final = mejora_ia
+                    elif mejora_ia:
+                        respuesta_final = (
+                            respuesta_local
+                            + "\n\n> ⚠️ La redacción de IA se descartó porque contenía métricas (%, Pxs o $) que no coinciden con la auditoría Close-Up."
+                        )
 
             st.session_state.chira_history.append({"role": "assistant", "content": respuesta_final})
             st.rerun()
@@ -2438,7 +2647,7 @@ elif st.session_state.modulo_activo == "CHIRA":
 
             c_ac1, c_ac2 = st.columns(2)
             with c_ac1:
-                crm_ac_med = st.text_input("Compromiso del Médico (ej. Iniciar en próximos 4 pacientes con rinitis):")
+                crm_ac_med = st.text_input("Compromiso del Médico (ej. Evaluar en próximos 4 pacientes con rinitis):")
             with c_ac2:
                 crm_ac_vis = st.text_input("Compromiso del Visitador (ej. Garantizar stock en Farmacia Saba / Kielsa):")
 
@@ -2473,7 +2682,7 @@ elif st.session_state.modulo_activo == "CHIRA":
 
         st.download_button(
             "Exportar Bitácora Completa CRM a Excel / CSV",
-            data=exportar_visitas_csv(DB_PATH),
+            data=csv_para_excel(exportar_visitas_csv(DB_PATH)),
             file_name=f"Bitacora_CRM_Erick_Calderon_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             width="stretch",
