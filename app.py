@@ -1478,7 +1478,10 @@ elif st.session_state.modulo_activo == "PREVISITA":
                                 st.session_state.mercado_drill_sel = None
                                 st.rerun()
 
-                        df_drill = productos_medico(df_productos, med_sel, criterio_mercado=k_drill)
+                        doc_activo = next((v for k, v in locals().items() if k in ("medico_sel", "med_foco", "medico_foco", "doc_sel", "nombre_med", "med_tvp", "medico_tvp") and isinstance(v, str) and v), "")
+                        if not doc_activo:
+                            doc_activo = next((v for k, v in st.session_state.items() if "med" in k.lower() and isinstance(v, str) and len(v) > 4 and v != "Todas"), "")
+                        df_drill = productos_medico(df_productos, doc_activo, criterio_mercado=k_drill)
                         if not df_drill.empty:
                             st.dataframe(
                                 df_drill[["Marca Prescrita", "Origen", "Pxs Mes", "% MS Mes (Categoría)", "Pxs YTD", "% MS YTD (Categoría)"]],
