@@ -34,6 +34,7 @@ from gutis_bi.analytics import (
     ventas_por_trimestre,
 )
 from gutis_bi.catalog import MERCADOS_PRIORITARIOS
+from gutis_bi.chira_engine import enrutar_consulta_chira, ventas_mensuales_resumen
 from gutis_bi.crm import (
     exportar_visitas_csv,
     guardar_perfil_360,
@@ -55,7 +56,7 @@ from gutis_bi.data import (
 # CONFIGURACIÓN DE PÁGINA Y RUTAS INTELIGENTES
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Gutis BI v2.5 | Arquitectura TVP & Close-Up",
+    page_title="Gutis BI v3.0 | Arquitectura TVP & Close-Up",
     page_icon="G",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -742,7 +743,7 @@ render_sb_html("""
     <div class='notranslate' translate='no' style='display:flex; align-items:center; gap:10px; padding:4px 0 12px 0; border-bottom:1px solid #e2e8f0; margin-bottom:10px;'>
         <div style='width:34px; height:34px; border-radius:8px; background:#002b5c; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.05rem;'>G</div>
         <div>
-            <div style='font-weight:800; font-size:0.95rem; color:#0f172a;'>GUTIS BI <span style='background:#dcfce7; color:#15803d; font-size:0.65rem; padding:2px 6px; border-radius:4px;'>v2.5</span></div>
+            <div style='font-weight:800; font-size:0.95rem; color:#0f172a;'>GUTIS BI <span style='background:#dcfce7; color:#15803d; font-size:0.65rem; padding:2px 6px; border-radius:4px;'>v3.0</span></div>
             <div style='font-size:0.68rem; color:#64748b; font-weight:600;'>Arquitectura TVP & Close-Up</div>
         </div>
     </div>
@@ -867,7 +868,9 @@ render_html(f"""
     </div>
     """)
 
-kpi_hub = resumen_global(df_panel, df_productos)# -----------------------------------------------------------------------------
+kpi_hub = resumen_global(df_panel, df_productos)
+
+# -----------------------------------------------------------------------------
 # PARTE 2: FUNCIONES AUXILIARES, MENÚ PRINCIPAL (HUB STITCH) Y MÓDULO 1 (VISOR BI)
 # -----------------------------------------------------------------------------
 
@@ -897,9 +900,12 @@ def show_table(df: pd.DataFrame, height: int = 420) -> None:
         st.info("No hay registros para los filtros seleccionados.")
         return
     cfg = {}
+    meses_pref = ("Ene ", "Feb ", "Mar ", "Abr ", "May ", "Jun ", "Jul ", "Ago ", "Sep ", "Oct ", "Nov ", "Dic ")
     for col in df.columns:
-        if "% MS" in col:
+        if "% MS" in col or "% Cumpl" in col or "% Cuota" in col:
             cfg[col] = st.column_config.ProgressColumn(col, format="%.1f%%", min_value=0, max_value=100)
+        elif "($)" in col or col in ("Q1", "Q2", "Q3", "Total Acumulado") or col.startswith(meses_pref):
+            cfg[col] = st.column_config.NumberColumn(col, format="$%,.2f")
         elif "Dif %" in col or "Brecha" in col or "Delta" in col:
             cfg[col] = st.column_config.NumberColumn(col, format="%+.1f pp")
     st.dataframe(df, hide_index=True, width="stretch", height=height, column_config=cfg)
@@ -921,7 +927,7 @@ if st.session_state.modulo_activo == "HUB":
             <div class='hero-glass-box'>
                 <div>
                     <div class='hero-glass-lbl'>CENTRO DE COMPETENCIAS</div>
-                    <div class='hero-glass-val'>Inteligencia de Negocio v2.5</div>
+                    <div class='hero-glass-val'>Inteligencia de Negocio v3.0</div>
                 </div>
                 <div class='hero-ok-pill'>Motor Activo</div>
             </div>
@@ -1082,12 +1088,12 @@ if st.session_state.modulo_activo == "HUB":
         render_html("""
             <div class='stitch-mod-card notranslate' translate='no'>
                 <div class='mod-card-top'>
-                    <div class='mod-icon-badge' style='background:#ecfdf5; color:#047857; border-color:#a7f3d0;'>Q1-Q3</div>
+                    <div class='mod-icon-badge' style='background:#ecfdf5; color:#047857; border-color:#a7f3d0;'>6M</div>
                     <div class='mod-code-tag'>MOD-04</div>
                 </div>
                 <div class='mod-card-title'>EVOLUCIÓN <span>(inf.target)</span></div>
                 <div class='mod-card-desc'>
-                    Sincronía analítica entre prescripciones médicas Close-Up y venta real en farmacias aliadas (Sell-Out trimestral Q1, Q2, Q3).
+                    Sincronía analítica entre prescripciones médicas Close-Up y venta real mensual en farmacias aliadas (May – Oct 2026 vs. Cuota).
                 </div>
             </div>
             """)
@@ -1100,11 +1106,11 @@ if st.session_state.modulo_activo == "HUB":
         <div class='chira-neural-hero notranslate' translate='no' style='padding:16px 22px; margin-bottom:8px;'>
             <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;'>
                 <div>
-                    <span class='chira-neural-badge'>✦ MOD-05 · CHIRA NEURAL ENGINE</span>
-                    <div style='font-size:1.05rem; font-weight:800; color:#ffffff;'>CHIRA — Copiloto Estratégico con Voz y Registro CRM Post-Visita</div>
-                    <div style='font-size:0.78rem; color:#cbd5e1;'>Consultoría táctica en tiempo real sobre Close-Up, manejo de objeciones y bitácora relacional SQLite.</div>
+                    <span class='chira-neural-badge'>✦ MOD-05 · CHIRA NEURAL ENGINE v3.0</span>
+                    <div style='font-size:1.05rem; font-weight:800; color:#ffffff;'>CHIRA — Copiloto Coloquial de Campo, Cuota &amp; Sell-Out Mensual</div>
+                    <div style='font-size:0.78rem; color:#cbd5e1;'>Consultoría táctica en lenguaje natural sobre Close-Up, manejo de objeciones, caída de recetas, abordaje a sucursales y CRM SQLite.</div>
                 </div>
-                <div class='hero-ok-pill'>Motor SQLite Activo</div>
+                <div class='hero-ok-pill'>8 Motores Activos</div>
             </div>
         </div>
         """)
@@ -1362,7 +1368,9 @@ elif st.session_state.modulo_activo == "TOP_MEDICOS":
             if not df_crec.empty:
                 show_table(df_crec, 450)
             else:
-                st.info("Sin datos de crecimiento para esta selección.")# -----------------------------------------------------------------------------
+                st.info("Sin datos de crecimiento para esta selección.")
+
+# -----------------------------------------------------------------------------
 # PARTE 3: MÓDULO 2 — PREVISITA TVP (MAPA 3X3 + DRILL-DOWN, CANVAS, GUION Y 360)
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "PREVISITA":
@@ -1387,7 +1395,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
     sell_z = resumen_ventas_ciudad(df_ventas, ciudad)
     farmacias_aliadas_str = sell_z["top_farmacias"]
 
-    # 1. Evaluar mercados del Vademécum Nicaragua 2026 para el médico activo
     claves_disponibles_med = [
         k for k, v in MERCADOS_PRIORITARIOS.items()
         if not (es_pediatra and not v.get("apto_pediatria", True))
@@ -1472,7 +1479,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
     m_foco_top = lista_base_p[idx1]
 
-    # 2. Franja de 4 Tarjetas KPI del Especialista en Foco
     render_html(f"""
         <div class='kpi-strip notranslate' translate='no'>
             <div class='kpi-card' style='border-top: 3px solid #002b5c;'>
@@ -1517,7 +1523,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
         </div>
         """)
 
-    # 3. Pestañas de Navegación de Previsita
     st.markdown("<div class='subnav-label'>SELECCIONE LA HERRAMIENTA DE PREVISITA:</div>", unsafe_allow_html=True)
     bp1, bp2, bp3, bp4 = st.columns(4)
     with bp1:
@@ -1539,9 +1544,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
 
     st.write("")
 
-    # ---------------------------------------------------------------------
-    # SUB-VISTA 1: MAPA DE MERCADOS ACTIVOS (CON LÍDER #1 REAL Y DRILL-DOWN)
-    # ---------------------------------------------------------------------
     if st.session_state.sub_previsita == "MAPA":
         with st.container(border=True):
             c_mh1, c_mh2 = st.columns([3.0, 1.0])
@@ -1655,9 +1657,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
                     else:
                         st.info("Este médico aún no registra recetas auditadas en esta clase terapéutica.")
 
-    # ---------------------------------------------------------------------
-    # SUB-VISTA 2: CANVAS TVP (4 CUADRANTES)
-    # ---------------------------------------------------------------------
     elif st.session_state.sub_previsita == "CANVAS":
         with st.container(border=True):
             sp1, sp2, sp3 = st.columns(3)
@@ -1739,16 +1738,16 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #002b5c; min-height: 390px;'>
                     <div class='quad-title' style='color:#002b5c;'>I. DIAGNÓSTICO Y OBJETIVO SMART ({m_p1['modo_tactico']})</div>
                     <div class='quad-body'>
-                        • <b>Escala Actual:</b><br>
+- <b>Escala Actual:</b><br>
                         <div style='background:#eff6ff; color:#002b5c; font-weight:700; padding:6px 8px; border-radius:6px; margin:4px 0;'>
                             {m_p1['escala_nivel']} ({m_p1['ms_mes']:.1f}% MS Mes | {m_p1['gutis_mes']} Pxs)
                         </div>
-                        • <b>Escalón Meta Hoy:</b><br>
+- <b>Escalón Meta Hoy:</b><br>
                         <div style='background:#dcfce7; color:#15803d; font-weight:700; padding:5px 8px; border-radius:6px; margin:4px 0 8px 0;'>
                             {m_p1['escala_meta']}
                         </div>
-                        • <b>Meta SMART:</b> {txt_meta_smart}<br><br>
-                        • <b>Plan de Respaldo:</b> Atender el subgrupo clínico de <i>{meta1['nicho_flanqueo']}</i>.
+- <b>Meta SMART:</b> {txt_meta_smart}<br><br>
+- <b>Plan de Respaldo:</b> Atender el subgrupo clínico de <i>{meta1['nicho_flanqueo']}</i>.
                     </div>
                 </div>
                 """)
@@ -1757,9 +1756,9 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #0284c7; min-height: 390px;'>
                     <div class='quad-title' style='color:#0284c7;'>II. APERTURA ADAPTADA ({especialidad})</div>
                     <div class='quad-body'>
-                        • <b>Postura ({st.session_state.ctx_cita_global}):</b> Explorar su experiencia positiva con los pacientes ya tratados con la molécula y formulación actual.<br><br>
-                        • <b>Agenda ({especialidad}):</b> Analizar evolución clínica en <i>{pac_meta_1}</i>.<br><br>
-                        • <b>Pregunta Sutil:</b><br>
+- <b>Postura ({st.session_state.ctx_cita_global}):</b> Explorar su experiencia positiva con los pacientes ya tratados con la molécula y formulación actual.<br><br>
+- <b>Agenda ({especialidad}):</b> Analizar evolución clínica en <i>{pac_meta_1}</i>.<br><br>
+- <b>Pregunta Sutil:</b><br>
                         <div style='background:#f8fafc; border-left:3px solid #0284c7; padding:8px; border-radius:4px; font-style:italic; margin-top:4px;'>
                             «En los casos donde ya prescribió {m_p1['prod_gutis']} frente a otras opciones como {riv1_marca}, ¿qué diferencias observó en tolerabilidad y apego?»
                         </div>
@@ -1771,12 +1770,12 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #10b981; min-height: 390px;'>
                     <div class='quad-title' style='color:#059669;'>III. EMBUDO, APOYO Y MENSAJE DE MARCA</div>
                     <div class='quad-body'>
-                        • <b>Sondeo de Valor Clínico:</b><br>
+- <b>Sondeo de Valor Clínico:</b><br>
                         <div style='background:#f8fafc; border-left:3px solid #10b981; padding:8px; border-radius:4px; font-style:italic; margin:4px 0 8px 0;'>
                             «¿En qué perfil específico de paciente suele alternar con opciones como {riv1_marca} en {riv1_forma.lower()}?»
                         </div>
-                        • <b>Ventaja Diferencial ({m_p1['prod_gutis']}):</b> {meta1['caracteristica']}.<br><br>
-                        • <b>Enfoque ({ndn_corto}):</b> {arg_ndn_txt.capitalize()}.
+- <b>Ventaja Diferencial ({m_p1['prod_gutis']}):</b> {meta1['caracteristica']}.<br><br>
+- <b>Enfoque ({ndn_corto}):</b> {arg_ndn_txt.capitalize()}.
                     </div>
                 </div>
                 """)
@@ -1785,12 +1784,12 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 <div class='quad-card notranslate' translate='no' style='border-top: 4px solid #f59e0b; min-height: 390px;'>
                     <div class='quad-title' style='color:#d97706;'>IV. CIERRE BILATERAL Y PUENTE P1 - P2 - P3</div>
                     <div class='quad-body'>
-                        • <b>Propuesta Clínica:</b> Considerar a <b>{m_p1['prod_gutis']}</b> como primera alternativa en el perfil clínico evaluado.<br><br>
-                        • <b>Mi Compromiso:</b><br>
+- <b>Propuesta Clínica:</b> Considerar a <b>{m_p1['prod_gutis']}</b> como primera alternativa en el perfil clínico evaluado.<br><br>
+- <b>Mi Compromiso:</b><br>
                         <div style='background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-weight:700; padding:6px 8px; border-radius:6px; margin:4px 0 8px 0;'>
                             Garantizar inventario en {farmacia_top1}.
                         </div>
-                        • <b>Puente a 2da Posición ({m_p2['prod_gutis']}):</b><br>
+- <b>Puente a 2da Posición ({m_p2['prod_gutis']}):</b><br>
                         <div style='background:#f8fafc; border-left:3px solid #f59e0b; padding:8px; border-radius:4px; font-style:italic; margin-top:4px;'>
                             «Y siguiendo con eficacia clínica, cuente con <b>{m_p2['prod_gutis']}</b> ({meta2['beneficio']}) y respaldo de <b>{m_p3['prod_gutis']}</b>.»
                         </div>
@@ -1798,9 +1797,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 </div>
                 """)
 
-    # ---------------------------------------------------------------------
-    # SUB-VISTA 3: MAPA CONVERSACIONAL DEL TVP
-    # ---------------------------------------------------------------------
     elif st.session_state.sub_previsita == "GUION":
         with st.container(border=True):
             st.markdown("<div class='subnav-label'>PARÁMETROS DE SELECCIÓN TÁCTICA:</div>", unsafe_allow_html=True)
@@ -1976,9 +1972,6 @@ elif st.session_state.modulo_activo == "PREVISITA":
             width="stretch",
         )
 
-    # ---------------------------------------------------------------------
-    # SUB-VISTA 4: CLASES TERAPÉUTICAS, LABS & FICHA 360
-    # ---------------------------------------------------------------------
     elif st.session_state.sub_previsita == "AUDITORIA":
         ba1, ba2, ba3, ba4 = st.columns(4)
         with ba1:
@@ -2061,8 +2054,10 @@ elif st.session_state.modulo_activo == "PREVISITA":
                 if not df_vis_med.empty:
                     show_table(df_vis_med[["Fecha", "Producto_Foco", "Producto_Puente", "Escala_TVP", "Acuerdo_Medico"]], 320)
                 else:
-                    st.info("Aún no hay visitas registradas en el CRM para este especialista.")# -----------------------------------------------------------------------------
-# PARTE 4: MÓDULO 3 (ANÁLISIS DE MERCADO), MÓDULO 4 (EVOLUCIÓN) Y MÓDULO 5 (CHIRA & CRM)
+                    st.info("Aún no hay visitas registradas en el CRM para este especialista.")
+
+# -----------------------------------------------------------------------------
+# PARTE 4: MÓDULO 3 (ANÁLISIS DE MERCADO), MÓDULO 4 (EVOLUCIÓN 6M) Y MÓDULO 5 (CHIRA v3.0 & CRM)
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
     c_back, c_tit = st.columns([0.85, 3.15])
@@ -2230,7 +2225,7 @@ elif st.session_state.modulo_activo == "ANALISIS_MERCADO":
 
 
 # -----------------------------------------------------------------------------
-# MÓDULO 4: EVOLUCIÓN RX CLOSE-UP vs. SELL-OUT TRIMESTRAL
+# MÓDULO 4: EVOLUCIÓN RX CLOSE-UP vs. SELL-OUT MENSUAL (6 MESES + REAL VS CUOTA)
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "EVOLUCION":
     c_back, c_tit = st.columns([0.85, 3.15])
@@ -2241,18 +2236,18 @@ elif st.session_state.modulo_activo == "EVOLUCION":
     with c_tit:
         render_html("""
             <div class='module-banner notranslate' translate='no'>
-                <span>MÓDULO 4: EVOLUCIÓN (INF.TARGET) — DESEMPEÑO DE RECETAS (MES / YTD) Y SELL-OUT EN FARMACIAS (Q1-Q3)</span>
-                <span style='font-size:0.68rem; background:rgba(16,185,129,0.25); color:#6ee7b7; padding:3px 8px; border-radius:4px;'>AUDITORÍA SINCRONIZADA</span>
+                <span>MÓDULO 4: EVOLUCIÓN (INF.TARGET) — RECETAS CLOSE-UP VS. SELL-OUT MENSUAL (6 MESES & CUOTA)</span>
+                <span style='font-size:0.68rem; background:rgba(16,185,129,0.25); color:#6ee7b7; padding:3px 8px; border-radius:4px;'>AUDITORÍA MENSUAL ACTIVA</span>
             </div>
             """)
 
     bev1, bev2 = st.columns(2)
     with bev1:
-        if st.button("1. Sincronía Temporal (Cuota Rx Mes/YTD vs. Sell-Out Trimestral)", width="stretch", type="primary" if st.session_state.sub_evolucion == "SINCRONIA" else "secondary"):
+        if st.button("1. Sincronía Temporal (Cuota Rx Mes/YTD vs. Sell-Out Mensual)", width="stretch", type="primary" if st.session_state.sub_evolucion == "SINCRONIA" else "secondary"):
             st.session_state.sub_evolucion = "SINCRONIA"
             st.rerun()
     with bev2:
-        if st.button("2. Auditoría Detallada de Sell-Out por Sucursal Farmacéutica", width="stretch", type="primary" if st.session_state.sub_evolucion == "PDVS" else "secondary"):
+        if st.button("2. Auditoría Detallada de Sell-Out por Sucursal x Producto", width="stretch", type="primary" if st.session_state.sub_evolucion == "PDVS" else "secondary"):
             st.session_state.sub_evolucion = "PDVS"
             st.rerun()
 
@@ -2264,68 +2259,69 @@ elif st.session_state.modulo_activo == "EVOLUCION":
         prods_venta_lista = sorted(df_ventas["PRODUCTO_VENTA"].dropna().unique().tolist()) if not df_ventas.empty and "PRODUCTO_VENTA" in df_ventas.columns else []
         ev_prods_sel = st.multiselect("Filtrar Producto(s) de Sell-Out (Opcional):", prods_venta_lista, default=[], key="ev_sel_prods")
 
-    if ev_prods_sel:
-        partes_v = [ventas_por_trimestre(df_ventas, None if ev_ciu == "TODO MI PANEL" else ev_ciu, p) for p in ev_prods_sel]
-        df_piv_ventas = pd.concat([x for x in partes_v if not x.empty], ignore_index=True) if any(not x.empty for x in partes_v) else pd.DataFrame()
-    else:
-        df_piv_ventas = ventas_por_trimestre(df_ventas, None if ev_ciu == "TODO MI PANEL" else ev_ciu)
+    df_v_work = df_ventas[df_ventas["PRODUCTO_VENTA"].isin(ev_prods_sel)].copy() if (ev_prods_sel and not df_ventas.empty) else df_ventas
+    df_piv_ventas, kpis_v = ventas_mensuales_resumen(
+        df_v_work,
+        ciudad=None if ev_ciu == "TODO MI PANEL" else ev_ciu,
+    )
 
-    q1_tot = float(df_piv_ventas["Q1"].sum()) if not df_piv_ventas.empty and "Q1" in df_piv_ventas.columns else 0.0
-    q2_tot = float(df_piv_ventas["Q2"].sum()) if not df_piv_ventas.empty and "Q2" in df_piv_ventas.columns else 0.0
-    q3_tot = float(df_piv_ventas["Q3"].sum()) if not df_piv_ventas.empty and "Q3" in df_piv_ventas.columns else 0.0
-    acum_tot = q1_tot + q2_tot + q3_tot
-    n_pdvs = len(df_piv_ventas["NOMBRE_CLIENTE_1"].unique()) if not df_piv_ventas.empty else 0
-
-    var_q2 = ((q2_tot - q1_tot) / q1_tot * 100.0) if q1_tot > 0 else 0.0
-    var_q3 = ((q3_tot - q2_tot) / q2_tot * 100.0) if q2_tot > 0 else 0.0
-    col_q2 = "#059669" if var_q2 >= 0 else "#dc2626"
-    col_q3 = "#059669" if var_q3 >= 0 else "#dc2626"
-    flecha_q2 = "▲" if var_q2 >= 0 else "▼"
-    flecha_q3 = "▲" if var_q3 >= 0 else "▼"
+    meses_v = kpis_v.get("meses", [])
+    rango_lbl = f"{meses_v[0]} – {meses_v[-1]}" if len(meses_v) >= 2 else (meses_v[0] if meses_v else "Sin Corte")
+    ult_m_lbl = meses_v[-1] if meses_v else "Últ. Mes"
+    prev_m_lbl = meses_v[-2] if len(meses_v) >= 2 else ""
+    val_ult_m = kpis_v["totales_mes"].get(ult_m_lbl, 0.0) if meses_v else 0.0
+    val_prev_m = kpis_v["totales_mes"].get(prev_m_lbl, 0.0) if prev_m_lbl else 0.0
+    cuota_ult_m = kpis_v["cuotas_mes"].get(ult_m_lbl, 0.0) if meses_v else 0.0
+    pct_cuota_ult = (val_ult_m / cuota_ult_m * 100.0) if cuota_ult_m > 0 else 0.0
+    var_ult_pct = ((val_ult_m - val_prev_m) / val_prev_m * 100.0) if val_prev_m > 0 else 0.0
+    col_var_u = "#059669" if var_ult_pct >= 0 else "#dc2626"
+    flecha_u = "▲" if var_ult_pct >= 0 else "▼"
+    n_pdvs = len(df_piv_ventas["Sucursal / Farmacia"].unique()) if not df_piv_ventas.empty else 0
+    pill_cumpl_cls = "kpi-pill-up" if kpis_v["pct_cumpl"] >= 90 else ("kpi-pill-neutral" if kpis_v["pct_cumpl"] >= 75 else "kpi-pill-warn")
 
     render_html(f"""
         <div class='kpi-strip notranslate' translate='no'>
             <div class='kpi-card'>
                 <div class='kpi-top-row'>
-                    <div class='kpi-lbl'>Q1 SELL-OUT</div>
-                    <span class='kpi-pill-neutral'>Trimestre 1</span>
+                    <div class='kpi-lbl'>SELL-OUT ACUMULADO ({rango_lbl})</div>
+                    <span class='kpi-pill-neutral'>{len(meses_v)} Meses</span>
                 </div>
-                <div class='kpi-num' style='margin:6px 0;'>${q1_tot:,.0f}</div>
+                <div class='kpi-num' style='margin:6px 0;'>${kpis_v['total_real']:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
-                    <span style='color:#0284c7; font-weight:700;'>● Base Trimestral Q1</span>
+                    <span style='color:#0284c7; font-weight:700;'>● Facturación Real</span>
                     <span>PDVs: {n_pdvs}</span>
                 </div>
             </div>
 
             <div class='kpi-card'>
                 <div class='kpi-top-row'>
-                    <div class='kpi-lbl'>Q2 SELL-OUT</div>
-                    <span class='kpi-pill-neutral'>Trimestre 2</span>
+                    <div class='kpi-lbl'>CUOTA ASIGNADA ({rango_lbl})</div>
+                    <span class='{pill_cumpl_cls}'>{kpis_v['pct_cumpl']:.1f}% Cumpl.</span>
                 </div>
-                <div class='kpi-num' style='margin:6px 0;'>${q2_tot:,.0f}</div>
+                <div class='kpi-num' style='margin:6px 0;'>${kpis_v['total_cuota']:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
-                    <span style='color:{col_q2}; font-weight:700;'>{flecha_q2} {var_q2:+.1f}% vs Q1</span>
-                    <span>PDVs: {n_pdvs}</span>
+                    <span>Meta Comercial Semestre</span>
+                    <b style='color:#0f172a;'>{kpis_v['pct_cumpl']:.1f}%</b>
                 </div>
             </div>
 
             <div class='kpi-card'>
                 <div class='kpi-top-row'>
-                    <div class='kpi-lbl'>Q3 SELL-OUT</div>
-                    <span class='kpi-pill-neutral'>Trimestre 3</span>
+                    <div class='kpi-lbl'>CIERRE ÚLTIMO MES ({ult_m_lbl})</div>
+                    <span class='kpi-pill-neutral'>{pct_cuota_ult:.1f}% Cuota</span>
                 </div>
-                <div class='kpi-num' style='margin:6px 0;'>${q3_tot:,.0f}</div>
+                <div class='kpi-num' style='margin:6px 0;'>${val_ult_m:,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid #f1f5f9; padding-top:6px;'>
-                    <span style='color:{col_q3}; font-weight:700;'>{flecha_q3} {var_q3:+.1f}% vs Q2</span>
-                    <span>PDVs: {n_pdvs}</span>
+                    <span style='color:{col_var_u}; font-weight:700;'>{flecha_u} {var_ult_pct:+.1f}% vs {prev_m_lbl or 'Ant.'}</span>
+                    <span>Cuota: ${cuota_ult_m:,.0f}</span>
                 </div>
             </div>
 
             <div class='kpi-card' style='background:linear-gradient(115deg, #001f44 0%, #002b5c 100%); color:#ffffff; border-color:#002b5c;'>
                 <div class='kpi-top-row'>
-                    <div class='kpi-lbl' style='color:#93c5fd;'>TOTAL SELL-OUT YTD</div>
+                    <div class='kpi-lbl' style='color:#93c5fd;'>BRECHA VS. CUOTA ({rango_lbl})</div>
                 </div>
-                <div class='kpi-num' style='color:#ffffff; margin:6px 0;'>${acum_tot:,.0f}</div>
+                <div class='kpi-num' style='color:#ffffff; margin:6px 0;'>${kpis_v['brecha_total']:+,.0f}</div>
                 <div class='kpi-sub' style='border-top:1px solid rgba(255,255,255,0.14); padding-top:6px; color:#cbd5e1;'>
                     <span>Cobertura Comercial:</span>
                     <b style='color:#38bdf8;'>▲ {n_pdvs} PDVs Activos</b>
@@ -2335,6 +2331,18 @@ elif st.session_state.modulo_activo == "EVOLUCION":
         """)
 
     if st.session_state.sub_evolucion == "SINCRONIA":
+        if meses_v:
+            with st.container(border=True):
+                st.markdown(f"<div class='subnav-label'>EVOLUCIÓN MENSUAL REAL VS. CUOTA ({rango_lbl} — {ev_ciu})</div>", unsafe_allow_html=True)
+                df_chart_m = pd.DataFrame(
+                    {
+                        "Venta Real ($)": [kpis_v["totales_mes"].get(m, 0.0) for m in meses_v],
+                        "Cuota ($)": [kpis_v["cuotas_mes"].get(m, 0.0) for m in meses_v],
+                    },
+                    index=meses_v,
+                )
+                st.bar_chart(df_chart_m, height=260)
+
         df_ev_rx = resumen_mercados(df_productos, df_panel, None if ev_ciu == "TODO MI PANEL" else ev_ciu, incluir_fuera_panel=False)
         if not df_ev_rx.empty:
             df_ev_tabla = df_ev_rx.copy()
@@ -2371,26 +2379,31 @@ elif st.session_state.modulo_activo == "EVOLUCION":
                 "Mercado YTD", "Gutis YTD", "Competencia YTD", "% MS YTD",
                 "Delta % MS (Mes vs YTD)", "Diagnóstico de Evolución",
             ]
-            show_table(df_ev_tabla[[c for c in cols_orden_ev if c in df_ev_tabla.columns]], 390)
+            show_table(df_ev_tabla[[c for c in cols_orden_ev if c in df_ev_tabla.columns]], 370)
 
         st.write("")
-        st.markdown(f"##### Top Farmacias Aliadas por Facturación Sell-Out en {ev_ciu}")
+        st.markdown(f"##### Top Farmacias Aliadas por Facturación Mensual y Cumplimiento ({rango_lbl} — {ev_ciu})")
         if not df_piv_ventas.empty:
-            df_top_f = (
-                df_piv_ventas.groupby("NOMBRE_CLIENTE_1", as_index=False)[["Q1", "Q2", "Q3", "Total Acumulado"]]
-                .sum()
-                .sort_values(by="Total Acumulado", ascending=False)
-            )
-            show_table(df_top_f, 320)
+            cols_sum_f = [c for c in meses_v + ["Real Semestre ($)", "Cuota Semestre ($)"] if c in df_piv_ventas.columns]
+            df_top_f = df_piv_ventas.groupby(["Departamento", "Sucursal / Farmacia"], as_index=False)[cols_sum_f].sum()
+            if "Cuota Semestre ($)" in df_top_f.columns:
+                df_top_f["% Cumpl."] = np.where(
+                    df_top_f["Cuota Semestre ($)"] > 0,
+                    (df_top_f["Real Semestre ($)"] / df_top_f["Cuota Semestre ($)"] * 100.0).round(1),
+                    0.0,
+                )
+                df_top_f["Brecha ($)"] = (df_top_f["Real Semestre ($)"] - df_top_f["Cuota Semestre ($)"]).round(2)
+            df_top_f = df_top_f.sort_values(by="Real Semestre ($)", ascending=False)
+            show_table(df_top_f, 340)
         else:
             st.info("Sin registros de Sell-Out para los filtros actuales.")
     else:
-        st.markdown(f"##### Auditoría Detallada por Sucursal Farmacéutica x Producto (Q1, Q2, Q3 — {ev_ciu})")
-        show_table(df_piv_ventas, 500)
+        st.markdown(f"##### Auditoría Detallada por Sucursal Farmacéutica x Producto ({rango_lbl} — {ev_ciu})")
+        show_table(df_piv_ventas, 520)
 
 
 # -----------------------------------------------------------------------------
-# MÓDULO 5: CONSOLA COGNITIVA CHIRA NEURAL ENGINE & BITÁCORA CRM SQLITE
+# MÓDULO 5: CONSOLA COGNITIVA CHIRA NEURAL ENGINE v3.0 & BITÁCORA CRM SQLITE
 # -----------------------------------------------------------------------------
 elif st.session_state.modulo_activo == "CHIRA":
     c_back, c_tit = st.columns([0.85, 3.15])
@@ -2401,14 +2414,14 @@ elif st.session_state.modulo_activo == "CHIRA":
     with c_tit:
         render_html("""
             <div class='module-banner notranslate' translate='no'>
-                <span>MÓDULO 5: CHIRA — COPILOTO COGNITIVO DE CAMPO & BITÁCORA CRM (SQLITE)</span>
-                <span style='font-size:0.68rem; background:rgba(16,185,129,0.25); color:#6ee7b7; padding:3px 8px; border-radius:4px;'>● NEURAL ENGINE CONECTADO</span>
+                <span>MÓDULO 5: CHIRA v3.0 — COPILOTO COLOQUIAL DE CAMPO, CUOTA & SELL-OUT MENSUAL</span>
+                <span style='font-size:0.68rem; background:rgba(16,185,129,0.25); color:#6ee7b7; padding:3px 8px; border-radius:4px;'>● 8 MOTORES TÁCTICOS ACTIVOS</span>
             </div>
             """)
 
     bch1, bch2 = st.columns(2)
     with bch1:
-        if st.button("1. Consola Copiloto CHIRA (Voz y Consultoría Táctica)", width="stretch", type="primary" if st.session_state.sub_chira == "COPILOTO" else "secondary"):
+        if st.button("1. Consola Copiloto CHIRA (Lenguaje Natural, Voz y Auditoría)", width="stretch", type="primary" if st.session_state.sub_chira == "COPILOTO" else "secondary"):
             st.session_state.sub_chira = "COPILOTO"
             st.rerun()
     with bch2:
@@ -2425,12 +2438,12 @@ elif st.session_state.modulo_activo == "CHIRA":
             <div class='chira-neural-hero notranslate' translate='no'>
                 <div style='display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;'>
                     <div style='flex: 1 1 380px;'>
-                        <span class='chira-neural-badge'>● CHIRA NEURAL ENGINE · CONTEXTO CLOSE-UP AUDITADO ACTIVO</span>
+                        <span class='chira-neural-badge'>● CHIRA NEURAL ENGINE v3.0 · CLOSE-UP + SELL-OUT MENSUAL 6M</span>
                         <div style='font-size:1.35rem; font-weight:800; color:#ffffff; margin-bottom:6px;'>
-                            Copiloto Táctico Farmacéutico & Síntesis Competitiva <span style='color:#38bdf8; font-size:0.88rem;'>✦ Enterprise AI</span>
+                            Copiloto Táctico Coloquial & Inteligencia de Cuota <span style='color:#38bdf8; font-size:0.88rem;'>✦ Enterprise AI</span>
                         </div>
                         <div style='font-size:0.8rem; color:#cbd5e1; line-height:1.45;'>
-                            Asistente analítico conectado en vivo con tus bases Close-Up, auditoría TVP y Sell-Out trimestral para el diseño de guiones, enfoque diferencial y superación de objeciones.
+                            Háblale natural por voz o texto: detecta médicos con caída, responde objeciones en vivo, calcula subida y techo de cuota, prioriza sucursales y cruza recetas contra venta mensual.
                         </div>
                     </div>
                     <div class='chira-mem-grid' style='flex: 1 1 420px; margin-top:0;'>
@@ -2445,9 +2458,9 @@ elif st.session_state.modulo_activo == "CHIRA":
                             <div class='chira-mem-sub'>Gutis actual: {dp_global.get('% MS Mes', 0.0):.1f}% MS</div>
                         </div>
                         <div class='chira-mem-box'>
-                            <div class='chira-mem-lbl'>CORTE CLOSE-UP</div>
-                            <div class='chira-mem-val'>Motor Sincronizado</div>
-                            <div class='chira-mem-sub'>{corte_nombre[:22]}</div>
+                            <div class='chira-mem-lbl'>BASE SELL-OUT</div>
+                            <div class='chira-mem-val'>{bundle.archivos.get('Ventas Mensual', 'Trimestral')[:22]}</div>
+                            <div class='chira-mem-sub'>Real vs. Cuota Activo</div>
                         </div>
                         <div class='chira-mem-box'>
                             <div class='chira-mem-lbl'>SELL-OUT ZONAL</div>
@@ -2461,52 +2474,63 @@ elif st.session_state.modulo_activo == "CHIRA":
 
         render_html("""
             <div class='notranslate' translate='no' style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
-                <div class='subnav-label' style='color:#002b5c; margin-bottom:0;'>★ DISPARADORES COGNITIVOS RÁPIDOS (ONE-CLICK PROMPTS)</div>
-                <span style='font-size:0.7rem; color:#64748b; font-weight:600;'>Respuestas validadas con auditoría de mercado</span>
+                <div class='subnav-label' style='color:#002b5c; margin-bottom:0;'>★ DISPARADORES TÁCTICOS Y ANALÍTICOS RÁPIDOS (ONE-CLICK PROMPTS)</div>
+                <span style='font-size:0.7rem; color:#64748b; font-weight:600;'>Traductor coloquial + cálculo local sin alucinaciones</span>
             </div>
             """)
 
         quick_prompt = None
         q_b1, q_b2, q_b3, q_b4 = st.columns(4)
         with q_b1:
-            render_html(f"""
+            render_html("""
                 <div class='chira-prompt-card notranslate' translate='no'>
-                    <div class='chira-prompt-title'>✦ Expediente & Guion TVP</div>
-                    <div class='chira-prompt-desc'>«Genera el argumento táctico de valor clínico y puente para {medico_sel[:18]}...»</div>
+                    <div class='chira-prompt-title'>✦ Alerta Caída de Recetas</div>
+                    <div class='chira-prompt-desc'>«¿Qué médicos se me están enfriando o bajaron recetas en Biotos este mes?»</div>
                 </div>
                 """)
-            if st.button("Inyectar en prompt  →", key="ch_p1", width="stretch"):
-                quick_prompt = f"Analiza el expediente completo y dame el guion TVP para {medico_sel}"
+            if st.button("Detectar Caídas Biotos →", key="ch_p1", width="stretch"):
+                quick_prompt = "Dime qué médicos muestran tendencia de caída o se me están enfriando en Biotos este mes"
 
         with q_b2:
-            render_html(f"""
+            render_html("""
                 <div class='chira-prompt-card notranslate' translate='no'>
-                    <div class='chira-prompt-title'>✦ Diagnóstico de Dilución</div>
-                    <div class='chira-prompt-desc'>«¿Por qué {medico_sel[:16]} mantiene {dp_global.get('Comp Mes', 0)} recetas con la competencia y cómo lo abordo?»</div>
+                    <div class='chira-prompt-title'>✦ Cuota & Techo de Crecimiento</div>
+                    <div class='chira-prompt-desc'>«¿En qué productos subió la cuota y cuáles pueden subir más aún?»</div>
                 </div>
                 """)
-            if st.button("Auditar Close-Up  →", key="ch_p2", width="stretch"):
-                quick_prompt = f"¿Por qué {medico_sel} comparte o diluye recetas con la competencia y cómo lo abordo?"
+            if st.button("Auditar Cuota & Potencial →", key="ch_p2", width="stretch"):
+                quick_prompt = "¿En qué productos subió la cuota este mes?"
 
         with q_b3:
             render_html(f"""
                 <div class='chira-prompt-card notranslate' translate='no'>
-                    <div class='chira-prompt-title'>✦ Estrategia de Flanqueo</div>
-                    <div class='chira-prompt-desc'>«Identifica el nicho clínico sin fricción para diferenciar frente al rival líder en {medico_sel[:16]}...»</div>
+                    <div class='chira-prompt-title'>✦ Abordaje a Sucursales</div>
+                    <div class='chira-prompt-desc'>«¿Qué farmacias debo abordar en {ciudad} y con qué productos exactos?»</div>
                 </div>
                 """)
-            if st.button("Enfoque Clínico  →", key="ch_p3", width="stretch"):
-                quick_prompt = f"{medico_sel} está casado o fidelizado con la competencia, dame estrategia de flanqueo"
+            if st.button(f"Priorizar PDVs {ciudad[:10]} →", key="ch_p3", width="stretch"):
+                quick_prompt = f"¿Qué sucursales debería ir a abordar en {ciudad} y con qué productos?"
 
         with q_b4:
             render_html("""
                 <div class='chira-prompt-card notranslate' translate='no'>
-                    <div class='chira-prompt-title'>✦ Educación Médica (Apoyo)</div>
-                    <div class='chira-prompt-desc'>«¿Cómo respondo éticamente si me pide apoyo para un congreso a cambio de recetas?»</div>
+                    <div class='chira-prompt-title'>✦ Cruce Rx vs. Venta Mensual</div>
+                    <div class='chira-prompt-desc'>«¿Qué departamento subió o bajó en Mometzona y cómo va su venta real?»</div>
                 </div>
                 """)
-            if st.button("Compliance  →", key="ch_p4", width="stretch"):
-                quick_prompt = f"{medico_sel} me pide apoyo o patrocinio a cambio de recetas, ¿cómo negocio éticamente?"
+            if st.button("Cruzar Rx vs. Venta →", key="ch_p4", width="stretch"):
+                quick_prompt = "¿Qué departamento presentó incremento o disminución en Mometzona y analízalo contra la venta?"
+
+        q_extra1, q_extra2, q_extra3 = st.columns(3)
+        with q_extra1:
+            if st.button("✦ Objeción: «Biotos es muy caro»", key="ch_px1", width="stretch"):
+                quick_prompt = "¿Qué hacer cuando me dicen que Biotos es muy caro?"
+        with q_extra2:
+            if st.button("✦ ¿Qué productos pueden subir más?", key="ch_px2", width="stretch"):
+                quick_prompt = "¿Qué productos consideras que tienen más potencial para subir más aún?"
+        with q_extra3:
+            if st.button(f"✦ Expediente & Guion: {medico_sel[:18]}", key="ch_px3", width="stretch"):
+                quick_prompt = f"Analiza el expediente completo y dame el guion TVP para {medico_sel}"
 
         with st.container(border=True):
             v_col1, v_col2 = st.columns([1.8, 1.2])
@@ -2514,7 +2538,7 @@ elif st.session_state.modulo_activo == "CHIRA":
             with v_col1:
                 widget_audio = getattr(st, "audio_input", None)
                 if widget_audio is not None:
-                    audio_grabado = widget_audio("🎙️ Captura de Consulta por Voz a CHIRA (Transcripción en vivo con IA):")
+                    audio_grabado = widget_audio("🎙️ Consulta Coloquial por Voz a CHIRA (Transcripción en vivo con IA):")
                     if audio_grabado is not None:
                         bytes_a = audio_grabado.getvalue()
                         hash_a = hashlib.md5(bytes_a).hexdigest()
@@ -2527,9 +2551,9 @@ elif st.session_state.modulo_activo == "CHIRA":
                                 else:
                                     st.warning("No se pudo transcribir el audio. Vuelve a intentarlo.")
                             else:
-                                st.warning("Configura GEMINI_API_KEY en tu entorno para transcribir notas de voz.")
+                                st.warning("Configura GEMINI_API_KEY en tus Secrets de Streamlit para transcribir voz.")
             with v_col2:
-                st.caption("CHIRA calcula las métricas con exactitud local sobre tus Excels Close-Up.")
+                st.caption("CHIRA traduce tu lenguaje natural y calcula las cifras directamente sobre Close-Up y datos 2026.xlsx.")
                 allow_gemini = st.checkbox(
                     "Potenciar redacción estratégica con Gemini AI",
                     value=bool(obtener_api_key()),
@@ -2551,15 +2575,16 @@ elif st.session_state.modulo_activo == "CHIRA":
                     </div>
                     """)
             else:
-                render_html("""
+                motor_lbl = html.escape(msg.get("motor", "Auditoría Close-Up Verificada"))
+                render_html(f"""
                     <div class='notranslate' translate='no' style='background:#ffffff; border:1px solid #cbd5e1; border-left:5px solid #0284c7; border-radius:10px; padding:12px 16px; margin-top:10px;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
                             <div style='display:flex; align-items:center; gap:8px;'>
                                 <span style='background:#002b5c; color:#38bdf8; width:26px; height:26px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-weight:800;'>✦</span>
                                 <span style='font-size:0.82rem; font-weight:800; color:#0f172a;'>CHIRA AI Strategic Advisor</span>
-                                <span style='background:#e0f2fe; color:#0369a1; font-size:0.66rem; font-weight:800; padding:2px 8px; border-radius:999px;'>Recomendación Táctica</span>
+                                <span style='background:#e0f2fe; color:#0369a1; font-size:0.66rem; font-weight:800; padding:2px 8px; border-radius:999px;'>{motor_lbl}</span>
                             </div>
-                            <span style='font-size:0.68rem; color:#64748b; font-weight:700;'>Auditoría Close-Up Verificada</span>
+                            <span style='font-size:0.68rem; color:#64748b; font-weight:700;'>Datos Close-Up & Sell-Out Verificados</span>
                         </div>
                     </div>
                     """)
@@ -2567,68 +2592,57 @@ elif st.session_state.modulo_activo == "CHIRA":
                     st.markdown(msg["content"])
                     render_html(f"""
                         <div class='notranslate' translate='no' style='border-top:1px solid #e2e8f0; padding-top:10px; margin-top:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.74rem;'>
-                            <div><span style='color:#64748b; font-weight:700;'>VOLUMEN EN DISPUTA:</span> <b style='color:#0f172a;'>{dp_global.get('Comp Mes', 0)} Rx / mes ({dp_global.get('Comp YTD', 0)} YTD)</b></div>
-                            <div><span style='color:#64748b; font-weight:700;'>CUOTA ACTUAL GUTIS:</span> <b style='color:#059669;'>{dp_global.get('% MS Mes', 0.0):.1f}% MS Mes</b></div>
-                            <div><span style='color:#64748b; font-weight:700;'>RESPALDO EN FARMACIAS ({ciudad}):</span> <b style='color:#0284c7;'>{sell_z_chira['top_farmacias'][:42]}</b></div>
+                            <div><span style='color:#64748b; font-weight:700;'>MÉDICO EN FOCO:</span> <b style='color:#0f172a;'>{medico_sel[:26]} ({dp_global.get('% MS Mes', 0.0):.1f}% MS)</b></div>
+                            <div><span style='color:#64748b; font-weight:700;'>SELL-OUT {ciudad}:</span> <b style='color:#059669;'>${sell_z_chira['total']:,.2f}</b></div>
+                            <div><span style='color:#64748b; font-weight:700;'>FARMACIAS LÍDERES:</span> <b style='color:#0284c7;'>{sell_z_chira['top_farmacias'][:42]}</b></div>
                         </div>
                         """)
 
-        pregunta_chat = st.chat_input("Pregunta a CHIRA (ej: 'prepara objeción de costo para Conflexil' o 'analiza Biotos en Masaya')...")
+        pregunta_chat = st.chat_input("Pregúntale natural a CHIRA (ej: 'quién se me está enfriando en Biotos', 'qué farmacias abordo hoy en Masaya', 'me dicen que Biotos es muy caro')...")
         consulta_final = quick_prompt or texto_voz or pregunta_chat
 
         if consulta_final:
             st.session_state.chira_history.append({"role": "user", "content": consulta_final})
-            q_norm = normalizar_txt(consulta_final)
 
             todos_medicos = (
                 sorted(set(meds_panel_default) | set(df_productos["Médico"].dropna().unique().tolist()))
                 if not df_productos.empty
                 else meds_panel_default
             )
-            medico_detectado = next((d for d in todos_medicos if normalizar_txt(d) in q_norm), None)
-            if not medico_detectado and any(
-                k in q_norm
-                for k in ["MEDICO EN FOCO", "ESTE MEDICO", "ESTA DOCTORA", "ESTE DOCTOR", "DILUYE", "COMPARTE", "CASADO", "FIDELIZADO", "PATROCINIO", "CONGRESO", "EXPEDIENTE", "GUION"]
-            ):
-                medico_detectado = medico_sel
 
-            if medico_detectado:
-                respuesta_local = generar_consultoria_cognitiva_chira_medico(bundle, medico_detectado, consulta_final)
-            else:
-                ciu_detectada = next((c for c in LISTA_CIUDADES_REALES if normalizar_txt(c) in q_norm), None)
-                mer_detectado = resolver_clave_mercado_gutis(consulta_final, consulta_final)
-                df_rk_chira = ranking_medicos(
-                    df_productos,
-                    df_panel,
-                    ciudad=ciu_detectada,
-                    mercado=mer_detectado,
-                    modo_panel="PANEL" if alcance_sb.startswith("SOLO") else "TODOS",
-                )
-                if not df_rk_chira.empty:
-                    respuesta_local = generar_analisis_mercado_chira_rico(df_rk_chira, mer_detectado, ciu_detectada)
-                else:
-                    respuesta_local = generar_consultoria_cognitiva_chira_medico(bundle, medico_sel, consulta_final)
+            respuesta_local, motor_usado = enrutar_consulta_chira(
+                bundle=bundle,
+                consulta_final=consulta_final,
+                medico_sel=medico_sel,
+                especialidad_sel=especialidad,
+                ciudad_sel=ciudad,
+                alcance_sb=alcance_sb,
+                lista_ciudades=LISTA_CIUDADES_REALES,
+                lista_medicos_busqueda=todos_medicos,
+            )
 
             respuesta_final = respuesta_local
             if allow_gemini and obtener_api_key():
-                with st.spinner("CHIRA Neural Engine está sintetizando la estrategia con Gemini AI..."):
+                with st.spinner(f"CHIRA ({motor_usado}) está sintetizando tu plan táctico con Gemini AI..."):
+                    es_playbook = "Objeciones" in motor_usado
                     prompt_chira = (
-                        f"Consulta del Visitador Médico (Erick Calderón): {consulta_final}\n\n"
-                        f"Expediente y datos exactos calculados por el motor Close-Up de Gutis BI (NO alteres porcentajes, recetas ni montos):\n"
+                        f"Eres CHIRA, copiloto estratégico de Erick Calderón (Visitador Médico de Laboratorio Gutis en Nicaragua). "
+                        f"Habla con tono directo, cercano, profesional y práctico de calle.\n\n"
+                        f"Consulta del visitador: «{consulta_final}»\n"
+                        f"Motor activado: {motor_usado}\n\n"
+                        f"Datos exactos verificados por Python (PROHIBIDO alterar porcentajes, montos $, cuotas o cantidades de recetas):\n"
                         f"{respuesta_local}\n\n"
-                        f"Con base únicamente en estos datos reales, entrega una respuesta ejecutiva, clara, ética y accionable "
-                        f"con recomendaciones tácticas TVP listas para aplicar hoy en consultorio y farmacia."
+                        f"Instrucción: Conserva intactas las tablas y cifras clave anteriores y agrega una lectura ejecutiva ultra-práctica "
+                        f"(máximo 3 a 5 bullets accionables) para ejecutar hoy mismo en consultorio y farmacia."
                     )
                     mejora_ia = llamar_gemini(prompt_chira, max_tok=2500)
-                    if mejora_ia and respuesta_ia_conserva_cifras(mejora_ia, respuesta_local):
-                        respuesta_final = mejora_ia
-                    elif mejora_ia:
-                        respuesta_final = (
-                            respuesta_local
-                            + "\n\n> ⚠️ La redacción de IA se descartó porque contenía métricas (%, Pxs o $) que no coinciden con la auditoría Close-Up."
-                        )
+                    if mejora_ia:
+                        if es_playbook or respuesta_ia_conserva_cifras(mejora_ia, respuesta_local):
+                            respuesta_final = mejora_ia
+                        else:
+                            respuesta_final = respuesta_local
 
-            st.session_state.chira_history.append({"role": "assistant", "content": respuesta_final})
+            st.session_state.chira_history.append({"role": "assistant", "content": respuesta_final, "motor": motor_usado})
             st.rerun()
 
     elif st.session_state.sub_chira == "CRM":
@@ -2694,11 +2708,12 @@ elif st.session_state.modulo_activo == "CHIRA":
 render_html(f"""
     <div class='stitch-nav-header notranslate' translate='no' style='margin-top:26px; background:#ffffff; color:#64748b; font-size:0.73rem;'>
         <div>
-            Fuente: <b>Base Close-Up Audit ({corte_nombre})</b> · Registros activos: <b>{kpi_hub['medicos_panel']} médicos en panel</b> ·
+            Fuente: <b>Close-Up ({corte_nombre}) &amp; Sell-Out ({bundle.archivos.get('Ventas Mensual', 'Trimestral')})</b> ·
+            Registros activos: <b>{kpi_hub['medicos_panel']} médicos en panel</b> ·
             <span style='color:#059669; font-weight:700;'>● Sincronizado con SQLite Local</span>
         </div>
         <div style='font-weight:800; color:#002b5c;'>
-            GUTIS BI v2.5 · Arquitectura TVP · Erick Calderón © 2026
+            GUTIS BI v3.0 · Arquitectura TVP · Erick Calderón © 2026
         </div>
     </div>
     """)
