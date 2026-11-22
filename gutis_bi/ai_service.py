@@ -56,10 +56,7 @@ def llamar_gemini(prompt_text: str, max_tok: int = 2500, temperatura: float = 0.
                     text = cands[0]["content"]["parts"][0].get("text", "").strip()
                     if len(text) > 30:
                         return text
-            else:
-                print(f"Error de Gemini ({mod}): {res.status_code} - {res.text}")
-        except Exception as e:
-            print(f"Excepción al llamar a Gemini ({mod}): {e}")
+        except Exception:
             continue
     return None
 
@@ -114,18 +111,22 @@ def clasificar_intencion_coloquial(
     claves_mercado_validas: list[str],
     medicos_validos: list[str],
 ) -> dict[str, Any]:
-    """
-    Traduce lenguaje coloquial de campo a una intención estructurada
-    para el motor analítico de Python.
-    """
     q_up = (consulta or "").upper()
 
     def _fallback_local() -> dict[str, Any]:
         intencion = "AUDITORIA_MERCADO"
+        tiene_sucursal = any(w in q_up for w in ["SUCURSAL", "FARMACIA", "PDV", "CLIENTE", "PUNTO DE VENTA"])
+        tiene_crecimiento = any(w in q_up for w in ["CRECI", "SUBIERON", "SUBIO", "AUMENT", "MEJOR", "TOP", "MAS VENDEN", "IMPULSO"])
+        tiene_caida = any(w in q_up for w in ["CAIDA", "CAYO", "CAYERON", "BAJANDO", "BAJARON", "BAJO", "ENFRIANDO", "DURMIENDO", "DEJARON DE RECETAR", "PERDIENDO", "DISMINUCION", "DISMINUYO", "FUGA"])
+
         if any(w in q_up for w in ["CARO", "PRECIO", "COSTO", "ECONOM", "BARATO", "OBJECION", "QUE HACER", "COMO LE DIGO", "COMO RESPONDO", "COMO ARGUMENTO", "BATEO", "CARIÑOSO", "CARINOSO", "ARDOR", "ARDE", "SABOR", "SUEÑO", "SOMNOLENCIA", "GENERICO"]):
             intencion = "OBJECION"
-        elif any(w in q_up for w in ["CAIDA", "CAYO", "BAJANDO", "BAJO", "ENFRIANDO", "DURMIENDO", "DEJARON DE RECETAR", "PERDIENDO", "DISMINUCION", "DISMINUYO", "FUGA"]):
-            if any(w in q_up for w in ["DEPARTAMENTO", "VENTA", "SELL", "FARMACIA", "RUTA", "CIUDAD", "INCREMENTO O DISMINUCION"]):
+        elif tiene_sucursal and (tiene_crecimiento or tiene_caida):
+            intencion = "SUCURSALES_EVOLUCION"
+        elif tiene_sucursal:
+            intencion = "SUCURSALES_ABORDAJE"
+        elif tiene_caida:
+            if any(w in q_up for w in ["DEPARTAMENTO", "VENTA", "SELL", "RUTA", "INCREMENTO O DISMINUCION"]):
                 intencion = "CRUCE_RX_VENTA"
             else:
                 intencion = "CAIDA_RX"
@@ -133,8 +134,6 @@ def clasificar_intencion_coloquial(
             intencion = "SUBIDA_CUOTA"
         elif any(w in q_up for w in ["PUEDEN SUBIR", "POTENCIAL", "CARNITA", "JUGO", "MAS MARGEN", "CRECER MAS", "OPORTUNIDAD"]):
             intencion = "POTENCIAL_EXPANSION"
-        elif any(w in q_up for w in ["SUCURSAL", "FARMACIA", "MOSTRADOR", "PDV", "SURTIDO", "ABORDA", "CAIGO HOY", "QUEDAN DEBIENDO", "CUOTA DE VENTA"]):
-            intencion = "SUCURSALES_ABORDAJE"
         elif any(w in q_up for w in ["VS VENTA", "CONTRA LA VENTA", "SELL OUT", "SELL-OUT", "DEPARTAMENTO PRESENTO", "CAMBIANDO LA RECETA"]):
             intencion = "CRUCE_RX_VENTA"
         elif any(w in q_up for w in ["EXPEDIENTE", "GUION", "DILUYE", "COMPARTE", "CASADO", "FIDELIZADO", "CONGRESO", "PATROCINIO"]):
@@ -153,6 +152,7 @@ def clasificar_intencion_coloquial(
         "CAIDA_RX",
         "SUBIDA_CUOTA",
         "POTENCIAL_EXPANSION",
+        "SUCURSALES_EVOLUCION",
         "SUCURSALES_ABORDAJE",
         "CRUCE_RX_VENTA",
         "EXPEDIENTE_MEDICO",
@@ -163,11 +163,12 @@ def clasificar_intencion_coloquial(
 Eres el enrutador semántico de un Visitador Médico en Nicaragua. Traduce la consulta coloquial a un JSON estricto.
 
 Intenciones válidas (elige UNA):
-- "OBJECION": preguntas sobre qué decir o hacer ante objeciones del médico/farmacia (precio caro, genéricos, sabor, ardor nasal, sueño, "casado con otra marca", pedidos de patrocinio/congreso, falta de tiempo).
-- "CAIDA_RX": preguntas sobre médicos que vienen bajando recetas, "se están enfriando", "se están durmiendo" o muestran tendencia de caída en un producto.
+- "OBJECION": preguntas sobre qué decir o hacer ante objeciones del médico/farmacia (precio caro, genéricos, sabor, ardor nasal, sueño, "casado con otra marca", pedidos de patrocinio/congreso).
+- "SUCURSALES_EVOLUCION": preguntas sobre qué sucursales o farmacias han CRECIDO, subido, bajado o vendido más en un producto o en general durante los últimos meses.
+- "SUCURSALES_ABORDAJE": preguntas sobre qué sucursales/farmacias ir a abordar hoy, cuáles tienen déficit de cuota o con qué productos entrar en mostrador.
+- "CAIDA_RX": preguntas sobre MÉDICOS que vienen bajando recetas, "se están enfriando" o muestran tendencia de caída en un producto.
 - "SUBIDA_CUOTA": preguntas sobre en qué productos subió la cuota (% MS o % Real), dónde va ganando terreno o "volando".
-- "POTENCIAL_EXPANSION": preguntas sobre qué productos pueden subir más aún, "tienen más carnita/jugo" o tienen mayor potencial de crecimiento.
-- "SUCURSALES_ABORDAJE": preguntas sobre qué sucursales/farmacias abordar, cuáles van bajas vs cuota o con qué productos entrar en mostrador.
+- "POTENCIAL_EXPANSION": preguntas sobre qué productos pueden subir más aún, "tienen más carnita/jugo" o mayor potencial de crecimiento.
 - "CRUCE_RX_VENTA": preguntas que comparan recetas médicas / departamentos (incremento o disminución) contra la venta real / Sell-Out en farmacias.
 - "EXPEDIENTE_MEDICO": preguntas centradas en un médico específico (su guion TVP, expediente, por qué comparte recetas o cómo abordarlo).
 - "AUDITORIA_MERCADO": ranking general de médicos por producto o ciudad.
@@ -179,7 +180,7 @@ Consulta del visitador: "{consulta}"
 
 Devuelve ÚNICAMENTE un JSON con estas 4 llaves:
 {{
-  "intencion": "UNA_DE_LAS_8",
+  "intencion": "UNA_DE_LAS_9",
   "clave_mercado": "CLAVE_EXACTA_O_VACIO",
   "ciudad": "CIUDAD_EXACTA_O_VACIO",
   "medico": "NOMBRE_MEDICO_SI_LO_MENCIONA_O_VACIO"
@@ -227,10 +228,6 @@ def generar_respuesta_objecion_tactica(
     ciudad: str = "",
     farmacias_str: str = "",
 ) -> str:
-    """
-    Genera una respuesta táctica estructurada para manejo de objeciones usando
-    los datos reales del vademécum Gutis.
-    """
     prod = meta_prod.get("producto", clave_mercado)
     clase = meta_prod.get("clase_terapeutica", "")
     caract = meta_prod.get("caracteristica", "")
