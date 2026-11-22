@@ -1,21 +1,25 @@
 """
-Motor Cognitivo y Analítico Avanzado CHIRA v3.0 para Gutis BI.
-Conecta Close-Up (Rx y Auditoría) con Sell-Out Mensual 6 Meses (Real vs. Cuota)
-y traduce preguntas coloquiales a 8 motores tácticos sin alucinaciones numéricas.
+Motor Cognitivo y Analítico Todo-en-Uno CHIRA v4.0 para Gutis BI.
+Autocontenido (sin riesgo de desincronización con ai_service.py).
+Cubre:
+  - 15 objeciones reales de campo (precio, genérico, hábito, sabor/pediatría, somnolencia,
+    ardor nasal, irritación gástrica, posología, estudios, quiebre de stock, cambio en
+    mostrador, sin tiempo/30 seg, solo pide muestras y compliance/congreso).
+  - Comparativas técnicas (Vs.), consultas clínicas rápidas y redacción de WhatsApp.
+  - 6 motores de datos exactos: Evolución de Sucursales (6 meses), Abordaje de Sucursales,
+    Caída de Recetas, Subida de Cuota, Potencial de Expansión y Cruce Rx vs. Venta Mensual.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from gutis_bi.ai_service import (
-    clasificar_intencion_coloquial,
-    generar_respuesta_objecion_tactica,
-)
+from gutis_bi.ai_service import llamar_gemini, obtener_api_key
 from gutis_bi.analytics import (
     df_a_markdown_nativo,
     formatear_nombre_medico,
@@ -28,7 +32,6 @@ from gutis_bi.analytics import (
 from gutis_bi.catalog import MERCADOS_PRIORITARIOS
 from gutis_bi.data import normalizar_txt, resolver_clave_mercado_gutis
 
-# Mapeo bidireccional entre VM4 de datos 2026.xlsx y claves de MERCADOS_PRIORITARIOS
 ALIAS_VENTA_A_TOKENS = {
     "BIOTOS": ["BIOTOS"],
     "TALERDIN": ["TALERDIN"],
@@ -67,7 +70,6 @@ def _match_producto_venta(df_v: pd.DataFrame, clave_mercado: Optional[str]) -> p
     objetivo = normalizar_txt(f"{clave_mercado} {meta.get('producto', '')}")
     pv_norm = df_v["PRODUCTO_VENTA"].apply(normalizar_txt)
 
-    # Buscar coincidencia por raíz del producto
     tokens_match = []
     for vm4_key, aliases in ALIAS_VENTA_A_TOKENS.items():
         if vm4_key in objetivo or any(a in objetivo for a in aliases):
@@ -89,30 +91,30 @@ def _clave_desde_vm4(vm4_str: str) -> Optional[str]:
 
 
 def _orden_meses_ventas(df_v: pd.DataFrame) -> List[str]:
-    if df_v.empty or "Mes_Label" not in df_v.columns:
+    if df_v.empty:
         return []
-    if "Mes_Orden" in df_v.columns:
-        return (
-            df_v[["Mes_Orden", "Mes_Label"]]
-            .drop_duplicates()
-            .sort_values("Mes_Orden")["Mes_Label"]
-            .tolist()
-        )
-    return df_v["Mes_Label"].dropna().unique().tolist()
+    if "Mes_Label" in df_v.columns:
+        if "Mes_Orden" in df_v.columns:
+            return (
+                df_v[["Mes_Orden", "Mes_Label"]]
+                .drop_duplicates()
+                .sort_values("Mes_Orden")["Mes_Label"]
+                .tolist()
+            )
+        return df_v["Mes_Label"].dropna().unique().tolist()
+    if "Trimestre" in df_v.columns:
+        return sorted(df_v["Trimestre"].dropna().unique().tolist())
+    return []
 
 
 # ============================================================================
-# 1. TABLA MENSUAL DE 6 MESES + REAL VS CUOTA (Para Módulo 4 Evolución y CHIRA)
+# 1. TABLA MENSUAL DE 6 MESES + REAL VS CUOTA (Módulo 4 Evolución)
 # ============================================================================
 def ventas_mensuales_resumen(
     df_ventas: pd.DataFrame,
     ciudad: Optional[str] = None,
     producto: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Construye la tabla pivote mensual (May 26 -> Oct 26) por Sucursal y Producto,
-    con Real Semestre, Cuota Semestre, % Cumplimiento, Brecha ($) y tendencia.
-    """
     kpis = {
         "meses": [],
         "totales_mes": {},
@@ -127,6 +129,8 @@ def ventas_mensuales_resumen(
         return pd.DataFrame(), kpis
 
     sub = df_ventas.copy()
+    if "Mes_Label" not in sub.columns and "Trimestre" in sub.columns:
+        sub["Mes_Label"] = sub["Trimestre"]
     sub["DEPTO_CANON"] = sub["DESCRIPCION_RUTA"].apply(canonizar_departamento)
     if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
         ciu_canon = canonizar_departamento(ciudad)
@@ -208,7 +212,328 @@ def ventas_mensuales_resumen(
 
 
 # ============================================================================
-# 2. MOTOR: MÉDICOS CON TENDENCIA DE CAÍDA EN RECETAS (CAIDA_RX)
+# 2. PLAYBOOK COMPLETO DE LAS 15 OBJECIONES REALES + COMPARATIVAS + WHATSAPP
+# ============================================================================
+def construir_playbook_objecion(
+    consulta: str,
+    clave_mercado: str,
+    medico_foco: str,
+    especialidad: str,
+    ciudad: str,
+    farmacias_str: str,
+) -> str:
+    meta = MERCADOS_PRIORITARIOS.get(clave_mercado, next(iter(MERCADOS_PRIORITARIOS.values())))
+    prod = meta.get("producto", clave_mercado)
+    clase = meta.get("clase_terapeutica", "")
+    caract = meta.get("caracteristica", "")
+    benef = meta.get("beneficio", "")
+    arg_fin = meta.get("arg_finanzas", "")
+    arg_img = meta.get("arg_imagen", "")
+    nicho = meta.get("nicho_flanqueo", "")
+    love = meta.get("love_brand", "")
+    farm = farmacias_str or "las farmacias aliadas de la zona"
+    doc_corto = formatear_nombre_medico(medico_foco) if medico_foco else "Doctor(a)"
+
+    q = normalizar_txt(consulta)
+
+    # Identificar cuál de las 15 objeciones reales es
+    if any(w in q for w in ["GENERICO", "MISMA MOLECULA", "COPIA", "IGUAL DE BARATO"]):
+        tipo = "Objeción de Genérico («El genérico cuesta la mitad y trae la misma molécula»)"
+        verbal = (
+            f"«Tiene razón en que el principio activo es el mismo, {doc_corto}. Donde se define el éxito "
+            f"en consulta es en la **pureza farmacéutica, excipientes y biodisponibilidad**: **{prod}** "
+            f"({caract}) asegura respuesta predecible desde las primeras tomas, evitando recaídas o "
+            f"reconsultas que terminan saliendo más caras que el ahorro inicial del genérico.»"
+        )
+        cierre = f"Póngalo a prueba en sus próximos **3 pacientes donde el genérico haya tenido respuesta lenta**."
+    elif any(w in q for w in ["CARO", "PRECIO", "COSTO", "ECONOM", "BARATO", "CARINOSO", "BOLSILLO", "SEGURO"]):
+        tipo = "Objeción de Precio / Bolsillo («Es muy caro para mis pacientes»)"
+        verbal = (
+            f"«Comprendo perfectamente su cuidado por el bolsillo del paciente, {doc_corto}. Cuando "
+            f"evaluamos **costo por tratamiento efectivo** y no solo el precio de caja, **{prod}** "
+            f"({caract}) permite que **{arg_fin}**, evitando que el paciente compre doble frasco o abandone a mitad.»"
+        )
+        cierre = f"Resérvelo inicialmente para ese perfil de **{nicho}** donde fallar el tratamiento sale más costoso."
+    elif any(w in q for w in ["CASADO", "FIDELIZADO", "NO SUELTA", "FUNCIONA BIEN", "NO SE QUEJAN", "NO ESTA ROTO", "INNOVADOR", "MAS ANOS", "SIEMPRE USO", "RIVAL"]):
+        tipo = "Objeción de Hábito / Fidelidad al Rival («Ya estoy casado con otra marca y me funciona»)"
+        verbal = (
+            f"«Respeto totalmente su experiencia clínica, {doc_corto}, y no vengo a pedirle que cambie "
+            f"lo que ya le funciona en su paciente habitual. Solo quiero hacerle una pregunta puntual: "
+            f"cuando recibe a ese subgrupo específico de **{nicho}**, ¿qué busca optimizar? Justo para ese "
+            f"nicho, **{prod}** aporta **{caract}**.»"
+        )
+        cierre = f"No cambie su esquema general: pruebe **{prod}** únicamente en **3 casos de rescate** de ese perfil."
+    elif any(w in q for w in ["SABOR", "VOMIT", "RECHAZ", "NINOS", "PEDIATR", "JARABE"]):
+        tipo = "Objeción Pediátrica / Palatabilidad («Los niños rechazan el sabor o lo vomitan»)"
+        verbal = (
+            f"«En pediatría la mitad del éxito es que el niño se tome la dosis sin pelea, {doc_corto}. "
+            f"**{prod}** fue formulado pensando en palatabilidad y tolerabilidad ({caract}), logrando "
+            f"que **{benef}** y mejorando la tranquilidad de los padres.»"
+        )
+        cierre = f"Indíquelo en sus próximos **3 pacientes pediátricos** donde el rechazo al jarabe sea un reto."
+    elif any(w in q for w in ["SUENO", "SOMNOLENCIA", "DORMIDO", "SEDA"]):
+        tipo = "Objeción de Tolerabilidad («Causa sueño / somnolencia»)"
+        verbal = (
+            f"«Justamente ese es el diferencial clave para el paciente activo, {doc_corto}: **{prod}** "
+            f"({caract}) está diseñado para mantener control sintomático sin comprometer el desempeño "
+            f"diario ni escolar, logrando que **{arg_img}**.»"
+        )
+        cierre = f"Pruébelo esta semana en pacientes que manejan, estudian o trabajan y no pueden permitirse sedación."
+    elif any(w in q for w in ["ARDE", "ARDOR", "RESECA", "NARIZ", "MUCOSA", "MAL SABOR", "SPRAY"]):
+        tipo = "Objeción Nasal / Galénica («Arde en la nariz, reseca o deja mal sabor»)"
+        verbal = (
+            f"«Ese es el motivo #1 por el que el paciente abandona el spray a los 3 días, {doc_corto}. "
+            f"Con **{prod}** ({caract}), buscamos proteger la mucosa y dar confort de aplicación para "
+            f"que el paciente complete el ciclo y **{benef}**.»"
+        )
+        cierre = f"Indíquelo en pacientes sensibles o con rinitis persistente que abandonaron sprays irritantes."
+    elif any(w in q for w in ["ESTOMAGO", "GASTRI", "IRRITA", "MUY FUERTE", "POSOLOGIA", "MUCHAS TOMAS", "INCOMOD"]):
+        tipo = "Objeción de Tolerabilidad Gástrica / Posología («Irrita el estómago o muchas tomas»)"
+        verbal = (
+            f"«Entiendo su preocupación por el apego y la tolerabilidad, {doc_corto}. Precisamente "
+            f"**{prod}** ({caract}) simplifica la adherencia y cuida la tolerabilidad para que **{benef}**.»"
+        )
+        cierre = f"Evalúelo en sus próximos **3 pacientes** con historial de abandono por molestias digestivas o esquema complejo."
+    elif any(w in q for w in ["ESTUDIO", "EVIDENCIA", "ARTICULO", "EXPERIENCIA CLINICA"]):
+        tipo = "Objeción Científica («No conozco estudios de esa combinación»)"
+        verbal = (
+            f"«Valoro mucho su rigor basado en evidencia, {doc_corto}. **{prod}** respalda su mecanismo "
+            f"en **{caract}**, orientado a **{benef}**. Hoy mismo le comparto el resumen clínico y "
+            f"ficha técnica para que lo revise con calma.»"
+        )
+        cierre = f"Le envío la monografía por WhatsApp hoy y en la próxima visita revisamos sus impresiones clínicas."
+    elif any(w in q for w in ["NO ENCUENTRA", "STOCK", "QUIEBRE", "DISPONIB", "NO DISTRIBUY", "NO HAY EN FARMACIA"]):
+        tipo = "Objeción de Disponibilidad («Yo lo receto pero el paciente no lo encuentra»)"
+        verbal = (
+            f"«Gracias por decírmelo de frente, {doc_corto}; mi trabajo es que ninguna receta suya se pierda "
+            f"por inventario. Hoy mismo verifico personalmente el stock de **{prod}** en **{farm}** y le "
+            f"confirmo por WhatsApp en qué puntos exactos alrededor de su clínica quedó abastecido.»"
+        )
+        cierre = f"Acción inmediata hoy: auditar inventario en **{farm}** antes de cerrar la ruta en {ciudad}."
+    elif any(w in q for w in ["CAMBIA LA RECETA", "DEPENDIENTE", "MOSTRADOR", "SUSTITU"]):
+        tipo = "Objeción de Sustitución en Mostrador («El dependiente me cambia la receta»)"
+        verbal = (
+            f"«Es un dolor real del mercado, {doc_corto}. Para blindar su prescripción de **{prod}**, "
+            f"estamos reforzando capacitación y acuerdos de respeto a receta en **{farm}**, y además "
+            f"ayuda mucho indicarle al paciente el beneficio exacto ({caract}) para que no acepte sustitutos.»"
+        )
+        cierre = f"Hoy paso por el mostrador de **{farm}** para defender su receta y asegurar exhibición/stock."
+    elif any(w in q for w in ["NO TENGO TIEMPO", "30 SEGUNDOS", "45 SEGUNDOS", "PASILLO", "RAPIDO", "APURADO"]):
+        tipo = "Visita de Pasillo / Sin Tiempo («Dime rápido en 30 segundos»)"
+        verbal = (
+            f"«Le tomo 25 segundos exactos, {doc_corto}: en **{nicho}**, **{prod}** aporta **{caract}**, "
+            f"logrando **{benef}**. Ya lo dejé disponible en **{farm}**. ¿Me permite contar con él en sus "
+            f"próximos 3 casos de esta semana?»"
+        )
+        cierre = f"Entregar recordatorio breve, agradecer su minuto y retirarse puntual."
+    elif any(w in q for w in ["MUESTRA", "DEJAME MUESTRAS", "PROBARLO PRIMERO"]):
+        tipo = "Objeción de Muestras («Déjame muestras para probarlo primero»)"
+        verbal = (
+            f"«Con gusto le apoyo con muestras de inicio de **{prod}**, {doc_corto}, para que compruebe "
+            f"de primera mano **{benef}**. Para que el paciente complete el tratamiento sin interrumpirlo, "
+            f"ya dejé garantizada la presentación comercial en **{farm}**. ¿En qué perfil de paciente "
+            f"las empezaría a evaluar esta semana?»"
+        )
+        cierre = f"Amarrar la entrega de muestras a un perfil específico (**{nicho}**) y dar seguimiento en la siguiente visita."
+    elif any(w in q for w in ["CONGRESO", "PATROCINIO", "INSCRIPCION", "CENA", "A CAMBIO", "APOYAME"]):
+        tipo = "Objeción de Negociación / Compliance («Apóyame con un congreso y te ayudo con recetas»)"
+        verbal = (
+            f"«{doc_corto}, su práctica en {ciudad} es muy valiosa para nosotros. Nuestro programa de "
+            f"educación médica continua respalda la actualización científica de forma transparente y sin "
+            f"condicionamiento de recetas. De mi lado, gestiono su solicitud por el canal institucional "
+            f"correspondiente y sigo asegurando stock de **{prod}** en **{farm}** para cuando usted decida indicarlo.»"
+        )
+        cierre = f"Mantener postura ética firme, amable y profesional sin prometer favores ligados a volumen de prescripción."
+    else:
+        tipo = f"Argumentario Clínico y Objeciones — {prod} ({clase})"
+        verbal = (
+            f"«Comprendo su criterio, {doc_corto}. Precisamente para **{nicho}**, **{prod}** aporta "
+            f"**{caract}**, logrando que **{benef}** y reforzando **{arg_img}**.»"
+        )
+        cierre = f"Evaluar **{prod}** en los próximos 3 pacientes de este perfil con respaldo en **{farm}**."
+
+    return f"""### {tipo}
+**Producto:** `{prod}` ({clase}) | **Territorio:** `{ciudad}` | **Farmacias Aliadas:** `{farm}`
+
+#### 1. Qué decir en el momento (Verbalización Exacta)
+> {verbal}
+
+#### 2. Tres Pilares de Valor del Vademécum Gutis
+- **Galénica / Formulación:** {caract.capitalize()}.
+- **Beneficio Clínico:** {benef.capitalize()}.
+- **Ecuación Costo-Apego:** {arg_fin.capitalize()}.
+
+#### 3. Cierre Práctico de Calle
+- **Siguiente paso:** {cierre}
+- **Frase de recordación:** *{love}*
+"""
+
+
+def construir_comparativa_vs(
+    consulta: str,
+    clave_mercado: str,
+    ciudad: str,
+    farmacias_str: str,
+) -> str:
+    meta = MERCADOS_PRIORITARIOS.get(clave_mercado, next(iter(MERCADOS_PRIORITARIOS.values())))
+    prod = meta.get("producto", clave_mercado)
+    clase = meta.get("clase_terapeutica", "")
+    caract = meta.get("caracteristica", "")
+    benef = meta.get("beneficio", "")
+    arg_fin = meta.get("arg_finanzas", "")
+    nicho = meta.get("nicho_flanqueo", "")
+
+    return f"""### Comparativa Estratégica Táctica — {prod} ({clase})
+**Consulta:** *«{consulta}»* | **Respaldo en {ciudad}:** `{farmacias_str}`
+
+| Dimensión | Ventaja Diferencial de **{prod}** (Gutis) | Enfoque frente a la Competencia |
+| :--- | :--- | :--- |
+| **Formulación / Galénica** | {caract.capitalize()} | Evita fricciones de tolerabilidad, sabor o esquema fragmentado. |
+| **Impacto Clínico** | {benef.capitalize()} | Posicionamiento directo en **{nicho}**. |
+| **Valor / Adherencia** | {arg_fin.capitalize()} | Mejor relación costo-tratamiento efectivo para que el paciente termine el ciclo. |
+
+#### Frase de Flanqueo en 15 Segundos:
+> «Sin desplazar lo que usted ya conoce, en pacientes con **{nicho}**, **{prod}** le aporta **{caract}**, con disponibilidad inmediata en **{farmacias_str}**.»
+"""
+
+
+def construir_whatsapp_seguimiento(
+    consulta: str,
+    clave_mercado: str,
+    medico_foco: str,
+    ciudad: str,
+    farmacias_str: str,
+) -> str:
+    meta = MERCADOS_PRIORITARIOS.get(clave_mercado, next(iter(MERCADOS_PRIORITARIOS.values())))
+    prod = meta.get("producto", clave_mercado)
+    benef = meta.get("beneficio", "eficacia y adherencia clínica")
+    doc_corto = formatear_nombre_medico(medico_foco) if medico_foco else "Doctor(a)"
+    farm = farmacias_str or f"farmacias aliadas de {ciudad}"
+
+    return f"""### Mensaje Corto de WhatsApp (Listo para Copiar y Pegar)
+**Destinatario sugerido:** `{doc_corto}` ({ciudad}) | **Producto:** `{prod}`
+
+> Buenos días Dr(a). {doc_corto}, le saluda Erick Calderón de Laboratorio Gutis. Muchas gracias por su tiempo y apertura en nuestra visita. Le confirmo que dejamos verificado el inventario de **{prod}** (*{benef}*) en **{farm}** para el respaldo de sus pacientes. Quedo a sus órdenes para cualquier consulta o necesidad de información clínica. ¡Excelente jornada!
+"""
+
+
+# ============================================================================
+# 3. MOTOR: EVOLUCIÓN MENSUAL DE SUCURSALES (CRECIMIENTO / CAÍDA EN 6 MESES)
+# ============================================================================
+def analizar_evolucion_sucursales(
+    bundle: Any,
+    clave_mercado: Optional[str] = None,
+    ciudad: Optional[str] = None,
+    consulta: str = "",
+) -> str:
+    df_v = bundle.ventas
+    if df_v.empty:
+        return "No se encontró el archivo de ventas mensuales (`datos 2026.xlsx`) para evaluar sucursales."
+
+    sub = df_v.copy()
+    if "Mes_Label" not in sub.columns and "Trimestre" in sub.columns:
+        sub["Mes_Label"] = sub["Trimestre"]
+    sub["DEPTO_CANON"] = sub["DESCRIPCION_RUTA"].apply(canonizar_departamento)
+    if ciudad:
+        ciu_canon = canonizar_departamento(ciudad)
+        sub = sub[
+            (sub["DEPTO_CANON"] == ciu_canon)
+            | (sub["DESCRIPCION_RUTA"].str.contains(re.escape(normalizar_txt(ciudad)), na=False))
+        ]
+    if clave_mercado:
+        sub = _match_producto_venta(sub, clave_mercado)
+
+    if sub.empty:
+        return "No se encontraron ventas por sucursal para ese producto o territorio."
+
+    meses = _orden_meses_ventas(sub)
+    if len(meses) < 2:
+        return "Se requieren al menos 2 períodos cargados para medir crecimiento por sucursal."
+
+    aviso_cache = ""
+    if all(m in ("Q1", "Q2", "Q3", "Q4") for m in meses):
+        aviso_cache = "> ⚠️ **Aviso de Caché:** Todavía estás viendo los archivos trimestrales (`Q1–Q3`) en memoria. Abre la barra lateral izquierda → **Estado de Bases de Datos y Caché → Recargar Excels y Limpiar Caché** para cargar los 6 meses de `datos 2026.xlsx`.\n\n"
+
+    piv = pd.pivot_table(
+        sub,
+        values="Monto Real",
+        index=["DEPTO_CANON", "NOMBRE_CLIENTE_1"],
+        columns=["Mes_Label"],
+        aggfunc="sum",
+        fill_value=0.0,
+    ).reset_index()
+
+    for m in meses:
+        if m not in piv.columns:
+            piv[m] = 0.0
+        piv[m] = piv[m].round(2)
+
+    piv["Total Período ($)"] = piv[meses].sum(axis=1).round(2)
+    piv = piv[piv["Total Período ($)"] > 0].copy()
+
+    mitad = max(1, len(meses) // 2)
+    bloque_1 = meses[:mitad]
+    bloque_2 = meses[mitad:]
+    ult_m, prev_m = meses[-1], meses[-2]
+
+    piv["Prom. 1ra Mitad ($)"] = (piv[bloque_1].sum(axis=1) / len(bloque_1)).round(2)
+    piv["Prom. 2da Mitad ($)"] = (piv[bloque_2].sum(axis=1) / len(bloque_2)).round(2)
+    piv["Crecimiento ($/mes)"] = (piv["Prom. 2da Mitad ($)"] - piv["Prom. 1ra Mitad ($)"]).round(2)
+    piv["Var. Últ. Mes ($)"] = (piv[ult_m] - piv[prev_m]).round(2)
+
+    if "Monto Cuota" in sub.columns:
+        cuota_g = sub.groupby(["DEPTO_CANON", "NOMBRE_CLIENTE_1"], as_index=False)["Monto Cuota"].sum()
+        piv = piv.merge(cuota_g, on=["DEPTO_CANON", "NOMBRE_CLIENTE_1"], how="left")
+        piv["% Cuota"] = np.where(
+            piv["Monto Cuota"] > 0,
+            (piv["Total Período ($)"] / piv["Monto Cuota"] * 100.0).round(1),
+            0.0,
+        )
+        piv = piv.drop(columns=["Monto Cuota"])
+
+    piv = piv.rename(columns={"DEPTO_CANON": "Departamento", "NOMBRE_CLIENTE_1": "Sucursal / Farmacia"})
+
+    q_up = normalizar_txt(consulta)
+    pide_caida = any(w in q_up for w in ["CAIDA", "CAYO", "CAYERON", "BAJANDO", "BAJARON", "DISMINU", "PERDIENDO", "ENFRI"])
+
+    prod_lbl = MERCADOS_PRIORITARIOS[clave_mercado]["producto"] if clave_mercado in MERCADOS_PRIORITARIOS else "Portafolio Gutis"
+    ciu_lbl = ciudad.upper() if ciudad else "TODO TU TERRITORIO"
+    rango_lbl = f"{meses[0]} → {meses[-1]}"
+
+    cols_mostrar = ["Departamento", "Sucursal / Farmacia"] + meses + ["Total Período ($)", "Crecimiento ($/mes)", "Var. Últ. Mes ($)"]
+    if "% Cuota" in piv.columns:
+        cols_mostrar.append("% Cuota")
+
+    if pide_caida:
+        df_res = piv[piv["Crecimiento ($/mes)"] < 0].sort_values(by="Crecimiento ($/mes)", ascending=True).reset_index(drop=True)
+        titulo = f"Sucursales con Mayor Contracción en {prod_lbl} ({rango_lbl}) — {ciu_lbl}"
+        resumen_top = "\n".join([
+            f"- **{r['Sucursal / Farmacia']}** ({r['Departamento']}): Bajó de `${r['Prom. 1ra Mitad ($)']:,.2f}/mes` a `${r['Prom. 2da Mitad ($)']:,.2f}/mes` (Cierre {ult_m}: `${r[ult_m]:,.2f}` | Total: `${r['Total Período ($)']:,.2f}`)."
+            for _, r in df_res.head(5).iterrows()
+        ])
+    else:
+        df_res = piv[piv["Crecimiento ($/mes)"] > 0].sort_values(by="Crecimiento ($/mes)", ascending=False).reset_index(drop=True)
+        titulo = f"Sucursales con Mayor Crecimiento en {prod_lbl} ({rango_lbl}) — {ciu_lbl}"
+        resumen_top = "\n".join([
+            f"- **{r['Sucursal / Farmacia']}** ({r['Departamento']}): Creció de `${r['Prom. 1ra Mitad ($)']:,.2f}/mes` (`{'/'.join(bloque_1)}`) a `${r['Prom. 2da Mitad ($)']:,.2f}/mes` (`{'/'.join(bloque_2)}`) | Cierre {ult_m}: `${r[ult_m]:,.2f}` | Total: `${r['Total Período ($)']:,.2f}`."
+            for _, r in df_res.head(5).iterrows()
+        ])
+
+    if df_res.empty:
+        return f"{aviso_cache}### {titulo}\nNo se encontraron sucursales con esa variación neta en el período seleccionado."
+
+    return f"""{aviso_cache}### {titulo}
+Comparativa mes a mes de tus **{len(meses)} períodos** (`{rango_lbl}`) midiendo la aceleración entre la primera mitad (`{' + '.join(bloque_1)}`) y la segunda mitad (`{' + '.join(bloque_2)}`).
+
+{df_a_markdown_nativo(df_res[cols_mostrar].head(15))}
+
+#### Top 5 Sucursales Destacadas:
+{resumen_top}
+"""
+
+
+# ============================================================================
+# 4. MOTOR: MÉDICOS CON TENDENCIA DE CAÍDA EN RECETAS (CAIDA_RX)
 # ============================================================================
 def analizar_caida_rx_medicos(
     bundle: Any,
@@ -235,13 +560,11 @@ def analizar_caida_rx_medicos(
     if sub.empty:
         return "No se encontraron registros prescriptivos con esos filtros para evaluar tendencia de caída."
 
-    # Extraer delta de Auditoría (% MS Mes vs % MS Ant) por médico
     delta_aud_map: Dict[str, Tuple[float, float, float]] = {}
     if not df_aud.empty and "% MS - Mes" in df_aud.columns and "% MS - Ant" in df_aud.columns:
         aud_sub = df_aud.copy()
         if clave_mercado:
             aud_sub = aud_sub[aud_sub["Clave_Gutis"] == clave_mercado]
-        # Quedarnos solo con marcas Gutis en Auditoría
         aud_g = aud_sub[aud_sub["MARCA"].str.endswith(" GPR") | aud_sub["MARCA"].str.contains("GUTIS|TALERDIN|BIOTOS|MOMETZONA|CLEMBROXIL|VENTILAR|MUPIRAL|BICORPAN|GASTROALIVIO|DALIVIO", na=False)]
         if not aud_g.empty:
             grp_a = aud_g.groupby("Médico")[["% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]].sum() * 100.0
@@ -259,15 +582,13 @@ def analizar_caida_rx_medicos(
 
         ms_m = round((gm / pm * 100.0), 1) if pm > 0 else 0.0
         ms_y = round((gy / py * 100.0), 1) if py > 0 else 0.0
-        # Ritmo mensual esperado YTD (corte septiembre = 9 meses)
         ritmo_g = round(gy / 9.0, 1)
         caida_pxs = round(gm - ritmo_g, 1)
         delta_ms_ytd = round(ms_m - ms_y, 1)
 
-        tr_ms, ant_ms, mes_aud_ms = delta_aud_map.get(doc, (np.nan, np.nan, np.nan))
+        _, ant_ms, mes_aud_ms = delta_aud_map.get(doc, (np.nan, np.nan, np.nan))
         caida_aud = (mes_aud_ms - ant_ms) if not np.isnan(ant_ms) else 0.0
 
-        # Criterio real de enfriamiento / caída
         esta_cayendo = (
             (gy >= 3 and gm == 0)
             or (caida_pxs <= -1.0 and gm < ritmo_g)
@@ -303,7 +624,7 @@ def analizar_caida_rx_medicos(
     etiqueta_ciu = ciudad.upper() if ciudad else "TODO TU PANEL"
 
     if not filas:
-        return f"### Radar de Caída Prescriptiva — {etiqueta_prod} ({etiqueta_ciu})\nNo se detectaron médicos con caída significativa en **{etiqueta_prod}** en este corte. Tu base prescriptiva se mantiene estable o en crecimiento."
+        return f"### Radar de Caída Prescriptiva — {etiqueta_prod} ({etiqueta_ciu})\nNo se detectaron médicos con caída significativa en **{etiqueta_prod}** en este corte."
 
     df_caida = pd.DataFrame(filas).sort_values(by="_sev", ascending=False).drop(columns=["_sev"]).reset_index(drop=True)
     top3 = df_caida.head(3)
@@ -313,21 +634,17 @@ def analizar_caida_rx_medicos(
     ])
 
     return f"""### Alerta de Caída y Enfriamiento Prescriptivo — {etiqueta_prod} ({etiqueta_ciu})
-Se detectaron **{len(df_caida)} médicos** con señal de caída o apagón reciente en **{etiqueta_prod}** (comparando Mes actual contra su promedio mensual YTD y cuota histórica).
+Se detectaron **{len(df_caida)} médicos** con señal de caída o apagón reciente en **{etiqueta_prod}** (Mes actual vs. promedio mensual YTD).
 
 {df_a_markdown_nativo(df_caida.head(12))}
 
 #### Prioridad Inmediata de Rescate en Ruta:
 {foco_txt}
-
-#### Acción Táctica Recomendada:
-1. **En los casos de «APAGÓN TOTAL (0 Mes)»:** No repitas el discurso introductorio; abre validando si hubo problema de **abastecimiento en farmacia cercana** o cambio por precio en mostrador.
-2. **En los casos de «CAÍDA FUERTE»:** Indaga qué ocurrió con la marca rival que está absorbiendo esas recetas y usa flanqueo directo sobre tolerabilidad/adherencia.
 """
 
 
 # ============================================================================
-# 3. MOTOR: SUBIDA DE CUOTA (Close-Up % MS + Sell-Out % Cumplimiento)
+# 5. MOTOR: SUBIDA DE CUOTA (Close-Up % MS + Sell-Out % Cumplimiento)
 # ============================================================================
 def analizar_subida_cuota(
     bundle: Any,
@@ -356,9 +673,10 @@ def analizar_subida_cuota(
                 f"**{r['Marca Gutis']}** (`{r['Brecha MS Mes vs YTD (pp)']:+.1f} pp`)" for _, r in bajan_rx.head(4).iterrows()
             ]))
 
-    # Parte 2: Cumplimiento de Cuota en Ventas Mensuales (datos 2026.xlsx)
     if not df_v.empty and "Monto Cuota" in df_v.columns:
         v_sub = df_v.copy()
+        if "Mes_Label" not in v_sub.columns and "Trimestre" in v_sub.columns:
+            v_sub["Mes_Label"] = v_sub["Trimestre"]
         v_sub["DEPTO_CANON"] = v_sub["DESCRIPCION_RUTA"].apply(canonizar_departamento)
         if ciudad:
             v_sub = v_sub[v_sub["DEPTO_CANON"] == canonizar_departamento(ciudad)]
@@ -386,7 +704,7 @@ def analizar_subida_cuota(
 
 
 # ============================================================================
-# 4. MOTOR: PRODUCTOS CON MAYOR POTENCIAL PARA SUBIR MÁS AÚN (POTENCIAL_EXPANSION)
+# 6. MOTOR: PRODUCTOS CON MAYOR POTENCIAL PARA SUBIR MÁS AÚN
 # ============================================================================
 def analizar_potencial_expansion(
     bundle: Any,
@@ -409,10 +727,11 @@ def analizar_potencial_expansion(
     if sub.empty:
         return "No hay registros suficientes para calcular potencial en este territorio."
 
-    # Brecha disponible en dólares en datos 2026.xlsx (último mes)
     brecha_venta_map: Dict[str, float] = {}
     if not df_v.empty and "Monto Cuota" in df_v.columns:
         v_s = df_v.copy()
+        if "Mes_Label" not in v_s.columns and "Trimestre" in v_s.columns:
+            v_s["Mes_Label"] = v_s["Trimestre"]
         v_s["DEPTO_CANON"] = v_s["DESCRIPCION_RUTA"].apply(canonizar_departamento)
         if ciudad:
             v_s = v_s[v_s["DEPTO_CANON"] == canonizar_departamento(ciudad)]
@@ -433,7 +752,6 @@ def analizar_potencial_expansion(
         comp_m = tot_m - gut_m
         ms_m = round((gut_m / tot_m * 100.0), 1) if tot_m > 0 else 0.0
 
-        # Contar médicos "listos para escalar" (ya recetan Gutis >0 pero comp aún > Gutis)
         meds_escalables = 0
         meds_conquista_alta = 0
         for _, g_doc in grp.groupby("Médico"):
@@ -446,7 +764,6 @@ def analizar_potencial_expansion(
                 meds_conquista_alta += 1
 
         brecha_usd = brecha_venta_map.get(k_gut, 0.0)
-        # Score de oportunidad: premia alto volumen rival + médicos ya tibios (escalables) + techo libre (<55% MS)
         techo_factor = max(0.15, (100.0 - ms_m) / 100.0)
         score = round((comp_m * 0.7 + meds_escalables * 12.0 + meds_conquista_alta * 8.0) * techo_factor + (brecha_usd / 500.0), 1)
 
@@ -463,13 +780,12 @@ def analizar_potencial_expansion(
     df_pot = pd.DataFrame(filas).sort_values(by="Índice Oportunidad", ascending=False).reset_index(drop=True)
     top3 = df_pot.head(3)
     resumen_top = "\n".join([
-        f"1. **{r['Producto']}** (`{r['% MS Mes']}% MS` actual): Tiene **{r['Vol. Rival Mes (Pxs)']} recetas/mes** en manos de la competencia, **{r['Médicos Listos p/ Escalar']} médicos** que ya lo prueban pero aún comparten mayoría con rivales y **${r['Brecha Cuota Últ. Mes ($)']:,.0f}** disponibles para cerrar cuota."
+        f"- **{r['Producto']}** (`{r['% MS Mes']}% MS`): **{r['Vol. Rival Mes (Pxs)']} recetas/mes** en manos de la competencia, **{r['Médicos Listos p/ Escalar']} médicos** listos para escalar y **${r['Brecha Cuota Últ. Mes ($)']:,.0f}** disponibles para cerrar cuota."
         for _, r in top3.iterrows()
     ])
 
     ciu_lbl = ciudad.upper() if ciudad else "TODO TU PANEL"
     return f"""### Radar de Potencial de Expansión («Dónde hay más margen para subir») — {ciu_lbl}
-Ranking calculado combinando **volumen libre en manos de la competencia**, **médicos ya tibios (Escalón 3–4 listos para subir)** y **brecha disponible contra tu cuota mensual en dólares**.
 
 {df_a_markdown_nativo(df_pot)}
 
@@ -479,7 +795,7 @@ Ranking calculado combinando **volumen libre en manos de la competencia**, **mé
 
 
 # ============================================================================
-# 5. MOTOR: SUCURSALES A ABORDAR Y CON QUÉ PRODUCTOS (SUCURSALES_ABORDAJE)
+# 7. MOTOR: SUCURSALES A ABORDAR Y CON QUÉ PRODUCTOS (DÉFICIT DE CUOTA)
 # ============================================================================
 def analizar_sucursales_abordaje(
     bundle: Any,
@@ -493,6 +809,8 @@ def analizar_sucursales_abordaje(
         return "No se encontró el archivo de ventas mensuales (`datos 2026.xlsx`) para priorizar sucursales."
 
     sub = df_v.copy()
+    if "Mes_Label" not in sub.columns and "Trimestre" in sub.columns:
+        sub["Mes_Label"] = sub["Trimestre"]
     sub["DEPTO_CANON"] = sub["DESCRIPCION_RUTA"].apply(canonizar_departamento)
     if ciudad:
         ciu_canon = canonizar_departamento(ciudad)
@@ -510,25 +828,25 @@ def analizar_sucursales_abordaje(
     ult_mes = meses[-1] if meses else "Últ. Mes"
     tiene_cuota = "Monto Cuota" in sub.columns
 
-    # Demanda médica Close-Up por departamento y producto (para recomendar qué códigos empujar)
+    aviso_cache = ""
+    if meses and all(m in ("Q1", "Q2", "Q3", "Q4") for m in meses):
+        aviso_cache = "> ⚠️ **Aviso de Caché:** Todavía estás viendo los archivos trimestrales (`Q1–Q3`). Toca **Recargar Excels y Limpiar Caché** en la barra lateral para cargar `datos 2026.xlsx`.\n\n"
+
     demanda_rx_depto: Dict[Tuple[str, str], int] = {}
     if not df_prod.empty:
         p_g = df_prod[df_prod["Es_Gutis"] & df_prod["Clave_Gutis"].notna()].copy()
         p_g["DEPTO_CANON"] = p_g["CIUDAD_PANEL"].apply(canonizar_departamento)
         for (dep, k_m), g_rx in p_g.groupby(["DEPTO_CANON", "Clave_Gutis"]):
-            # Mapear clave a nombre corto VM4
             meta_n = normalizar_txt(MERCADOS_PRIORITARIOS.get(k_m, {}).get("producto", k_m)).split()[0]
             if meta_n == "DALIVIO":
                 meta_n = "DALIVIUM"
             demanda_rx_depto[(dep, meta_n)] = int(g_rx["Pxs-MES"].sum())
 
-    # Evaluar cada sucursal en el último mes vs su promedio semestral y su cuota
     sub_ult = sub[sub["Mes_Label"] == ult_mes] if meses else sub
     filas_pdv = []
 
     for (depto, pdv), grp_sem in sub.groupby(["DEPTO_CANON", "NOMBRE_CLIENTE_1"]):
         real_sem = float(grp_sem["Monto Real"].sum())
-        cuota_sem = float(grp_sem["Monto Cuota"].sum()) if tiene_cuota else 0.0
         n_meses = max(1, grp_sem["Mes_Label"].nunique())
         prom_mes = real_sem / n_meses
 
@@ -538,13 +856,11 @@ def analizar_sucursales_abordaje(
         brecha_ult = cuota_ult - real_ult if tiene_cuota else max(0.0, prom_mes - real_ult)
         pct_ult = round((real_ult / cuota_ult * 100.0), 1) if cuota_ult > 0 else 0.0
 
-        # Solo priorizar PDVs con relevancia económica (cuota o promedio > $250) y déficit real
         if cuota_ult < 250 and prom_mes < 250:
             continue
         if brecha_ult <= 50:
             continue
 
-        # Detectar los 2-3 productos con mayor brecha negativa en esa sucursal específica
         if not grp_u.empty and tiene_cuota:
             gp = grp_u.groupby("PRODUCTO_VENTA")[["Monto Real", "Monto Cuota"]].sum()
             gp["Brecha"] = gp["Monto Cuota"] - gp["Monto Real"]
@@ -574,24 +890,20 @@ def analizar_sucursales_abordaje(
 
     ciu_lbl = ciudad.upper() if ciudad else "TODO TU TERRITORIO"
     if not filas_pdv:
-        return f"### Plan de Abordaje de Sucursales ({ult_mes}) — {ciu_lbl}\nTodas las sucursales relevantes se encuentran en línea o por encima de su cuota en este filtro."
+        return f"{aviso_cache}### Plan de Abordaje de Sucursales ({ult_mes}) — {ciu_lbl}\nTodas las sucursales relevantes se encuentran en línea o por encima de su cuota en este filtro."
 
     df_pdv = pd.DataFrame(filas_pdv).sort_values(by="Déficit ($)", ascending=False).reset_index(drop=True)
     deficit_top10 = df_pdv.head(10)["Déficit ($)"].sum()
 
-    return f"""### Plan Prioritario de Abordaje a Sucursales ({ult_mes}) — {ciu_lbl}
-Estas son las farmacias con mayor dinero pendiente por recuperar frente a su cuota de **{ult_mes}** (**${deficit_top10:,.2f}** concentrados solo en el Top 10), junto con los **códigos exactos** que debes empujar en mostrador según brecha de cuota y demanda prescriptiva de la zona.
+    return f"""{aviso_cache}### Plan Prioritario de Abordaje a Sucursales ({ult_mes}) — {ciu_lbl}
+Farmacias con mayor brecha pendiente frente a su cuota de **{ult_mes}** (**${deficit_top10:,.2f}** en el Top 10) y los **códigos exactos** a empujar en mostrador.
 
 {df_a_markdown_nativo(df_pdv.head(12))}
-
-#### Guion Rápido de Abordaje en Mostrador:
-1. **Llega con el dato de receta médica local:** En las sucursales marcadas con `Rx zona`, muestra al encargado/regente qué productos están recetando activamente los médicos de su misma ciudad para justificar reposición inmediata y evitar fuga de clientes.
-2. **Prioriza códigos en 0% a 30% de cuota:** Son quiebres de inventario o sustituciones activas donde recuperar una sola compra levanta rápido el cumplimiento del mes.
 """
 
 
 # ============================================================================
-# 6. MOTOR: CRUCE DEPARTAMENTAL RX (Close-Up) VS. VENTA MENSUAL (CRUCE_RX_VENTA)
+# 8. MOTOR: CRUCE DEPARTAMENTAL RX (Close-Up) VS. VENTA MENSUAL
 # ============================================================================
 def analizar_cruce_rx_vs_venta(
     bundle: Any,
@@ -604,7 +916,6 @@ def analizar_cruce_rx_vs_venta(
     if df_prod.empty or df_v.empty:
         return "Se requieren tanto Close-Up (`PRODUCTOS`) como las ventas mensuales (`datos 2026.xlsx`) para ejecutar el cruce por departamento."
 
-    # 1. Close-Up por departamento
     p_sub = df_prod[df_prod["Clave_Gutis"].notna()].copy()
     if clave_mercado:
         p_sub = p_sub[p_sub["Clave_Gutis"] == clave_mercado]
@@ -627,8 +938,9 @@ def analizar_cruce_rx_vs_venta(
             "delta_ms": round(ms_m - ms_y, 1),
         }
 
-    # 2. Ventas mensuales por departamento (Último mes vs Mes anterior y vs Cuota)
     v_sub = _match_producto_venta(df_v.copy(), clave_mercado)
+    if "Mes_Label" not in v_sub.columns and "Trimestre" in v_sub.columns:
+        v_sub["Mes_Label"] = v_sub["Trimestre"]
     v_sub["DEPTO"] = v_sub["DESCRIPCION_RUTA"].apply(canonizar_departamento)
     meses = _orden_meses_ventas(v_sub)
     if len(meses) < 2:
@@ -655,7 +967,6 @@ def analizar_cruce_rx_vs_venta(
         var_v_pct = round(((v_ult - v_prev) / v_prev * 100.0), 1) if v_prev > 0 else (100.0 if v_ult > 0 else 0.0)
         pct_cuota = round((v_ult / c_ult * 100.0), 1) if c_ult > 0 else 0.0
 
-        # Diagnóstico cruzado de alta gerencia
         rx_sube = r_info["delta_ms"] >= 2.0 or (r_info["gm"] > r_info["ritmo_g"] * 1.08)
         rx_baja = r_info["delta_ms"] <= -2.0 or (r_info["ritmo_g"] > 0 and r_info["gm"] < r_info["ritmo_g"] * 0.85)
         v_sube = var_v_pct >= 5.0
@@ -689,30 +1000,84 @@ def analizar_cruce_rx_vs_venta(
         return f"No se encontraron departamentos comparables entre Close-Up y ventas para **{prod_lbl}**."
 
     df_cruce = pd.DataFrame(filas).sort_values(by=f"Venta {ult} ($)", ascending=False).reset_index(drop=True)
-    alertas_fuga = df_cruce[df_cruce["Diagnóstico Cruzado Rx vs. Venta"].str.contains("FUGA")]
-    alertas_dual = df_cruce[df_cruce["Diagnóstico Cruzado Rx vs. Venta"].str.contains("CONTRACCIÓN")]
-
-    conclusiones = []
-    if not alertas_fuga.empty:
-        deps_f = ", ".join(alertas_fuga["Departamento"].tolist())
-        conclusiones.append(f"- **Posible Fuga en Mostrador o Quiebre de Stock ({deps_f}):** Tus médicos están aumentando la receta, pero la venta en farmacia bajó de **{prev}** a **{ult}**. Urge auditar inventario y sustitución en mostrador.")
-    if not alertas_dual.empty:
-        deps_c = ", ".join(alertas_dual["Departamento"].tolist())
-        conclusiones.append(f"- **Contracción Dual ({deps_c}):** Cayeron tanto la cuota prescriptiva como la venta facturada; requiere refuerzo simultáneo en consultorio y punto de venta.")
-    if not conclusiones:
-        conclusiones.append(f"- **Alineación Territorio-Venta:** Revisa en la tabla los departamentos con `% Cuota {ult}` debajo de 75% para focalizar cierre de mes.")
-
     return f"""### Cruce Estratégico por Departamento: Recetas Close-Up vs. Venta Mensual ({prev} → {ult}) — {prod_lbl}
 
 {df_a_markdown_nativo(df_cruce)}
-
-#### Lectura Ejecutiva para Toma de Decisiones:
-""" + "\n".join(conclusiones)
+"""
 
 
 # ============================================================================
-# 7. ORQUESTADOR MAESTRO COLOQUIAL DE CHIRA
+# 9. CLASIFICADOR COLOQUIAL AUTOCONTENIDO + ORQUESTADOR MAESTRO CHIRA v4.0
 # ============================================================================
+def _detectar_intencion_local(q_norm: str) -> str:
+    tiene_sucursal = any(w in q_norm for w in ["SUCURSAL", "FARMAC", "PDV", "CLIENTE", "PUNTO DE VENTA"])
+    tiene_crec_o_caida = any(w in q_norm for w in ["CRECI", "SUBI", "AUMENT", "MEJOR", "MAS VEND", "IMPULS", "CAID", "CAY", "BAJ", "DISMINU", "PERDIEN", "ENFRI"])
+
+    if any(w in q_norm for w in ["WHATSAPP", "MENSAJE", "REDACTAME", "AGRADECERLE"]):
+        return "WHATSAPP"
+    if any(w in q_norm for w in [" VS ", "VERSUS", "DIFERENCIA ENTRE", "COMPARATIVA", "VENTAJA SOBRE", "VENTAJA TIENE"]):
+        return "COMPARATIVA"
+    if any(w in q_norm for w in [
+        "CARO", "PRECIO", "COSTO", "ECONOM", "BARATO", "CARINOSO", "GENERICO", "MISMA MOLECULA",
+        "OBJECION", "QUE HACER", "COMO LE DIGO", "COMO RESPONDO", "COMO ARGUMENTO", "BATEO",
+        "SABOR", "VOMIT", "RECHAZ", "SUENO", "SOMNOLENCIA", "ARDE", "ARDOR", "RESECA", "IRRITA",
+        "POSOLOGIA", "MUCHAS TOMAS", "ESTUDIOS", "NO ENCUENTRA", "QUIEBRE", "CAMBIA LA RECETA",
+        "DEPENDIENTE", "NO TENGO TIEMPO", "30 SEGUNDOS", "45 SEGUNDOS", "MUESTRAS",
+        "CONGRESO", "PATROCINIO", "A CAMBIO", "CASADO", "FIDELIZADO", "NO SUELTA",
+    ]):
+        return "OBJECION"
+    if tiene_sucursal and tiene_crec_o_caida:
+        return "SUCURSALES_EVOLUCION"
+    if tiene_sucursal:
+        return "SUCURSALES_ABORDAJE"
+    if any(w in q_norm for w in ["VS VENTA", "CONTRA LA VENTA", "ANALIZALO VS", "SELL OUT", "SELL-OUT", "DEPARTAMENTO PRESENTO", "DEPARTAMENTO CAYO", "DEPARTAMENTO SUBIO"]):
+        return "CRUCE_RX_VENTA"
+    if any(w in q_norm for w in ["CAID", "CAY", "BAJANDO", "ENFRIANDO", "DURMIENDO", "DEJARON DE RECETAR", "FUGA"]):
+        return "CAIDA_RX"
+    if any(w in q_norm for w in ["SUBIO LA CUOTA", "SUBIERON", "GANE", "VOLANDO", "SUBIDA DE CUOTA", "MAS CUOTA"]):
+        return "SUBIDA_CUOTA"
+    if any(w in q_norm for w in ["PUEDEN SUBIR", "POTENCIAL", "CARNITA", "JUGO", "MAS MARGEN", "CRECER MAS"]):
+        return "POTENCIAL_EXPANSION"
+    if any(w in q_norm for w in ["EXPEDIENTE", "GUION", "DILUYE", "COMPARTE"]):
+        return "EXPEDIENTE_MEDICO"
+    return "AUDITORIA_MERCADO"
+
+
+def _clasificar_con_gemini_opcional(consulta: str, lista_ciudades: List[str]) -> Optional[Dict[str, str]]:
+    if not obtener_api_key():
+        return None
+    claves = list(MERCADOS_PRIORITARIOS.keys())
+    prompt = f"""Traduce la pregunta coloquial de un Visitador Médico en Nicaragua a un JSON de 3 llaves.
+Intenciones válidas:
+- "OBJECION": qué decir ante objeciones (caro, genérico, hábito/rival, sabor, sueño, ardor, estómago, estudios, stock, mostrador, 30 seg, muestras, congreso).
+- "COMPARATIVA": comparar producto Gutis vs rival o pedir ventajas/diferencias.
+- "WHATSAPP": redactar mensaje corto de WhatsApp.
+- "SUCURSALES_EVOLUCION": qué sucursales/farmacias crecieron, subieron, cayeron o venden más.
+- "SUCURSALES_ABORDAJE": qué sucursales/farmacias ir a abordar hoy, déficit de cuota o qué productos empujar en mostrador.
+- "CAIDA_RX": qué médicos vienen bajando recetas o se están enfriando.
+- "SUBIDA_CUOTA": en qué productos subió la cuota.
+- "POTENCIAL_EXPANSION": qué productos pueden subir más aún o tienen mayor potencial.
+- "CRUCE_RX_VENTA": comparar recetas/departamentos contra venta real/Sell-Out.
+- "EXPEDIENTE_MEDICO": guion o expediente de un médico específico.
+- "AUDITORIA_MERCADO": ranking general de médicos por producto o ciudad.
+
+Claves válidas: {json.dumps(claves, ensure_ascii=False)}
+Ciudades válidas: {json.dumps(lista_ciudades, ensure_ascii=False)}
+Pregunta: "{consulta}"
+Devuelve SOLO JSON: {{"intencion":"...","clave_mercado":"...","ciudad":"..."}}"""
+    raw = llamar_gemini(prompt, max_tok=180)
+    if not raw:
+        return None
+    try:
+        clean = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw).strip()
+        m_json = re.search(r"\{.*\}", clean, re.DOTALL)
+        if m_json:
+            return json.loads(m_json.group(0))
+    except Exception:
+        pass
+    return None
+
+
 def enrutar_consulta_chira(
     bundle: Any,
     consulta_final: str,
@@ -723,72 +1088,65 @@ def enrutar_consulta_chira(
     lista_ciudades: List[str],
     lista_medicos_busqueda: List[str],
 ) -> Tuple[str, str]:
-    """
-    Orquesta cualquier pregunta coloquial o técnica en CHIRA, eligiendo
-    automáticamente el motor analítico correcto y devolviendo (markdown_verificado, etiqueta_motor).
-    """
     q_norm = normalizar_txt(consulta_final)
     solo_panel = alcance_sb.startswith("SOLO")
 
-    # 1. Detección rápida de médico mencionado por nombre o apellido
+    # 1. Detección de médico mencionado
+    stop_w = {
+        "DOCTOR", "DOCTORA", "MEDICO", "BIOTOS", "TALERDIN", "MOMETZONA", "VENTILAR",
+        "MASAYA", "GRANADA", "CARAZO", "MANAGUA", "CHONTALES", "RIVAS", "BOACO",
+        "PRECIO", "CUOTA", "VENTA", "CAIDA", "SUCURSALES", "SUCURSALS", "CRECIENDO", "CRECIDO",
+    }
     medico_detectado = None
-    tokens_q = [w for w in re.split(r"[^A-Z0-9]+", q_norm) if len(w) >= 4 and w not in {"DOCTOR", "DOCTORA", "MEDICO", "BIOTOS", "TALERDIN", "MOMETZONA", "VENTILAR", "MASAYA", "GRANADA", "CARAZO", "MANAGUA", "CHONTALES", "RIVAS", "BOACO", "PRECIO", "CUOTA", "VENTA", "CAIDA"}]
+    tokens_q = [w for w in re.split(r"[^A-Z0-9]+", q_norm) if len(w) >= 4 and w not in stop_w]
     for m_cand in lista_medicos_busqueda:
-        m_n = normalizar_txt(m_cand)
-        if m_n in q_norm:
+        if normalizar_txt(m_cand) in q_norm:
             medico_detectado = m_cand
             break
     if not medico_detectado and tokens_q:
         for m_cand in lista_medicos_busqueda:
             partes_m = set(normalizar_txt(m_cand).split())
-            coinc = [t for t in tokens_q if t in partes_m]
-            if len(coinc) >= 2:
+            if sum(1 for t in tokens_q if t in partes_m) >= 2:
                 medico_detectado = m_cand
                 break
 
-    # 2. Clasificador coloquial (Gemini + respaldo local)
-    claves_validas = list(MERCADOS_PRIORITARIOS.keys())
-    cls = clasificar_intencion_coloquial(
-        consulta=consulta_final,
-        ciudades_validas=lista_ciudades,
-        claves_mercado_validas=claves_validas,
-        medicos_validos=[],
-    )
-    intencion = cls.get("intencion", "AUDITORIA_MERCADO")
+    # 2. Intención: regla local infalible primero + refinamiento con Gemini si es ambigua
+    intencion = _detectar_intencion_local(q_norm)
+    ciu_detectada = next((c for c in lista_ciudades if normalizar_txt(c) in q_norm), None)
+    mer_detectado = resolver_clave_mercado_gutis(consulta_final, consulta_final)
 
-    # Resolver ciudad (desde clasificador o texto directo)
-    ciu_detectada = cls.get("ciudad") or next(
-        (c for c in lista_ciudades if normalizar_txt(c) in q_norm),
-        None,
-    )
-    if ciu_detectada and normalizar_txt(ciu_detectada) in ("", "TODAS", "TODO MI PANEL"):
-        ciu_detectada = None
+    if intencion == "AUDITORIA_MERCADO" and not medico_detectado:
+        cls_g = _clasificar_con_gemini_opcional(consulta_final, lista_ciudades)
+        if cls_g:
+            if cls_g.get("intencion"):
+                intencion = cls_g["intencion"]
+            if not ciu_detectada and cls_g.get("ciudad") in lista_ciudades:
+                ciu_detectada = cls_g["ciudad"]
+            if not mer_detectado and cls_g.get("clave_mercado") in MERCADOS_PRIORITARIOS:
+                mer_detectado = cls_g["clave_mercado"]
 
-    # Resolver clave de mercado (prioriza mención explícita en texto)
-    mer_detectado = resolver_clave_mercado_gutis(consulta_final, consulta_final) or (
-        cls.get("clave_mercado") if cls.get("clave_mercado") in MERCADOS_PRIORITARIOS else None
-    )
+    doc_ctx = medico_detectado or medico_sel
+    ciu_ctx = ciu_detectada or ciudad_sel
+    sell_ctx = resumen_ventas_ciudad(bundle.ventas, ciu_ctx)
 
-    # 3. Enrutamiento a los 8 motores tácticos
+    # 3. Enrutamiento a los motores
     if intencion == "OBJECION":
         mer_obj = mer_detectado or "MR BIOTOS"
-        meta_obj = MERCADOS_PRIORITARIOS.get(mer_obj, next(iter(MERCADOS_PRIORITARIOS.values())))
-        doc_ctx = medico_detectado or medico_sel
-        ciu_ctx = ciu_detectada or ciudad_sel
-        sell_ctx = resumen_ventas_ciudad(bundle.ventas, ciu_ctx)
-        resp = generar_respuesta_objecion_tactica(
-            consulta=consulta_final,
-            clave_mercado=mer_obj,
-            meta_prod=meta_obj,
-            medico_foco=doc_ctx,
-            especialidad=especialidad_sel,
-            ciudad=ciu_ctx,
-            farmacias_str=sell_ctx["top_farmacias"],
-        )
-        return resp, "Manejo de Objeciones & Playbook TVP"
+        return construir_playbook_objecion(consulta_final, mer_obj, doc_ctx, especialidad_sel, ciu_ctx, sell_ctx["top_farmacias"]), "Playbook de Objeciones TVP (15 Escenarios)"
 
-    if medico_detectado and intencion in ("EXPEDIENTE_MEDICO", "AUDITORIA_MERCADO"):
-        return generar_consultoria_cognitiva_chira_medico(bundle, medico_detectado, consulta_final), "Expediente 360 & Guion TVP"
+    if intencion == "COMPARATIVA":
+        mer_obj = mer_detectado or "MR BIOTOS"
+        return construir_comparativa_vs(consulta_final, mer_obj, ciu_ctx, sell_ctx["top_farmacias"]), "Comparativa Técnica & Flanqueo (Vs.)"
+
+    if intencion == "WHATSAPP":
+        mer_obj = mer_detectado or "MR BIOTOS"
+        return construir_whatsapp_seguimiento(consulta_final, mer_obj, doc_ctx, ciu_ctx, sell_ctx["top_farmacias"]), "Redacción Rápida de WhatsApp"
+
+    if intencion == "SUCURSALES_EVOLUCION":
+        return analizar_evolucion_sucursales(bundle, clave_mercado=mer_detectado, ciudad=ciu_detectada, consulta=consulta_final), "Evolución Mensual de Sucursales (6M)"
+
+    if intencion == "SUCURSALES_ABORDAJE":
+        return analizar_sucursales_abordaje(bundle, ciudad=ciu_detectada, clave_mercado=mer_detectado), "Plan de Abordaje a Sucursales (Sell-Out)"
 
     if intencion == "CAIDA_RX":
         return analizar_caida_rx_medicos(bundle, clave_mercado=mer_detectado, ciudad=ciu_detectada, solo_panel=solo_panel), "Radar de Caída Prescriptiva"
@@ -799,16 +1157,12 @@ def enrutar_consulta_chira(
     if intencion == "POTENCIAL_EXPANSION":
         return analizar_potencial_expansion(bundle, ciudad=ciu_detectada, solo_panel=solo_panel), "Radar de Potencial de Expansión"
 
-    if intencion == "SUCURSALES_ABORDAJE":
-        return analizar_sucursales_abordaje(bundle, ciudad=ciu_detectada, clave_mercado=mer_detectado), "Plan de Abordaje a Sucursales (Sell-Out)"
-
     if intencion == "CRUCE_RX_VENTA":
         return analizar_cruce_rx_vs_venta(bundle, clave_mercado=mer_detectado, ciudad=ciu_detectada), "Cruce Departamental Rx vs. Venta Mensual"
 
-    if intencion == "EXPEDIENTE_MEDICO":
-        return generar_consultoria_cognitiva_chira_medico(bundle, medico_detectado or medico_sel, consulta_final), "Expediente 360 & Guion TVP"
+    if medico_detectado or intencion == "EXPEDIENTE_MEDICO":
+        return generar_consultoria_cognitiva_chira_medico(bundle, doc_ctx, consulta_final), "Expediente 360 & Guion TVP"
 
-    # Default: Auditoría de mercado territorial
     df_rk_chira = ranking_medicos(
         bundle.productos,
         bundle.panel,
