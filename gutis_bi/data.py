@@ -1,9 +1,9 @@
 """
-Cargador de Datos Robusto y Normalización Close-Up para Gutis BI.
-Corrige desalineación de índices, sanitiza importes y soporta detección automática mensual.
+Cargador de Datos Robusto y Normalización Close-Up + Sell-Out Mensual para Gutis BI.
+Soporta lectura automática de hojas mensuales (mayo 2026 - octubre 2026) con Real vs. Cuota,
+eliminando subtotales 'Total' para evitar duplicación de cifras.
 """
 
-import os
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -16,13 +16,56 @@ from gutis_bi.catalog import MERCADOS_PRIORITARIOS, PATRON_REGEX_GUTIS
 
 TABLA_SIN_ACENTOS = str.maketrans("ÁÉÍÓÚÜÀÈÌÒÙÂÊÎÔÛáéíóúüàèìòùâêîôû", "AEIOUUAEIOUAEIOUaeiouuaeiouaeiou")
 
+ORDEN_MESES_ES = {
+    "ENERO": (1, "Ene"),
+    "FEBRERO": (2, "Feb"),
+    "MARZO": (3, "Mar"),
+    "ABRIL": (4, "Abr"),
+    "MAYO": (5, "May"),
+    "JUNIO": (6, "Jun"),
+    "JULIO": (7, "Jul"),
+    "AGOSTO": (8, "Ago"),
+    "SEPTIEMBRE": (9, "Sep"),
+    "SETIEMBRE": (9, "Sep"),
+    "OCTUBRE": (10, "Oct"),
+    "NOVIEMBRE": (11, "Nov"),
+    "DICIEMBRE": (12, "Dic"),
+}
+
+
 def normalizar_txt(texto: Any) -> str:
     if pd.isna(texto) or texto is None:
         return ""
     return str(texto).strip().upper().translate(TABLA_SIN_ACENTOS)
 
+
 def normalizar_serie_rapida(serie: pd.Series) -> pd.Series:
     return serie.fillna("").astype(str).str.strip().str.upper().str.translate(TABLA_SIN_ACENTOS)
+
+
+def _limpiar_numero_serie(serie: pd.Series) -> pd.Series:
+    return pd.to_numeric(
+        serie.astype(str).str.replace("$", "", regex=False).str.replace(",", "", regex=False).str.strip(),
+        errors="coerce",
+    ).fillna(0.0)
+
+
+def _parsear_hoja_mensual(nombre_hoja: str) -> Optional[Tuple[int, str, str]]:
+    """
+    Detecta si el nombre de una hoja corresponde a un mes (ej. 'mayo 2026', 'octubre 2026').
+    Devuelve (clave_orden_int, etiqueta_corta, trimestre_eq).
+    """
+    h_norm = normalizar_txt(nombre_hoja)
+    anio_match = re.search(r"(20\d{2})", h_norm)
+    anio = int(anio_match.group(1)) if anio_match else 2026
+    for mes_nom, (mes_num, mes_abrev) in ORDEN_MESES_ES.items():
+        if mes_nom in h_norm:
+            clave_ord = anio * 100 + mes_num
+            etiqueta = f"{mes_abrev} {str(anio)[-2:]}"
+            q_eq = "Q1" if mes_num <= 3 else ("Q2" if mes_num <= 6 else ("Q3" if mes_num <= 9 else "Q4"))
+            return clave_ord, etiqueta, q_eq
+    return None
+
 
 def resolver_clave_mercado_gutis(texto_mercado_o_clase: str, nombre_prod: str = "") -> Optional[str]:
     t_norm = normalizar_txt(f"{texto_mercado_o_clase} {nombre_prod}")
@@ -35,7 +78,12 @@ def resolver_clave_mercado_gutis(texto_mercado_o_clase: str, nombre_prod: str = 
             return m_key
     return None
 
-def encontrar_archivo_en_dir(data_dir: Path, palabras_obligatorias: List[str], palabras_preferidas: Optional[List[str]] = None) -> Optional[Path]:
+
+def encontrar_archivo_en_dir(
+    data_dir: Path,
+    palabras_obligatorias: List[str],
+    palabras_preferidas: Optional[List[str]] = None,
+) -> Optional[Path]:
     if not data_dir.exists():
         return None
     archivos = [p for p in data_dir.iterdir() if p.suffix.lower() in [".xlsx", ".xls"] and not p.name.startswith("~$")]
@@ -50,6 +98,7 @@ def encontrar_archivo_en_dir(data_dir: Path, palabras_obligatorias: List[str], p
         return candidatos[0][1]
     return None
 
+
 @dataclass
 class DataBundle:
     panel: pd.DataFrame = field(default_factory=pd.DataFrame)
@@ -61,6 +110,7 @@ class DataBundle:
     ventas: pd.DataFrame = field(default_factory=pd.DataFrame)
     archivos: Dict[str, str] = field(default_factory=dict)
     avisos: List[str] = field(default_factory=list)
+
 
 @st.cache_data(show_spinner=False)
 def load_data(data_dir_str: str) -> DataBundle:
@@ -98,7 +148,6 @@ def load_data(data_dir_str: str) -> DataBundle:
         col_prod_ct = next((c for c in bundle.clases.columns if "PRODUCTO" in normalizar_txt(c) or "MARCA" in normalizar_txt(c)), None)
         col_clase_ct = next((c for c in bundle.clases.columns if any(k in normalizar_txt(c) for k in ["CLASE", "TERAPEUTICA", "ATC", "MERCADO"])), None)
         if col_prod_ct and col_clase_ct:
-            # CORREGIDO: Evita el bug de Length mismatch limpiando índices
             df_ct_clean = bundle.clases.dropna(subset=[col_prod_ct, col_clase_ct]).copy()
             df_ct_clean["_KEY"] = df_ct_clean[col_prod_ct].astype(str).str.strip().str.upper()
             df_ct_clean = df_ct_clean.drop_duplicates(subset=["_KEY"])
@@ -118,15 +167,12 @@ def load_data(data_dir_str: str) -> DataBundle:
             bundle.productos["NOMBRE_PRODUCTO"] = bundle.productos["NOMBRE_PRODUCTO"].astype(str).str.strip()
             bundle.productos = bundle.productos[~bundle.productos["NOMBRE_PRODUCTO"].str.upper().isin(["TOTAL", "NAN", "NONE", ""])].copy()
 
-        # Normalizar columnas numéricas Pxs
         for c in ["Pxs-MES", "Pxs-YTD", "Pxs-TRIM", "Pxs-LY"]:
             if c in bundle.productos.columns:
                 bundle.productos[c] = pd.to_numeric(bundle.productos[c], errors="coerce").fillna(0)
 
-        # Asignar Clase del Archivo
         bundle.productos["CLASE_TERAPEUTICA_ARCHIVO"] = bundle.productos["NOMBRE_PRODUCTO"].str.upper().map(mapa_ct).fillna("")
 
-        # Flag Es_Gutis
         col_fab = next((c for c in bundle.productos.columns if "FABRICANTE" in c.upper() or "LAB" in c.upper()), None)
         prod_norm_s = normalizar_serie_rapida(bundle.productos["NOMBRE_PRODUCTO"])
         es_gutis_mask = prod_norm_s.str.contains(PATRON_REGEX_GUTIS, na=False)
@@ -134,8 +180,13 @@ def load_data(data_dir_str: str) -> DataBundle:
             es_gutis_mask = es_gutis_mask | normalizar_serie_rapida(bundle.productos[col_fab]).str.contains("GUTIS", na=False)
         bundle.productos["Es_Gutis"] = es_gutis_mask
 
-        # Mapeo Clave Gutis
-        bundle.productos["_clave_combo"] = bundle.productos.get("MERCADO", "").fillna("").astype(str) + " || " + bundle.productos["CLASE_TERAPEUTICA_ARCHIVO"] + " || " + bundle.productos["NOMBRE_PRODUCTO"]
+        bundle.productos["_clave_combo"] = (
+            bundle.productos.get("MERCADO", "").fillna("").astype(str)
+            + " || "
+            + bundle.productos["CLASE_TERAPEUTICA_ARCHIVO"]
+            + " || "
+            + bundle.productos["NOMBRE_PRODUCTO"]
+        )
         mapa_combo = {}
         for combo in bundle.productos["_clave_combo"].unique():
             partes = combo.split(" || ")
@@ -146,12 +197,10 @@ def load_data(data_dir_str: str) -> DataBundle:
         bundle.productos["Clave_Gutis"] = bundle.productos["_clave_combo"].map(mapa_combo)
         bundle.productos = bundle.productos.drop(columns=["_clave_combo"])
 
-        # Cruce con Panel
         bundle.productos["CIUDAD_PANEL"] = bundle.productos["Médico"].map(mapa_ciu).fillna("FUERA DE PANEL")
         bundle.productos["ESP_PANEL"] = bundle.productos["Médico"].map(mapa_esp).fillna("ESPECIALISTA")
         bundle.productos["CAT_PANEL"] = bundle.productos["Médico"].map(mapa_cat).fillna("S/C")
 
-        # Diccionario rápido Marca -> Mercado (CORREGIDO: sin usar r_m._0 frágil)
         temp_marcas = bundle.productos[["NOMBRE_PRODUCTO", "MERCADO", "Clave_Gutis"]].copy()
         temp_marcas["_marca_base"] = temp_marcas["NOMBRE_PRODUCTO"].str.split("-").str[0].str.strip().str.upper()
         for row in temp_marcas[["_marca_base", "MERCADO", "Clave_Gutis"]].drop_duplicates(subset=["_marca_base"]).to_dict("records"):
@@ -182,12 +231,16 @@ def load_data(data_dir_str: str) -> DataBundle:
                     df_aud_raw[c] = pd.to_numeric(df_aud_raw[c], errors="coerce").fillna(0.0)
 
             df_aud_raw["MARCA"] = df_aud_raw["MARCA"].astype(str).str.strip().str.upper()
-            bundle.auditoria_totales = df_aud_raw[df_aud_raw["MEDICO_ESPECIALIDAD"].astype(str).str.strip().str.upper() == "TOTAL"].drop_duplicates(subset=["MARCA"]).set_index("MARCA")
+            bundle.auditoria_totales = (
+                df_aud_raw[df_aud_raw["MEDICO_ESPECIALIDAD"].astype(str).str.strip().str.upper() == "TOTAL"]
+                .drop_duplicates(subset=["MARCA"])
+                .set_index("MARCA")
+            )
 
             mask_docs = (
-                ~df_aud_raw["MARCA"].isin(["TOTAL", "NAN", "NONE", ""]) &
-                ~df_aud_raw["MEDICO_ESPECIALIDAD"].astype(str).str.strip().str.upper().isin(["TOTAL", "NAN", "NONE", ""]) &
-                df_aud_raw["MEDICO_ESPECIALIDAD"].notna()
+                ~df_aud_raw["MARCA"].isin(["TOTAL", "NAN", "NONE", ""])
+                & ~df_aud_raw["MEDICO_ESPECIALIDAD"].astype(str).str.strip().str.upper().isin(["TOTAL", "NAN", "NONE", ""])
+                & df_aud_raw["MEDICO_ESPECIALIDAD"].notna()
             )
             df_docs = df_aud_raw[mask_docs].copy()
             partes = df_docs["MEDICO_ESPECIALIDAD"].astype(str).str.rsplit(" - ", n=1, expand=True)
@@ -197,7 +250,6 @@ def load_data(data_dir_str: str) -> DataBundle:
             df_docs["Zona"] = df_docs["Médico"].map(mapa_ciu).fillna("FUERA DE PANEL")
             df_docs["Categoria_TAM"] = df_docs["Médico"].map(mapa_cat).fillna("FUERA DE PANEL")
 
-            # Mapeo de Mercado y Clave
             map_m_mer, map_m_clave = {}, {}
             for m_u in df_docs["MARCA"].unique():
                 if m_u in mapa_marca_a_mercado:
@@ -210,7 +262,6 @@ def load_data(data_dir_str: str) -> DataBundle:
             df_docs["Mercado_BI"] = df_docs["MARCA"].map(map_m_mer)
             df_docs["Clave_Gutis"] = df_docs["MARCA"].map(map_m_clave)
 
-            # Ponderación W exacta
             for c_bi in ["% MS - LY", "% MS - Ytd", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]:
                 if c_bi in df_docs.columns and c_bi in bundle.auditoria_totales.columns:
                     p_marca_serie = df_docs["MARCA"].map(bundle.auditoria_totales[c_bi]).fillna(0.0)
@@ -218,37 +269,100 @@ def load_data(data_dir_str: str) -> DataBundle:
 
             bundle.auditoria = df_docs
 
-    # 6. Ventas / Sell-Out (Q1, Q2, Q3)
+    # 6. Ventas / Sell-Out: Prioriza datos 2026.xlsx (6 hojas mensuales) con respaldo trimestral
     dfs_v = []
-    for q_kw, q_lbl in [("PRIMER", "Q1"), ("SEGUNDO", "Q2"), ("TERCER", "Q3")]:
-        f_v = encontrar_archivo_en_dir(data_dir, ["VENTA", q_kw]) or encontrar_archivo_en_dir(data_dir, ["VENTAS", q_kw])
-        if f_v:
-            try:
-                xl = pd.ExcelFile(f_v)
-                sheet_target = "Export" if "Export" in xl.sheet_names else xl.sheet_names[0]
-                d_temp = pd.read_excel(f_v, sheet_name=sheet_target)
-                d_temp["Trimestre"] = q_lbl
-                dfs_v.append(d_temp)
-                bundle.archivos[f"Ventas {q_lbl}"] = f_v.name
-            except Exception:
-                pass
+    f_ventas_mensual = (
+        encontrar_archivo_en_dir(data_dir, ["DATOS", "2026"])
+        or encontrar_archivo_en_dir(data_dir, ["DATA", "2026"])
+        or encontrar_archivo_en_dir(data_dir, ["VENTA", "MENSUAL"])
+    )
+    if not f_ventas_mensual and data_dir.exists():
+        for p_cand in sorted(data_dir.iterdir()):
+            if p_cand.suffix.lower() in [".xlsx", ".xls"] and not p_cand.name.startswith("~$"):
+                try:
+                    xl_test = pd.ExcelFile(p_cand)
+                    hojas_mes = [s for s in xl_test.sheet_names if _parsear_hoja_mensual(s) is not None]
+                    if len(hojas_mes) >= 2:
+                        f_ventas_mensual = p_cand
+                        break
+                except Exception:
+                    continue
+
+    if f_ventas_mensual:
+        try:
+            xl_m = pd.ExcelFile(f_ventas_mensual)
+            for sheet_m in xl_m.sheet_names:
+                info_m = _parsear_hoja_mensual(sheet_m)
+                if info_m is None:
+                    continue
+                clave_ord, etiq_mes, q_eq = info_m
+                d_m = pd.read_excel(f_ventas_mensual, sheet_name=sheet_m)
+                d_m["Mes_Orden"] = clave_ord
+                d_m["Mes_Label"] = etiq_mes
+                d_m["Trimestre"] = q_eq
+                dfs_v.append(d_m)
+            if dfs_v:
+                bundle.archivos["Ventas Mensual"] = f_ventas_mensual.name
+        except Exception as e:
+            bundle.avisos.append(f"Aviso al leer ventas mensuales: {e}")
+
+    if not dfs_v:
+        for q_kw, q_lbl in [("PRIMER", "Q1"), ("SEGUNDO", "Q2"), ("TERCER", "Q3")]:
+            f_v = encontrar_archivo_en_dir(data_dir, ["VENTA", q_kw]) or encontrar_archivo_en_dir(data_dir, ["VENTAS", q_kw])
+            if f_v:
+                try:
+                    xl = pd.ExcelFile(f_v)
+                    sheet_target = "Export" if "Export" in xl.sheet_names else xl.sheet_names[0]
+                    d_temp = pd.read_excel(f_v, sheet_name=sheet_target)
+                    d_temp["Trimestre"] = q_lbl
+                    d_temp["Mes_Orden"] = {"Q1": 202603, "Q2": 202606, "Q3": 202609}[q_lbl]
+                    d_temp["Mes_Label"] = q_lbl
+                    dfs_v.append(d_temp)
+                    bundle.archivos[f"Ventas {q_lbl}"] = f_v.name
+                except Exception:
+                    pass
 
     if dfs_v:
-        bundle.ventas = pd.concat(dfs_v, ignore_index=True)
-        bundle.ventas.columns = bundle.ventas.columns.astype(str).str.strip()
-        # CORREGIDO: Sanitización estricta de Monto Real a numérico
-        if "Monto Real" in bundle.ventas.columns:
-            bundle.ventas["Monto Real"] = pd.to_numeric(
-                bundle.ventas["Monto Real"].astype(str).str.replace("$", "", regex=False).str.replace(",", "", regex=False).str.strip(),
-                errors="coerce"
-            ).fillna(0.0)
-        if "DESCRIPCION_RUTA" in bundle.ventas.columns:
-            bundle.ventas["DESCRIPCION_RUTA"] = bundle.ventas["DESCRIPCION_RUTA"].astype(str).str.strip().str.upper()
-        col_p_v = "VM4" if "VM4" in bundle.ventas.columns else next((c for c in bundle.ventas.columns if "PRODUCTO" in c.upper()), None)
+        df_v_all = pd.concat(dfs_v, ignore_index=True)
+        df_v_all.columns = df_v_all.columns.astype(str).str.strip()
+
+        # Filtrar subtotales 'Total' y vacíos para no duplicar montos
+        for col_filt in ["DESCRIPCION_RUTA", "NOMBRE_CLIENTE_1", "VM4"]:
+            if col_filt in df_v_all.columns:
+                df_v_all = df_v_all[df_v_all[col_filt].notna()].copy()
+                s_up = df_v_all[col_filt].astype(str).str.strip().str.upper()
+                df_v_all = df_v_all[~s_up.isin(["TOTAL", "NAN", "NONE", ""])].copy()
+
+        for col_num in ["Und Real", "Monto Real", "Und Cuota", "Monto Cuota", "% Real", "Und Negat", "Monto Negat"]:
+            if col_num in df_v_all.columns:
+                df_v_all[col_num] = _limpiar_numero_serie(df_v_all[col_num])
+
+        if "% Real" in df_v_all.columns:
+            df_v_all["% Cumplimiento"] = np.where(
+                df_v_all["% Real"].abs() <= 2.5,
+                (df_v_all["% Real"] * 100.0).round(1),
+                df_v_all["% Real"].round(1),
+            )
+        elif "Monto Cuota" in df_v_all.columns and "Monto Real" in df_v_all.columns:
+            df_v_all["% Cumplimiento"] = np.where(
+                df_v_all["Monto Cuota"] > 0,
+                (df_v_all["Monto Real"] / df_v_all["Monto Cuota"] * 100.0).round(1),
+                0.0,
+            )
+
+        if "DESCRIPCION_RUTA" in df_v_all.columns:
+            df_v_all["DESCRIPCION_RUTA"] = df_v_all["DESCRIPCION_RUTA"].astype(str).str.strip().str.upper()
+        if "NOMBRE_CLIENTE_1" in df_v_all.columns:
+            df_v_all["NOMBRE_CLIENTE_1"] = df_v_all["NOMBRE_CLIENTE_1"].astype(str).str.strip().str.upper()
+
+        col_p_v = "VM4" if "VM4" in df_v_all.columns else next((c for c in df_v_all.columns if "PRODUCTO" in c.upper()), None)
         if col_p_v:
-            bundle.ventas["PRODUCTO_VENTA"] = bundle.ventas[col_p_v].astype(str).str.strip().str.upper()
+            df_v_all["PRODUCTO_VENTA"] = df_v_all[col_p_v].astype(str).str.strip().str.upper()
+
+        bundle.ventas = df_v_all
 
     return bundle
+
 
 def clear_data_cache():
     st.cache_data.clear()
