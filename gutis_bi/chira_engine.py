@@ -1,13 +1,11 @@
 """
-Motor Cognitivo y Analítico Todo-en-Uno CHIRA v4.0 para Gutis BI.
-Autocontenido (sin riesgo de desincronización con ai_service.py).
-Cubre:
-  - 15 objeciones reales de campo (precio, genérico, hábito, sabor/pediatría, somnolencia,
-    ardor nasal, irritación gástrica, posología, estudios, quiebre de stock, cambio en
-    mostrador, sin tiempo/30 seg, solo pide muestras y compliance/congreso).
-  - Comparativas técnicas (Vs.), consultas clínicas rápidas y redacción de WhatsApp.
-  - 6 motores de datos exactos: Evolución de Sucursales (6 meses), Abordaje de Sucursales,
-    Caída de Recetas, Subida de Cuota, Potencial de Expansión y Cruce Rx vs. Venta Mensual.
+Motor Cognitivo y Analítico Todo-en-Uno CHIRA v4.2 para Gutis BI.
+Autocontenido + Inteligencia Ejecutiva Automática sobre 6 meses reales (datos 2026.xlsx):
+  - Detector de Apagones de Sucursales (clientes buenos que cayeron a $0 en el último mes).
+  - Pareto 80/20 de Déficit de Cuota con códigos exactos a recuperar.
+  - Diagnóstico mensual de Marcas (Estrellas en aceleración vs. Drenajes de cuota).
+  - Briefing Ejecutivo del Territorio (1 clic o consulta coloquial).
+  - 15 objeciones reales de campo, Comparativas (Vs.), WhatsApp y 6 motores Close-Up + Sell-Out.
 """
 
 from __future__ import annotations
@@ -108,7 +106,7 @@ def _orden_meses_ventas(df_v: pd.DataFrame) -> List[str]:
 
 
 # ============================================================================
-# 1. TABLA MENSUAL DE 6 MESES + REAL VS CUOTA (Módulo 4 Evolución)
+# 1. TABLA MENSUAL DE 6 MESES + REAL VS CUOTA
 # ============================================================================
 def ventas_mensuales_resumen(
     df_ventas: pd.DataFrame,
@@ -212,7 +210,228 @@ def ventas_mensuales_resumen(
 
 
 # ============================================================================
-# 2. PLAYBOOK COMPLETO DE LAS 15 OBJECIONES REALES + COMPARATIVAS + WHATSAPP
+# 2. MOTOR DE INTELIGENCIA EJECUTIVA AUTOMÁTICA (APAGONES, PARETO 80/20, MARCAS)
+# ============================================================================
+def inteligencia_ejecutiva_mensual(
+    df_ventas: pd.DataFrame,
+    ciudad: Optional[str] = None,
+) -> Dict[str, Any]:
+    vacio = {
+        "apagones_df": pd.DataFrame(),
+        "pareto_df": pd.DataFrame(),
+        "productos_df": pd.DataFrame(),
+        "cards": {
+            "ult_mes": "-",
+            "prev_mes": "-",
+            "n_apagones": 0,
+            "riesgo_apagones": 0.0,
+            "top_apagon": "Ninguno",
+            "estrella_prod": "-",
+            "estrella_var": 0.0,
+            "drenaje_prod": "-",
+            "drenaje_brecha": 0.0,
+            "pareto_n80": 0,
+            "pareto_tot_pdvs": 0,
+            "pareto_deficit_total": 0.0,
+        },
+    }
+    if df_ventas.empty or "Monto Real" not in df_ventas.columns:
+        return vacio
+
+    sub = df_ventas.copy()
+    if "Mes_Label" not in sub.columns and "Trimestre" in sub.columns:
+        sub["Mes_Label"] = sub["Trimestre"]
+    sub["DEPTO_CANON"] = sub["DESCRIPCION_RUTA"].apply(canonizar_departamento)
+    if ciudad and ciudad not in ("TODO MI PANEL", "TODAS"):
+        ciu_canon = canonizar_departamento(ciudad)
+        sub = sub[
+            (sub["DEPTO_CANON"] == ciu_canon)
+            | (sub["DESCRIPCION_RUTA"].str.contains(re.escape(normalizar_txt(ciudad)), na=False))
+        ]
+    if sub.empty:
+        return vacio
+
+    meses = _orden_meses_ventas(sub)
+    if len(meses) < 2:
+        return vacio
+
+    ult_m, prev_m = meses[-1], meses[-2]
+    meses_prev = meses[:-1]
+    tiene_cuota = "Monto Cuota" in sub.columns
+
+    piv_pdv = pd.pivot_table(
+        sub,
+        values="Monto Real",
+        index=["DEPTO_CANON", "NOMBRE_CLIENTE_1"],
+        columns=["Mes_Label"],
+        aggfunc="sum",
+        fill_value=0.0,
+    ).reset_index()
+    for m in meses:
+        if m not in piv_pdv.columns:
+            piv_pdv[m] = 0.0
+        piv_pdv[m] = piv_pdv[m].round(2)
+
+    piv_pdv["Prom. Previo ($)"] = piv_pdv[meses_prev].mean(axis=1).round(2)
+
+    apagones = piv_pdv[
+        (piv_pdv["Prom. Previo ($)"] >= 150.0)
+        & (piv_pdv[ult_m] <= piv_pdv["Prom. Previo ($)"] * 0.10)
+    ].copy()
+    apagones["Estado Alerta"] = np.where(apagones[ult_m] == 0, "APAGÓN TOTAL ($0)", "CAÍDA CRÍTICA (>90%)")
+    apagones["Pérdida Mensual Est. ($)"] = (apagones["Prom. Previo ($)"] - apagones[ult_m]).round(2)
+    apagones = apagones.rename(columns={"DEPTO_CANON": "Departamento", "NOMBRE_CLIENTE_1": "Sucursal / Farmacia"})
+    apagones = apagones.sort_values(by="Pérdida Mensual Est. ($)", ascending=False).reset_index(drop=True)
+    cols_ap = ["Departamento", "Sucursal / Farmacia", "Estado Alerta"] + meses + ["Prom. Previo ($)", "Pérdida Mensual Est. ($)"]
+    apagones = apagones[cols_ap]
+
+    sub_ult = sub[sub["Mes_Label"] == ult_m].copy()
+    pareto_df = pd.DataFrame()
+    pareto_n80, pareto_tot_pdvs, pareto_def_tot = 0, 0, 0.0
+    if not sub_ult.empty and tiene_cuota:
+        g_u = sub_ult.groupby(["DEPTO_CANON", "NOMBRE_CLIENTE_1"], as_index=False)[["Monto Real", "Monto Cuota"]].sum()
+        g_u["Déficit ($)"] = (g_u["Monto Cuota"] - g_u["Monto Real"]).round(2)
+        g_def = g_u[g_u["Déficit ($)"] > 0].sort_values(by="Déficit ($)", ascending=False).reset_index(drop=True)
+        if not g_def.empty:
+            pareto_tot_pdvs = len(g_def)
+            pareto_def_tot = round(float(g_def["Déficit ($)"].sum()), 2)
+            g_def["% Cuota"] = np.where(g_def["Monto Cuota"] > 0, (g_def["Monto Real"] / g_def["Monto Cuota"] * 100.0).round(1), 0.0)
+            g_def["% Acum. Déficit"] = (g_def["Déficit ($)"].cumsum() / pareto_def_tot * 100.0).round(1)
+            pareto_n80 = min(int((g_def["% Acum. Déficit"] <= 80.0).sum()) + 1, pareto_tot_pdvs)
+
+            g_cod = sub_ult.groupby(["DEPTO_CANON", "NOMBRE_CLIENTE_1", "PRODUCTO_VENTA"], as_index=False)[["Monto Real", "Monto Cuota"]].sum()
+            g_cod["Def_C"] = g_cod["Monto Cuota"] - g_cod["Monto Real"]
+            mapa_cods = {}
+            for (dep, cli), grp_c in g_cod[g_cod["Def_C"] > 15].groupby(["DEPTO_CANON", "NOMBRE_CLIENTE_1"]):
+                top2 = grp_c.sort_values("Def_C", ascending=False).head(2)
+                mapa_cods[(dep, cli)] = " | ".join([f"{r['PRODUCTO_VENTA']} (-${r['Def_C']:,.0f})" for _, r in top2.iterrows()])
+
+            g_def["Códigos a Empujar"] = [mapa_cods.get((r["DEPTO_CANON"], r["NOMBRE_CLIENTE_1"]), "-") for _, r in g_def.iterrows()]
+            g_def["Segmento Pareto"] = np.where(g_def["% Acum. Déficit"] <= 80.0, "PARETO 80% (PRIORIDAD)", "COLA 20%")
+            pareto_df = g_def.rename(
+                columns={
+                    "DEPTO_CANON": "Departamento",
+                    "NOMBRE_CLIENTE_1": "Sucursal / Farmacia",
+                    "Monto Real": f"Real {ult_m} ($)",
+                    "Monto Cuota": f"Cuota {ult_m} ($)",
+                }
+            )[[
+                "Segmento Pareto", "Departamento", "Sucursal / Farmacia",
+                f"Real {ult_m} ($)", f"Cuota {ult_m} ($)", "% Cuota",
+                "Déficit ($)", "% Acum. Déficit", "Códigos a Empujar",
+            ]]
+
+    g_p_all = sub.groupby("PRODUCTO_VENTA")[["Monto Real", "Monto Cuota"]].sum() if tiene_cuota else sub.groupby("PRODUCTO_VENTA")[["Monto Real"]].sum()
+    g_p_ult = sub_ult.groupby("PRODUCTO_VENTA")[["Monto Real", "Monto Cuota"]].sum() if (not sub_ult.empty and tiene_cuota) else sub_ult.groupby("PRODUCTO_VENTA")[["Monto Real"]].sum()
+    g_p_prev = sub[sub["Mes_Label"] == prev_m].groupby("PRODUCTO_VENTA")[["Monto Real"]].sum()
+
+    df_pm = pd.DataFrame(index=g_p_all.index)
+    df_pm[f"Real {prev_m} ($)"] = g_p_prev["Monto Real"].reindex(df_pm.index).fillna(0.0).round(2)
+    df_pm[f"Real {ult_m} ($)"] = g_p_ult["Monto Real"].reindex(df_pm.index).fillna(0.0).round(2)
+    df_pm["Var. MoM (%)"] = np.where(
+        df_pm[f"Real {prev_m} ($)"] > 0,
+        ((df_pm[f"Real {ult_m} ($)"] - df_pm[f"Real {prev_m} ($)"]) / df_pm[f"Real {prev_m} ($)"] * 100.0).round(1),
+        0.0,
+    )
+    if tiene_cuota:
+        c_u = g_p_ult["Monto Cuota"].reindex(df_pm.index).fillna(0.0).round(2)
+        df_pm[f"Cuota {ult_m} ($)"] = c_u
+        df_pm[f"% Cuota {ult_m}"] = np.where(c_u > 0, (df_pm[f"Real {ult_m} ($)"] / c_u * 100.0).round(1), 0.0)
+        df_pm[f"Brecha {ult_m} ($)"] = (df_pm[f"Real {ult_m} ($)"] - c_u).round(2)
+        df_pm["Real 6M ($)"] = g_p_all["Monto Real"].round(2)
+        df_pm["% Cuota 6M"] = np.where(g_p_all["Monto Cuota"] > 0, (g_p_all["Monto Real"] / g_p_all["Monto Cuota"] * 100.0).round(1), 0.0)
+        df_pm["Diagnóstico"] = np.where(
+            df_pm["Var. MoM (%)"] >= 15.0,
+            "🚀 ACELERACIÓN FUERTE",
+            np.where(
+                df_pm[f"Brecha {ult_m} ($)"] <= -4000,
+                "🚨 DRENAJE CRÍTICO DE CUOTA",
+                np.where(df_pm["Var. MoM (%)"] <= -8.0, "⚠️ EN CONTRACCIÓN", "● ESTABLE"),
+            ),
+        )
+    df_pm = df_pm.reset_index().rename(columns={"PRODUCTO_VENTA": "Producto"})
+    if f"Brecha {ult_m} ($)" in df_pm.columns:
+        df_pm = df_pm.sort_values(by=f"Brecha {ult_m} ($)", ascending=True).reset_index(drop=True)
+
+    estrella_row = df_pm.sort_values("Var. MoM (%)", ascending=False).iloc[0] if not df_pm.empty else None
+    drenaje_row = df_pm.iloc[0] if not df_pm.empty else None
+
+    return {
+        "apagones_df": apagones,
+        "pareto_df": pareto_df,
+        "productos_df": df_pm,
+        "cards": {
+            "ult_mes": ult_m,
+            "prev_mes": prev_m,
+            "n_apagones": len(apagones),
+            "riesgo_apagones": round(float(apagones["Pérdida Mensual Est. ($)"].sum()), 2) if not apagones.empty else 0.0,
+            "top_apagon": str(apagones.iloc[0]["Sucursal / Farmacia"]) if not apagones.empty else "Sin apagones",
+            "estrella_prod": str(estrella_row["Producto"]) if estrella_row is not None else "-",
+            "estrella_var": float(estrella_row["Var. MoM (%)"]) if estrella_row is not None else 0.0,
+            "drenaje_prod": str(drenaje_row["Producto"]) if drenaje_row is not None else "-",
+            "drenaje_brecha": float(drenaje_row.get(f"Brecha {ult_m} ($)", 0.0)) if drenaje_row is not None else 0.0,
+            "pareto_n80": pareto_n80,
+            "pareto_tot_pdvs": pareto_tot_pdvs,
+            "pareto_deficit_total": pareto_def_tot,
+        },
+    }
+
+
+def analizar_briefing_y_apagones(bundle: Any, ciudad: Optional[str] = None, modo: str = "BRIEFING") -> str:
+    intel = inteligencia_ejecutiva_mensual(bundle.ventas, ciudad=ciudad)
+    c = intel["cards"]
+    ciu_lbl = ciudad.upper() if ciudad else "TODO TU TERRITORIO"
+
+    if c["ult_mes"] == "-":
+        return "No se detectaron al menos 2 meses en ventas para generar el radar inteligente."
+
+    if modo == "APAGONES":
+        df_ap = intel["apagones_df"]
+        if df_ap.empty:
+            return f"### Radar de Apagones de Sucursales ({c['ult_mes']}) — {ciu_lbl}\nNo se detectaron farmacias relevantes en apagón total en {c['ult_mes']}."
+        return f"""### 🚨 Radar de Apagones y Quiebres de Compra ({c['ult_mes']}) — {ciu_lbl}
+Se detectaron **{c['n_apagones']} sucursales** que venían comprando más de `$150/mes` y cayeron a **$0 (o >90% abajo)** en **{c['ult_mes']}**, poniendo en riesgo **${c['riesgo_apagones']:,.2f}/mes**.
+
+{df_a_markdown_nativo(df_ap.head(15))}
+
+#### Plan de Rescate Inmediato:
+1. Prioriza llamadas o visita de verificación a **{c['top_apagon']}** y el Top 3 de la tabla: validar si hubo **quiebre en droguería, cambio de proveedor o bloqueo de crédito**.
+"""
+
+    if modo == "PARETO":
+        df_par = intel["pareto_df"]
+        if df_par.empty:
+            return f"### Análisis Pareto 80/20 de Déficit ({c['ult_mes']}) — {ciu_lbl}\nSin déficit pendiente en este filtro."
+        return f"""### 🎯 Regla Pareto 80/20 del Déficit de Cuota ({c['ult_mes']}) — {ciu_lbl}
+De tus **{c['pareto_tot_pdvs']} sucursales** bajo cuota, solo **{c['pareto_n80']} sucursales** concentran el **80%** de toda la brecha (**${c['pareto_deficit_total']:,.2f}** totales). Enfoca tu semana en este bloque:
+
+{df_a_markdown_nativo(df_par.head(15))}
+"""
+
+    df_prod = intel["productos_df"]
+    df_ap = intel["apagones_df"]
+    df_par = intel["pareto_df"]
+    return f"""### 🧠 Briefing Ejecutivo Inteligente ({c['prev_mes']} → {c['ult_mes']}) — {ciu_lbl}
+
+#### 1. Los 3 Hallazgos Críticos del Cierre de {c['ult_mes']}
+- **🚀 Marca Estrella del Mes:** **{c['estrella_prod']}** aceleró **{c['estrella_var']:+.1f}%** frente a {c['prev_mes']}.
+- **🚨 Principal Drenaje de Cuota:** **{c['drenaje_prod']}** concentra la mayor brecha del mes (**${c['drenaje_brecha']:+,.0f}**).
+- **⚡ Apagones de Farmacias:** **{c['n_apagones']} clientes buenos** cayeron a $0 en {c['ult_mes']} (**${c['riesgo_apagones']:,.0f}/mes** en riesgo), encabezados por **{c['top_apagon']}**.
+- **🎯 Foco Pareto 80/20:** Solo **{c['pareto_n80']} de {c['pareto_tot_pdvs']}** sucursales explican el **80%** de tu déficit total de **${c['pareto_deficit_total']:,.0f}**.
+
+#### 2. Termómetro de Marcas ({c['prev_mes']} vs. {c['ult_mes']})
+{df_a_markdown_nativo(df_prod)}
+
+#### 3. Top 5 Sucursales Prioritarias para Cerrar Cuota Hoy (Pareto 80/20)
+{df_a_markdown_nativo(df_par.head(5)) if not df_par.empty else "_Sin déficit._"}
+
+#### 4. Top 5 Apagones Urgentes por Auditar
+{df_a_markdown_nativo(df_ap.head(5)) if not df_ap.empty else "_Sin apagones críticos._"}
+"""
+
+
+# ============================================================================
+# 3. PLAYBOOK COMPLETO DE LAS 15 OBJECIONES REALES + COMPARATIVAS + WHATSAPP
 # ============================================================================
 def construir_playbook_objecion(
     consulta: str,
@@ -236,7 +455,6 @@ def construir_playbook_objecion(
 
     q = normalizar_txt(consulta)
 
-    # Identificar cuál de las 15 objeciones reales es
     if any(w in q for w in ["GENERICO", "MISMA MOLECULA", "COPIA", "IGUAL DE BARATO"]):
         tipo = "Objeción de Genérico («El genérico cuesta la mitad y trae la misma molécula»)"
         verbal = (
@@ -245,7 +463,7 @@ def construir_playbook_objecion(
             f"({caract}) asegura respuesta predecible desde las primeras tomas, evitando recaídas o "
             f"reconsultas que terminan saliendo más caras que el ahorro inicial del genérico.»"
         )
-        cierre = f"Póngalo a prueba en sus próximos **3 pacientes donde el genérico haya tenido respuesta lenta**."
+        cierre = "Póngalo a prueba en sus próximos **3 pacientes donde el genérico haya tenido respuesta lenta**."
     elif any(w in q for w in ["CARO", "PRECIO", "COSTO", "ECONOM", "BARATO", "CARINOSO", "BOLSILLO", "SEGURO"]):
         tipo = "Objeción de Precio / Bolsillo («Es muy caro para mis pacientes»)"
         verbal = (
@@ -270,7 +488,7 @@ def construir_playbook_objecion(
             f"**{prod}** fue formulado pensando en palatabilidad y tolerabilidad ({caract}), logrando "
             f"que **{benef}** y mejorando la tranquilidad de los padres.»"
         )
-        cierre = f"Indíquelo en sus próximos **3 pacientes pediátricos** donde el rechazo al jarabe sea un reto."
+        cierre = "Indíquelo en sus próximos **3 pacientes pediátricos** donde el rechazo al jarabe sea un reto."
     elif any(w in q for w in ["SUENO", "SOMNOLENCIA", "DORMIDO", "SEDA"]):
         tipo = "Objeción de Tolerabilidad («Causa sueño / somnolencia»)"
         verbal = (
@@ -278,7 +496,7 @@ def construir_playbook_objecion(
             f"({caract}) está diseñado para mantener control sintomático sin comprometer el desempeño "
             f"diario ni escolar, logrando que **{arg_img}**.»"
         )
-        cierre = f"Pruébelo esta semana en pacientes que manejan, estudian o trabajan y no pueden permitirse sedación."
+        cierre = "Pruébelo esta semana en pacientes que manejan, estudian o trabajan y no pueden permitirse sedación."
     elif any(w in q for w in ["ARDE", "ARDOR", "RESECA", "NARIZ", "MUCOSA", "MAL SABOR", "SPRAY"]):
         tipo = "Objeción Nasal / Galénica («Arde en la nariz, reseca o deja mal sabor»)"
         verbal = (
@@ -286,14 +504,14 @@ def construir_playbook_objecion(
             f"Con **{prod}** ({caract}), buscamos proteger la mucosa y dar confort de aplicación para "
             f"que el paciente complete el ciclo y **{benef}**.»"
         )
-        cierre = f"Indíquelo en pacientes sensibles o con rinitis persistente que abandonaron sprays irritantes."
+        cierre = "Indíquelo en pacientes sensibles o con rinitis persistente que abandonaron sprays irritantes."
     elif any(w in q for w in ["ESTOMAGO", "GASTRI", "IRRITA", "MUY FUERTE", "POSOLOGIA", "MUCHAS TOMAS", "INCOMOD"]):
         tipo = "Objeción de Tolerabilidad Gástrica / Posología («Irrita el estómago o muchas tomas»)"
         verbal = (
             f"«Entiendo su preocupación por el apego y la tolerabilidad, {doc_corto}. Precisamente "
             f"**{prod}** ({caract}) simplifica la adherencia y cuida la tolerabilidad para que **{benef}**.»"
         )
-        cierre = f"Evalúelo en sus próximos **3 pacientes** con historial de abandono por molestias digestivas o esquema complejo."
+        cierre = "Evalúelo en sus próximos **3 pacientes** con historial de abandono por molestias digestivas o esquema complejo."
     elif any(w in q for w in ["ESTUDIO", "EVIDENCIA", "ARTICULO", "EXPERIENCIA CLINICA"]):
         tipo = "Objeción Científica («No conozco estudios de esa combinación»)"
         verbal = (
@@ -301,7 +519,7 @@ def construir_playbook_objecion(
             f"en **{caract}**, orientado a **{benef}**. Hoy mismo le comparto el resumen clínico y "
             f"ficha técnica para que lo revise con calma.»"
         )
-        cierre = f"Le envío la monografía por WhatsApp hoy y en la próxima visita revisamos sus impresiones clínicas."
+        cierre = "Le envío la monografía por WhatsApp hoy y en la próxima visita revisamos sus impresiones clínicas."
     elif any(w in q for w in ["NO ENCUENTRA", "STOCK", "QUIEBRE", "DISPONIB", "NO DISTRIBUY", "NO HAY EN FARMACIA"]):
         tipo = "Objeción de Disponibilidad («Yo lo receto pero el paciente no lo encuentra»)"
         verbal = (
@@ -325,7 +543,7 @@ def construir_playbook_objecion(
             f"logrando **{benef}**. Ya lo dejé disponible en **{farm}**. ¿Me permite contar con él en sus "
             f"próximos 3 casos de esta semana?»"
         )
-        cierre = f"Entregar recordatorio breve, agradecer su minuto y retirarse puntual."
+        cierre = "Entregar recordatorio breve, agradecer su minuto y retirarse puntual."
     elif any(w in q for w in ["MUESTRA", "DEJAME MUESTRAS", "PROBARLO PRIMERO"]):
         tipo = "Objeción de Muestras («Déjame muestras para probarlo primero»)"
         verbal = (
@@ -343,7 +561,7 @@ def construir_playbook_objecion(
             f"condicionamiento de recetas. De mi lado, gestiono su solicitud por el canal institucional "
             f"correspondiente y sigo asegurando stock de **{prod}** en **{farm}** para cuando usted decida indicarlo.»"
         )
-        cierre = f"Mantener postura ética firme, amable y profesional sin prometer favores ligados a volumen de prescripción."
+        cierre = "Mantener postura ética firme, amable y profesional sin prometer favores ligados a volumen de prescripción."
     else:
         tipo = f"Argumentario Clínico y Objeciones — {prod} ({clase})"
         verbal = (
@@ -418,7 +636,7 @@ def construir_whatsapp_seguimiento(
 
 
 # ============================================================================
-# 3. MOTOR: EVOLUCIÓN MENSUAL DE SUCURSALES (CRECIMIENTO / CAÍDA EN 6 MESES)
+# 4. MOTOR: EVOLUCIÓN MENSUAL DE SUCURSALES (6 MESES)
 # ============================================================================
 def analizar_evolucion_sucursales(
     bundle: Any,
@@ -450,10 +668,6 @@ def analizar_evolucion_sucursales(
     if len(meses) < 2:
         return "Se requieren al menos 2 períodos cargados para medir crecimiento por sucursal."
 
-    aviso_cache = ""
-    if all(m in ("Q1", "Q2", "Q3", "Q4") for m in meses):
-        aviso_cache = "> ⚠️ **Aviso de Caché:** Todavía estás viendo los archivos trimestrales (`Q1–Q3`) en memoria. Abre la barra lateral izquierda → **Estado de Bases de Datos y Caché → Recargar Excels y Limpiar Caché** para cargar los 6 meses de `datos 2026.xlsx`.\n\n"
-
     piv = pd.pivot_table(
         sub,
         values="Monto Real",
@@ -468,8 +682,8 @@ def analizar_evolucion_sucursales(
             piv[m] = 0.0
         piv[m] = piv[m].round(2)
 
-    piv["Total Período ($)"] = piv[meses].sum(axis=1).round(2)
-    piv = piv[piv["Total Período ($)"] > 0].copy()
+    piv["Total 6M ($)"] = piv[meses].sum(axis=1).round(2)
+    piv = piv[piv["Total 6M ($)"] > 0].copy()
 
     mitad = max(1, len(meses) // 2)
     bloque_1 = meses[:mitad]
@@ -486,7 +700,7 @@ def analizar_evolucion_sucursales(
         piv = piv.merge(cuota_g, on=["DEPTO_CANON", "NOMBRE_CLIENTE_1"], how="left")
         piv["% Cuota"] = np.where(
             piv["Monto Cuota"] > 0,
-            (piv["Total Período ($)"] / piv["Monto Cuota"] * 100.0).round(1),
+            (piv["Total 6M ($)"] / piv["Monto Cuota"] * 100.0).round(1),
             0.0,
         )
         piv = piv.drop(columns=["Monto Cuota"])
@@ -500,7 +714,7 @@ def analizar_evolucion_sucursales(
     ciu_lbl = ciudad.upper() if ciudad else "TODO TU TERRITORIO"
     rango_lbl = f"{meses[0]} → {meses[-1]}"
 
-    cols_mostrar = ["Departamento", "Sucursal / Farmacia"] + meses + ["Total Período ($)", "Crecimiento ($/mes)", "Var. Últ. Mes ($)"]
+    cols_mostrar = ["Departamento", "Sucursal / Farmacia"] + meses + ["Total 6M ($)", "Crecimiento ($/mes)", "Var. Últ. Mes ($)"]
     if "% Cuota" in piv.columns:
         cols_mostrar.append("% Cuota")
 
@@ -508,22 +722,22 @@ def analizar_evolucion_sucursales(
         df_res = piv[piv["Crecimiento ($/mes)"] < 0].sort_values(by="Crecimiento ($/mes)", ascending=True).reset_index(drop=True)
         titulo = f"Sucursales con Mayor Contracción en {prod_lbl} ({rango_lbl}) — {ciu_lbl}"
         resumen_top = "\n".join([
-            f"- **{r['Sucursal / Farmacia']}** ({r['Departamento']}): Bajó de `${r['Prom. 1ra Mitad ($)']:,.2f}/mes` a `${r['Prom. 2da Mitad ($)']:,.2f}/mes` (Cierre {ult_m}: `${r[ult_m]:,.2f}` | Total: `${r['Total Período ($)']:,.2f}`)."
+            f"- **{r['Sucursal / Farmacia']}** ({r['Departamento']}): Bajó de `${r['Prom. 1ra Mitad ($)']:,.2f}/mes` a `${r['Prom. 2da Mitad ($)']:,.2f}/mes` (Cierre {ult_m}: `${r[ult_m]:,.2f}` | Total: `${r['Total 6M ($)']:,.2f}`)."
             for _, r in df_res.head(5).iterrows()
         ])
     else:
         df_res = piv[piv["Crecimiento ($/mes)"] > 0].sort_values(by="Crecimiento ($/mes)", ascending=False).reset_index(drop=True)
         titulo = f"Sucursales con Mayor Crecimiento en {prod_lbl} ({rango_lbl}) — {ciu_lbl}"
         resumen_top = "\n".join([
-            f"- **{r['Sucursal / Farmacia']}** ({r['Departamento']}): Creció de `${r['Prom. 1ra Mitad ($)']:,.2f}/mes` (`{'/'.join(bloque_1)}`) a `${r['Prom. 2da Mitad ($)']:,.2f}/mes` (`{'/'.join(bloque_2)}`) | Cierre {ult_m}: `${r[ult_m]:,.2f}` | Total: `${r['Total Período ($)']:,.2f}`."
+            f"- **{r['Sucursal / Farmacia']}** ({r['Departamento']}): Creció de `${r['Prom. 1ra Mitad ($)']:,.2f}/mes` (`{'/'.join(bloque_1)}`) a `${r['Prom. 2da Mitad ($)']:,.2f}/mes` (`{'/'.join(bloque_2)}`) | Cierre {ult_m}: `${r[ult_m]:,.2f}` | Total: `${r['Total 6M ($)']:,.2f}`."
             for _, r in df_res.head(5).iterrows()
         ])
 
     if df_res.empty:
-        return f"{aviso_cache}### {titulo}\nNo se encontraron sucursales con esa variación neta en el período seleccionado."
+        return f"### {titulo}\nNo se encontraron sucursales con esa variación neta en el período seleccionado."
 
-    return f"""{aviso_cache}### {titulo}
-Comparativa mes a mes de tus **{len(meses)} períodos** (`{rango_lbl}`) midiendo la aceleración entre la primera mitad (`{' + '.join(bloque_1)}`) y la segunda mitad (`{' + '.join(bloque_2)}`).
+    return f"""### {titulo}
+Comparativa mes a mes de tus **{len(meses)} meses reales** (`{rango_lbl}`) midiendo la aceleración entre la primera mitad (`{' + '.join(bloque_1)}`) y la segunda mitad (`{' + '.join(bloque_2)}`).
 
 {df_a_markdown_nativo(df_res[cols_mostrar].head(15))}
 
@@ -533,7 +747,7 @@ Comparativa mes a mes de tus **{len(meses)} períodos** (`{rango_lbl}`) midiendo
 
 
 # ============================================================================
-# 4. MOTOR: MÉDICOS CON TENDENCIA DE CAÍDA EN RECETAS (CAIDA_RX)
+# 5. MOTOR: MÉDICOS CON TENDENCIA DE CAÍDA EN RECETAS (CAIDA_RX)
 # ============================================================================
 def analizar_caida_rx_medicos(
     bundle: Any,
@@ -644,7 +858,7 @@ Se detectaron **{len(df_caida)} médicos** con señal de caída o apagón recien
 
 
 # ============================================================================
-# 5. MOTOR: SUBIDA DE CUOTA (Close-Up % MS + Sell-Out % Cumplimiento)
+# 6. MOTOR: SUBIDA DE CUOTA (Close-Up % MS + Sell-Out % Cumplimiento)
 # ============================================================================
 def analizar_subida_cuota(
     bundle: Any,
@@ -694,7 +908,7 @@ def analizar_subida_cuota(
             comp[f"% Cuota {prev}"] = np.where(g_prev["Monto Cuota"].reindex(comp.index).fillna(0.0) > 0, (comp[f"Real {prev} ($)"] / g_prev["Monto Cuota"].reindex(comp.index) * 100.0).round(1), 0.0)
             comp[f"% Cuota {ult}"] = np.where(g_ult["Monto Cuota"].reindex(comp.index).fillna(0.0) > 0, (comp[f"Real {ult} ($)"] / g_ult["Monto Cuota"].reindex(comp.index) * 100.0).round(1), 0.0)
             comp["Delta Cuota (pp)"] = (comp[f"% Cuota {ult}"] - comp[f"% Cuota {prev}"]).round(1)
-            comp["% Cuota Semestre"] = np.where(g_sem["Monto Cuota"] > 0, (g_sem["Monto Real"] / g_sem["Monto Cuota"] * 100.0).round(1), 0.0)
+            comp["% Cuota 6M"] = np.where(g_sem["Monto Cuota"] > 0, (g_sem["Monto Real"] / g_sem["Monto Cuota"] * 100.0).round(1), 0.0)
             comp = comp.reset_index().rename(columns={"PRODUCTO_VENTA": "Producto Venta"}).sort_values(by="Delta Cuota (pp)", ascending=False)
 
             bloques.append(f"\n#### 2. Evolución de Cumplimiento de Cuota en Ventas ({prev} vs. {ult})")
@@ -704,7 +918,7 @@ def analizar_subida_cuota(
 
 
 # ============================================================================
-# 6. MOTOR: PRODUCTOS CON MAYOR POTENCIAL PARA SUBIR MÁS AÚN
+# 7. MOTOR: PRODUCTOS CON MAYOR POTENCIAL PARA SUBIR MÁS AÚN
 # ============================================================================
 def analizar_potencial_expansion(
     bundle: Any,
@@ -795,7 +1009,7 @@ def analizar_potencial_expansion(
 
 
 # ============================================================================
-# 7. MOTOR: SUCURSALES A ABORDAR Y CON QUÉ PRODUCTOS (DÉFICIT DE CUOTA)
+# 8. MOTOR: SUCURSALES A ABORDAR Y CON QUÉ PRODUCTOS (DÉFICIT DE CUOTA)
 # ============================================================================
 def analizar_sucursales_abordaje(
     bundle: Any,
@@ -827,10 +1041,6 @@ def analizar_sucursales_abordaje(
     meses = _orden_meses_ventas(sub)
     ult_mes = meses[-1] if meses else "Últ. Mes"
     tiene_cuota = "Monto Cuota" in sub.columns
-
-    aviso_cache = ""
-    if meses and all(m in ("Q1", "Q2", "Q3", "Q4") for m in meses):
-        aviso_cache = "> ⚠️ **Aviso de Caché:** Todavía estás viendo los archivos trimestrales (`Q1–Q3`). Toca **Recargar Excels y Limpiar Caché** en la barra lateral para cargar `datos 2026.xlsx`.\n\n"
 
     demanda_rx_depto: Dict[Tuple[str, str], int] = {}
     if not df_prod.empty:
@@ -874,7 +1084,7 @@ def analizar_sucursales_abordaje(
         else:
             prods_rec = "Surtido general del portafolio"
 
-        estado_pdv = "CAÍDA + BAJA CUOTA" if (real_ult < prom_mes * 0.8 and pct_ult < 70) else ("BRECHA DE CUOTA" if pct_ult < 75 else "RECUPERAR RITMO")
+        estado_pdv = "APAGÓN ($0)" if real_ult == 0 else ("CAÍDA + BAJA CUOTA" if (real_ult < prom_mes * 0.8 and pct_ult < 70) else ("BRECHA DE CUOTA" if pct_ult < 75 else "RECUPERAR RITMO"))
 
         filas_pdv.append({
             "Departamento": depto,
@@ -890,12 +1100,12 @@ def analizar_sucursales_abordaje(
 
     ciu_lbl = ciudad.upper() if ciudad else "TODO TU TERRITORIO"
     if not filas_pdv:
-        return f"{aviso_cache}### Plan de Abordaje de Sucursales ({ult_mes}) — {ciu_lbl}\nTodas las sucursales relevantes se encuentran en línea o por encima de su cuota en este filtro."
+        return f"### Plan de Abordaje de Sucursales ({ult_mes}) — {ciu_lbl}\nTodas las sucursales relevantes se encuentran en línea o por encima de su cuota en este filtro."
 
     df_pdv = pd.DataFrame(filas_pdv).sort_values(by="Déficit ($)", ascending=False).reset_index(drop=True)
     deficit_top10 = df_pdv.head(10)["Déficit ($)"].sum()
 
-    return f"""{aviso_cache}### Plan Prioritario de Abordaje a Sucursales ({ult_mes}) — {ciu_lbl}
+    return f"""### Plan Prioritario de Abordaje a Sucursales ({ult_mes}) — {ciu_lbl}
 Farmacias con mayor brecha pendiente frente a su cuota de **{ult_mes}** (**${deficit_top10:,.2f}** en el Top 10) y los **códigos exactos** a empujar en mostrador.
 
 {df_a_markdown_nativo(df_pdv.head(12))}
@@ -903,7 +1113,7 @@ Farmacias con mayor brecha pendiente frente a su cuota de **{ult_mes}** (**${def
 
 
 # ============================================================================
-# 8. MOTOR: CRUCE DEPARTAMENTAL RX (Close-Up) VS. VENTA MENSUAL
+# 9. MOTOR: CRUCE DEPARTAMENTAL RX (Close-Up) VS. VENTA MENSUAL
 # ============================================================================
 def analizar_cruce_rx_vs_venta(
     bundle: Any,
@@ -1007,12 +1217,18 @@ def analizar_cruce_rx_vs_venta(
 
 
 # ============================================================================
-# 9. CLASIFICADOR COLOQUIAL AUTOCONTENIDO + ORQUESTADOR MAESTRO CHIRA v4.0
+# 10. CLASIFICADOR COLOQUIAL AUTOCONTENIDO + ORQUESTADOR MAESTRO CHIRA v4.2
 # ============================================================================
 def _detectar_intencion_local(q_norm: str) -> str:
     tiene_sucursal = any(w in q_norm for w in ["SUCURSAL", "FARMAC", "PDV", "CLIENTE", "PUNTO DE VENTA"])
     tiene_crec_o_caida = any(w in q_norm for w in ["CRECI", "SUBI", "AUMENT", "MEJOR", "MAS VEND", "IMPULS", "CAID", "CAY", "BAJ", "DISMINU", "PERDIEN", "ENFRI"])
 
+    if any(w in q_norm for w in ["APAGON", "DEJARON DE COMPRAR", "EN CERO", "COMPRARON CERO", "QUIEBRE DE COMPRA"]):
+        return "APAGONES"
+    if any(w in q_norm for w in ["PARETO", "80/20", "80 20"]):
+        return "PARETO"
+    if any(w in q_norm for w in ["BRIEFING", "RESUMEN INTELIGENTE", "SORPRENDEME", "RESUMEN DEL MES", "DIAGNOSTICO GENERAL", "QUE DEBO HACER HOY"]):
+        return "BRIEFING"
     if any(w in q_norm for w in ["WHATSAPP", "MENSAJE", "REDACTAME", "AGRADECERLE"]):
         return "WHATSAPP"
     if any(w in q_norm for w in [" VS ", "VERSUS", "DIFERENCIA ENTRE", "COMPARATIVA", "VENTAJA SOBRE", "VENTAJA TIENE"]):
@@ -1049,6 +1265,9 @@ def _clasificar_con_gemini_opcional(consulta: str, lista_ciudades: List[str]) ->
     claves = list(MERCADOS_PRIORITARIOS.keys())
     prompt = f"""Traduce la pregunta coloquial de un Visitador Médico en Nicaragua a un JSON de 3 llaves.
 Intenciones válidas:
+- "BRIEFING": resumen inteligente del mes, hallazgos clave, qué hacer hoy en ruta.
+- "APAGONES": farmacias o clientes buenos que dejaron de comprar o cayeron a cero.
+- "PARETO": análisis 80/20 del déficit de cuota.
 - "OBJECION": qué decir ante objeciones (caro, genérico, hábito/rival, sabor, sueño, ardor, estómago, estudios, stock, mostrador, 30 seg, muestras, congreso).
 - "COMPARATIVA": comparar producto Gutis vs rival o pedir ventajas/diferencias.
 - "WHATSAPP": redactar mensaje corto de WhatsApp.
@@ -1091,7 +1310,6 @@ def enrutar_consulta_chira(
     q_norm = normalizar_txt(consulta_final)
     solo_panel = alcance_sb.startswith("SOLO")
 
-    # 1. Detección de médico mencionado
     stop_w = {
         "DOCTOR", "DOCTORA", "MEDICO", "BIOTOS", "TALERDIN", "MOMETZONA", "VENTILAR",
         "MASAYA", "GRANADA", "CARAZO", "MANAGUA", "CHONTALES", "RIVAS", "BOACO",
@@ -1110,7 +1328,6 @@ def enrutar_consulta_chira(
                 medico_detectado = m_cand
                 break
 
-    # 2. Intención: regla local infalible primero + refinamiento con Gemini si es ambigua
     intencion = _detectar_intencion_local(q_norm)
     ciu_detectada = next((c for c in lista_ciudades if normalizar_txt(c) in q_norm), None)
     mer_detectado = resolver_clave_mercado_gutis(consulta_final, consulta_final)
@@ -1129,37 +1346,33 @@ def enrutar_consulta_chira(
     ciu_ctx = ciu_detectada or ciudad_sel
     sell_ctx = resumen_ventas_ciudad(bundle.ventas, ciu_ctx)
 
-    # 3. Enrutamiento a los motores
+    if intencion == "BRIEFING":
+        return analizar_briefing_y_apagones(bundle, ciudad=ciu_detectada, modo="BRIEFING"), "Briefing Ejecutivo Inteligente (6M)"
+    if intencion == "APAGONES":
+        return analizar_briefing_y_apagones(bundle, ciudad=ciu_detectada, modo="APAGONES"), "Radar de Apagones de Sucursales"
+    if intencion == "PARETO":
+        return analizar_briefing_y_apagones(bundle, ciudad=ciu_detectada, modo="PARETO"), "Análisis Pareto 80/20 de Déficit"
     if intencion == "OBJECION":
         mer_obj = mer_detectado or "MR BIOTOS"
         return construir_playbook_objecion(consulta_final, mer_obj, doc_ctx, especialidad_sel, ciu_ctx, sell_ctx["top_farmacias"]), "Playbook de Objeciones TVP (15 Escenarios)"
-
     if intencion == "COMPARATIVA":
         mer_obj = mer_detectado or "MR BIOTOS"
         return construir_comparativa_vs(consulta_final, mer_obj, ciu_ctx, sell_ctx["top_farmacias"]), "Comparativa Técnica & Flanqueo (Vs.)"
-
     if intencion == "WHATSAPP":
         mer_obj = mer_detectado or "MR BIOTOS"
         return construir_whatsapp_seguimiento(consulta_final, mer_obj, doc_ctx, ciu_ctx, sell_ctx["top_farmacias"]), "Redacción Rápida de WhatsApp"
-
     if intencion == "SUCURSALES_EVOLUCION":
         return analizar_evolucion_sucursales(bundle, clave_mercado=mer_detectado, ciudad=ciu_detectada, consulta=consulta_final), "Evolución Mensual de Sucursales (6M)"
-
     if intencion == "SUCURSALES_ABORDAJE":
         return analizar_sucursales_abordaje(bundle, ciudad=ciu_detectada, clave_mercado=mer_detectado), "Plan de Abordaje a Sucursales (Sell-Out)"
-
     if intencion == "CAIDA_RX":
         return analizar_caida_rx_medicos(bundle, clave_mercado=mer_detectado, ciudad=ciu_detectada, solo_panel=solo_panel), "Radar de Caída Prescriptiva"
-
     if intencion == "SUBIDA_CUOTA":
         return analizar_subida_cuota(bundle, ciudad=ciu_detectada, solo_panel=solo_panel), "Auditoría de Subida de Cuota"
-
     if intencion == "POTENCIAL_EXPANSION":
         return analizar_potencial_expansion(bundle, ciudad=ciu_detectada, solo_panel=solo_panel), "Radar de Potencial de Expansión"
-
     if intencion == "CRUCE_RX_VENTA":
         return analizar_cruce_rx_vs_venta(bundle, clave_mercado=mer_detectado, ciudad=ciu_detectada), "Cruce Departamental Rx vs. Venta Mensual"
-
     if medico_detectado or intencion == "EXPEDIENTE_MEDICO":
         return generar_consultoria_cognitiva_chira_medico(bundle, doc_ctx, consulta_final), "Expediente 360 & Guion TVP"
 
