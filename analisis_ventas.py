@@ -730,9 +730,9 @@ def render_centro_analisis(data_dir: Path, base_dir: Path) -> None:
         "Explorador libre",
     ])
 
-    # ---- TAB 1: RESUMEN ---------------------------------------------------
+   # ---- TAB 1: RESUMEN ---------------------------------------------------
     with tab_res:
-        _emit(html_hallazgos(generar_hallazgos(df, unidades, df_apagones, ult_mes_lbl), unidades, df_apagones, ult_mes_lbl))
+        _emit(html_hallazgos(generar_hallazgos(df, unidades, df_apagones, ult_mes_lbl)))
         _emit(card(
             "Evolución mensual: venta real vs. cuota",
             "Cada columna es un mes con su % de cumplimiento y variación MoM. La parte rayada es lo que faltó para la cuota.",
