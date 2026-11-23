@@ -1,6 +1,6 @@
 """
 Cargador de Datos Robusto y Normalización Close-Up + Sell-Out Mensual para Gutis BI.
-Soporta lectura automática de hojas mensuales (mayo 2026 - octubre 2026) con Real vs. Cuota,
+Lee directamente datos 2026.xlsx (6 hojas mensuales: mayo 2026 - octubre 2026) con Real vs. Cuota,
 eliminando subtotales 'Total' para evitar duplicación de cifras.
 """
 
@@ -51,10 +51,6 @@ def _limpiar_numero_serie(serie: pd.Series) -> pd.Series:
 
 
 def _parsear_hoja_mensual(nombre_hoja: str) -> Optional[Tuple[int, str, str]]:
-    """
-    Detecta si el nombre de una hoja corresponde a un mes (ej. 'mayo 2026', 'octubre 2026').
-    Devuelve (clave_orden_int, etiqueta_corta, trimestre_eq).
-    """
     h_norm = normalizar_txt(nombre_hoja)
     anio_match = re.search(r"(20\d{2})", h_norm)
     anio = int(anio_match.group(1)) if anio_match else 2026
@@ -269,7 +265,7 @@ def load_data(data_dir_str: str) -> DataBundle:
 
             bundle.auditoria = df_docs
 
-    # 6. Ventas / Sell-Out: Prioriza datos 2026.xlsx (6 hojas mensuales) con respaldo trimestral
+    # 6. Ventas / Sell-Out: Lee directamente datos 2026.xlsx (6 hojas mensuales)
     dfs_v = []
     f_ventas_mensual = (
         encontrar_archivo_en_dir(data_dir, ["DATOS", "2026"])
@@ -304,7 +300,7 @@ def load_data(data_dir_str: str) -> DataBundle:
             if dfs_v:
                 bundle.archivos["Ventas Mensual"] = f_ventas_mensual.name
         except Exception as e:
-            bundle.avisos.append(f"Aviso al leer ventas mensuales: {e}")
+            bundle.avisos.append(f"Error al leer {f_ventas_mensual.name}: {e}")
 
     if not dfs_v:
         for q_kw, q_lbl in [("PRIMER", "Q1"), ("SEGUNDO", "Q2"), ("TERCER", "Q3")]:
@@ -326,7 +322,6 @@ def load_data(data_dir_str: str) -> DataBundle:
         df_v_all = pd.concat(dfs_v, ignore_index=True)
         df_v_all.columns = df_v_all.columns.astype(str).str.strip()
 
-        # Filtrar subtotales 'Total' y vacíos para no duplicar montos
         for col_filt in ["DESCRIPCION_RUTA", "NOMBRE_CLIENTE_1", "VM4"]:
             if col_filt in df_v_all.columns:
                 df_v_all = df_v_all[df_v_all[col_filt].notna()].copy()
