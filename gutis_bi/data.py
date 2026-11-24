@@ -1,7 +1,7 @@
 """
 Cargador de Datos Robusto y Normalización Close-Up + Sell-Out Mensual para Gutis BI.
-Lee directamente datos 2026.xlsx (6 hojas mensuales con Real vs. Cuota) y limpia
-subtotales 'Total' para evitar duplicación de cifras.
+- Pondera Auditoría Close-Up por (VISITADOR, MARCA) sin mezclar otros visitadores.
+- Detecta automáticamente el Excel mensual inspeccionando sus hojas reales (datos 2026.xlsx).
 """
 
 import re
@@ -64,6 +64,30 @@ def _parsear_hoja_mensual(nombre_hoja: str) -> Optional[Tuple[int, str, str]]:
     return None
 
 
+def _buscar_excel_mensual_por_hojas(data_dir: Path) -> Optional[Tuple[Path, List[Tuple[str, int, str, str]]]]:
+    if not data_dir.exists():
+        return None
+    mejor: Optional[Tuple[int, Path, List[Tuple[str, int, str, str]]]] = None
+    for p_cand in sorted(data_dir.iterdir()):
+        if p_cand.suffix.lower() not in (".xlsx", ".xls") or p_cand.name.startswith("~$"):
+            continue
+        try:
+            xl_test = pd.ExcelFile(p_cand)
+            hojas_validas: List[Tuple[str, int, str, str]] = []
+            for s_name in xl_test.sheet_names:
+                info = _parsear_hoja_mensual(s_name)
+                if info is not None:
+                    hojas_validas.append((s_name, info[0], info[1], info[2]))
+            if len(hojas_validas) >= 2:
+                if mejor is None or len(hojas_validas) > mejor[0]:
+                    mejor = (len(hojas_validas), p_cand, hojas_validas)
+        except Exception:
+            continue
+    if mejor is not None:
+        return mejor[1], sorted(mejor[2], key=lambda x: x[1])
+    return None
+
+
 def resolver_clave_mercado_gutis(texto_mercado_o_clase: str, nombre_prod: str = "") -> Optional[str]:
     t_norm = normalizar_txt(f"{texto_mercado_o_clase} {nombre_prod}")
     if not t_norm or t_norm in ("TOTAL", "NAN", "NONE"):
@@ -110,7 +134,7 @@ class DataBundle:
 
 
 @st.cache_data(show_spinner=False)
-def load_data(data_dir_str: str) -> DataBundle:
+def load_data(data_dir_str: str, _schema_ver: str = "v5_visitador_mensual") -> DataBundle:
     data_dir = Path(data_dir_str)
     bundle = DataBundle()
 
@@ -215,7 +239,7 @@ def load_data(data_dir_str: str) -> DataBundle:
             if c in bundle.laboratorios.columns:
                 bundle.laboratorios[c] = pd.to_numeric(bundle.laboratorios[c], errors="coerce").fillna(0)
 
-    # 5. Auditoría Close-Up (Clases y Auditoría.xlsx)
+    # 5. Auditoría Close-Up (dedup por VISITADOR + MARCA)
     f_aud = encontrar_archivo_en_dir(data_dir, ["CLASES", "AUDITORIA"]) or encontrar_archivo_en_dir(data_dir, ["AUDITORIA"])
     if f_aud:
         df_aud_raw = pd.read_excel(f_aud)
@@ -228,9 +252,10 @@ def load_data(data_dir_str: str) -> DataBundle:
                     df_aud_raw[c] = pd.to_numeric(df_aud_raw[c], errors="coerce").fillna(0.0)
 
             df_aud_raw["MARCA"] = df_aud_raw["MARCA"].astype(str).str.strip().str.upper()
+            _cols_dedup = ["VISITADOR", "MARCA"] if "VISITADOR" in df_aud_raw.columns else ["MARCA"]
             bundle.auditoria_totales = (
                 df_aud_raw[df_aud_raw["MEDICO_ESPECIALIDAD"].astype(str).str.strip().str.upper() == "TOTAL"]
-                .drop_duplicates(subset=["MARCA"])
+                .drop_duplicates(subset=_cols_dedup)
                 .set_index("MARCA")
             )
 
@@ -261,45 +286,30 @@ def load_data(data_dir_str: str) -> DataBundle:
 
             for c_bi in ["% MS - LY", "% MS - Ytd", "% MS - TrasAnt", "% MS - Ant", "% MS - Mes"]:
                 if c_bi in df_docs.columns and c_bi in bundle.auditoria_totales.columns:
-                    p_marca_serie = df_docs["MARCA"].map(bundle.auditoria_totales[c_bi]).fillna(0.0)
+                    if "VISITADOR" in bundle.auditoria_totales.columns and "VISITADOR" in df_docs.columns:
+                        _tot_key = bundle.auditoria_totales.reset_index().set_index(["VISITADOR", "MARCA"])[c_bi]
+                        _idx = pd.MultiIndex.from_frame(df_docs[["VISITADOR", "MARCA"]])
+                        p_marca_serie = pd.Series(_tot_key.reindex(_idx).to_numpy(), index=df_docs.index).fillna(0.0)
+                    else:
+                        p_marca_serie = df_docs["MARCA"].map(bundle.auditoria_totales[c_bi]).fillna(0.0)
                     df_docs["W_" + c_bi] = p_marca_serie * df_docs[c_bi]
 
             bundle.auditoria = df_docs
 
-    # 6. Ventas / Sell-Out: Prioriza datos 2026.xlsx (6 hojas mensuales)
+    # 6. Ventas / Sell-Out: Detecta por HOJAS REALES el archivo mensual (datos 2026.xlsx)
     dfs_v = []
-    f_ventas_mensual = (
-        encontrar_archivo_en_dir(data_dir, ["DATOS", "2026"])
-        or encontrar_archivo_en_dir(data_dir, ["DATA", "2026"])
-        or encontrar_archivo_en_dir(data_dir, ["VENTA", "MENSUAL"])
-    )
-    if not f_ventas_mensual and data_dir.exists():
-        for p_cand in sorted(data_dir.iterdir()):
-            if p_cand.suffix.lower() in [".xlsx", ".xls"] and not p_cand.name.startswith("~$"):
-                try:
-                    xl_test = pd.ExcelFile(p_cand)
-                    hojas_mes = [s for s in xl_test.sheet_names if _parsear_hoja_mensual(s) is not None]
-                    if len(hojas_mes) >= 2:
-                        f_ventas_mensual = p_cand
-                        break
-                except Exception:
-                    continue
-
-    if f_ventas_mensual:
+    hallazgo_mensual = _buscar_excel_mensual_por_hojas(data_dir)
+    if hallazgo_mensual is not None:
+        f_ventas_mensual, hojas_info = hallazgo_mensual
         try:
-            xl_m = pd.ExcelFile(f_ventas_mensual)
-            for sheet_m in xl_m.sheet_names:
-                info_m = _parsear_hoja_mensual(sheet_m)
-                if info_m is None:
-                    continue
-                clave_ord, etiq_mes, q_eq = info_m
+            for sheet_m, clave_ord, etiq_mes, q_eq in hojas_info:
                 d_m = pd.read_excel(f_ventas_mensual, sheet_name=sheet_m)
                 d_m["Mes_Orden"] = clave_ord
                 d_m["Mes_Label"] = etiq_mes
                 d_m["Trimestre"] = q_eq
                 dfs_v.append(d_m)
             if dfs_v:
-                bundle.archivos["Ventas Mensual"] = f_ventas_mensual.name
+                bundle.archivos["Ventas Mensual"] = f"{f_ventas_mensual.name} ({len(hojas_info)} meses)"
         except Exception as e:
             bundle.avisos.append(f"Aviso al leer ventas mensuales: {e}")
 
