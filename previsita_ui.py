@@ -34,20 +34,31 @@ CSS_PV = """
 .pv-sb .g{background:#002b5c}.pv-sb .c{background:#94a3b8}
 .pv-bl{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:.74rem;color:#475569}
 .pv-bl>b{width:30px;color:#0f172a}.pv-bl>.pv-sb{flex:1}.pv-bl>span{width:92px;text-align:right;font-variant-numeric:tabular-nums}
-.pv-row{display:grid;grid-template-columns:minmax(150px,1.2fr) minmax(200px,1.9fr) minmax(200px,1.6fr);gap:18px;align-items:center;padding:12px 8px;border-bottom:1px solid #f1f5f9;border-left:5px solid #cbd5e1;margin-left:-2px}
-.pv-row:hover{background:#f8fafc}
-.pv-n{font-weight:800;color:#0f172a;font-size:.95rem;line-height:1.25}
-.pv-n small{display:block;font-weight:600;color:#64748b;font-size:.74rem;margin-top:2px}
-.pv-ms{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
-.pv-ms b{font-size:1.5rem;color:#0f172a;font-variant-numeric:tabular-nums}
-.pv-ms span{font-size:.74rem;color:#64748b}
-.pv-lad{display:flex;gap:3px;margin-bottom:5px}
-.pv-lad i{flex:1;height:10px;border-radius:3px;background:#e2e8f0;position:relative}
-.pv-lad i.goal{background:#fff;border:1.5px dashed #64748b}
-.pv-lad i.on{border:0}
-.pv-lt{font-size:.72rem;color:#64748b;display:flex;justify-content:space-between;gap:8px}
+.pv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.pv-card{background:#fff;border:1px solid #e2e8f0;border-top:5px solid #cbd5e1;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.pv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.pv-n{font-weight:800;color:#0f172a;font-size:1.05rem;line-height:1.25}
+.pv-n small{display:block;font-weight:600;color:#64748b;font-size:.76rem;margin-top:3px;line-height:1.3}
+.pv-pb{display:grid;grid-template-columns:40px 1fr 56px;gap:8px;align-items:center}
+.pv-pb>b{font-size:.78rem;color:#475569}
+.pv-pb .tr{position:relative;height:20px;border-radius:6px;background:#eef2f7;overflow:hidden}
+.pv-pb .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+.pv-pb .tr u{position:absolute;top:0;bottom:0;width:2px;background:#64748b;opacity:.55}
+.pv-pb .tr.none{display:flex;align-items:center;padding-left:8px;font-size:.74rem;color:#94a3b8;font-weight:600}
+.pv-pb>span{font-size:1.15rem;font-weight:800;color:#0f172a;text-align:right;font-variant-numeric:tabular-nums}
+.pv-pn{font-size:.74rem;color:#64748b;margin:3px 0 8px 48px}
+.pv-jr{display:flex;gap:6px}
+.pv-jr .d{width:26px;height:26px;border-radius:50%;background:#e2e8f0;color:#94a3b8;font-size:.76rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+.pv-jr .d.goal{background:#fff;border:2px dashed #475569;color:#334155}
+.pv-jr .d.on{color:#fff}
+.pv-lt{font-size:.8rem;color:#64748b;margin-top:4px}
 .pv-lt b{color:#0f172a}
-.pv-act{font-size:.78rem;color:#334155;margin-top:6px;line-height:1.35}
+.pv-act{font-size:.82rem;color:#334155;line-height:1.4;background:#f8fafc;border-radius:8px;padding:8px 10px}
+.pv-note{font-size:.74rem;color:#92400e;background:#fffbeb;border-radius:6px;padding:4px 8px}
+.pv-rec{padding:10px 6px;border-bottom:1px solid #f1f5f9}
+.pv-rec.gut{background:#f0f7ff}
+.pv-rec .nm{font-weight:700;color:#0f172a;font-size:.9rem;margin-bottom:5px;line-height:1.3}
+.pv-rec .mt{font-size:.76rem;color:#64748b;margin-top:4px}
 .pv-plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
 @media(max-width:1000px){.pv-plan{grid-template-columns:1fr}}
 .pv-pc{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;position:relative}
@@ -89,34 +100,31 @@ def _chip(modo: str) -> str:
     return f"<span class='pv-chip' style='background:{bg};color:{fg}'>{txt}</span>"
 
 
-def _barra(gutis: int, comp: int) -> str:
-    tot = gutis + comp
-    if tot <= 0:
-        return "<div class='pv-sb'></div>"
-    wg = gutis / tot * 100
-    lg = f"{gutis}" if wg >= 14 else ""
-    lc = f"{comp}" if (100 - wg) >= 14 else ""
-    return f"<div class='pv-sb'><div class='g' style='width:{wg:.1f}%'>{lg}</div><div class='c' style='width:{100 - wg:.1f}%'>{lc}</div></div>"
+def _barra_pct(etiqueta: str, g: int, t: int, color: str) -> str:
+    """Barra de % Gutis (0-100) con marcas en 25% y 50% (niveles de Adopción y Lealtad)."""
+    if t <= 0:
+        return f"<div class='pv-pb'><b>{etiqueta}</b><div class='tr none'>sin recetas</div><span></span></div>"
+    pct = g / t * 100
+    w = max(pct, 2.0) if g > 0 else 0
+    return (f"<div class='pv-pb'><b>{etiqueta}</b><div class='tr'><i style='width:{w:.1f}%;background:{color}'></i>"
+            f"<u style='left:25%'></u><u style='left:50%'></u></div><span>{pct:.0f}%</span></div>"
+            f"<div class='pv-pn'>{g} de {t} Rx son de Gutis</div>")
 
 
-def _escalera(m: dict, modo: str) -> str:
+def _viaje(m: dict, modo: str) -> str:
     actual = _paso(m["escala_nivel"], 1)
     meta = _paso(m["escala_meta"], min(actual + 1, 5), usar_max=True)
     color = MODOS[modo][2]
-    segs = []
+    pasos = []
     for i in range(1, 6):
         if i <= actual:
-            segs.append(f"<i class='on' style='background:{color}' title='{i}. {NOMBRES_ESCALA[i - 1]}'></i>")
+            pasos.append(f"<span class='d on' style='background:{color}' title='{i}. {NOMBRES_ESCALA[i - 1]}'>{i}</span>")
         elif i == meta:
-            segs.append(f"<i class='goal' title='Meta: {i}. {NOMBRES_ESCALA[i - 1]}'></i>")
+            pasos.append(f"<span class='d goal' title='Meta: {i}. {NOMBRES_ESCALA[i - 1]}'>{i}</span>")
         else:
-            segs.append(f"<i title='{i}. {NOMBRES_ESCALA[i - 1]}'></i>")
-    texto = f"<span>Hoy: <b>{NOMBRES_ESCALA[actual - 1]}</b></span>"
-    if meta > actual:
-        texto += f"<span>Meta: <b>{NOMBRES_ESCALA[meta - 1]}</b></span>"
-    else:
-        texto += "<span><b>Meta cumplida</b></span>"
-    return f"<div class='pv-lad'>{''.join(segs)}</div><div class='pv-lt'>{texto}</div>"
+            pasos.append(f"<span class='d' title='{i}. {NOMBRES_ESCALA[i - 1]}'>{i}</span>")
+    texto = f"Hoy: <b>{NOMBRES_ESCALA[actual - 1]}</b>" + (f" → Meta: <b>{NOMBRES_ESCALA[meta - 1]}</b>" if meta > actual else " · <b>Meta cumplida</b>")
+    return f"<div><div class='pv-jr'>{''.join(pasos)}</div><div class='pv-lt'>{texto}</div></div>"
 
 
 # -----------------------------------------------------------------------------
@@ -174,25 +182,15 @@ def render_header_previsita(medico: str, especialidad: str, categoria: str, ciud
 def _fila_mercado(m: dict) -> str:
     modo = modo_visual(m)
     acento = MODOS[modo][2]
-    ms_m, ms_y = m["ms_mes"], m["ms_ytd"]
-    hay_mes = m["tot_mes"] > 0
-    if not hay_mes or m["tot_ytd"] <= 0:
-        delta = "<span class='ca-pill ca-p-na'>sin recetas en el mes</span>"
-    elif m["tot_mes"] < 5:
-        delta = "<span class='ca-pill ca-p-na'>poca muestra</span>"
-    else:
-        delta = delta_pill(ms_m - ms_y)
-    chica = " <span title='Pocas recetas: el porcentaje puede variar mucho con una sola receta'>· muestra chica</span>" if 0 < m["tot_mes"] < 5 else ""
     riv = esc(m["rival_corto"]) if m["comp_mes"] + m["comp_ytd"] > 0 else "sin competidor registrado"
+    nota = "<div class='pv-note'>Menos de 5 recetas este mes: el % puede cambiar mucho con una sola.</div>" if 0 < m["tot_mes"] < 5 else ""
     return (
-        f"<div class='pv-row' style='border-left-color:{acento}'>"
-        f"<div class='pv-n'>{esc(m['prod_gutis'])} <span class='pv-chip' style='background:#002b5c;color:#fff;font-size:.62rem'>P{m['prioridad']}</span>"
-        f"<small>{esc(m['clase_terapeutica'])}</small><small>Rival: <b style='color:#b91c1c'>{riv}</b></small></div>"
-        f"<div><div class='pv-ms'><b>{ms_m:.0f}%</b><span>de las recetas del mes son Gutis</span>{delta}</div>"
-        f"<div class='pv-bl'><b>Mes</b>{_barra(m['gutis_mes'], m['comp_mes'])}<span>{m['gutis_mes']} de {m['tot_mes']} Rx</span></div>"
-        f"<div class='pv-bl'><b>YTD</b>{_barra(m['gutis_ytd'], m['comp_ytd'])}<span>{m['gutis_ytd']} de {m['tot_ytd']} Rx</span></div>"
-        f"<div class='pv-s'>{('<b>' + str(m['tot_ytd']) + '</b> Rx en el año' if m['tot_ytd'] else 'Sin recetas en el corte')}{chica}</div></div>"
-        f"<div>{_chip(modo)}{_escalera(m, modo)}<div class='pv-act'>{esc(m['paso_recomendado'])}</div></div></div>"
+        f"<div class='pv-card' style='border-top-color:{acento}'>"
+        f"<div class='pv-top'><div class='pv-n'>{esc(m['prod_gutis'])} <span class='pv-chip' style='background:#002b5c;color:#fff;font-size:.62rem'>P{m['prioridad']}</span>"
+        f"<small>{esc(m['clase_terapeutica'])}<br>Rival: <b style='color:#b91c1c'>{riv}</b></small></div>{_chip(modo)}</div>"
+        f"<div>{_barra_pct('Mes', m['gutis_mes'], m['tot_mes'], acento)}{_barra_pct('Año', m['gutis_ytd'], m['tot_ytd'], acento)}</div>"
+        f"{nota}{_viaje(m, modo)}"
+        f"<div class='pv-act'>{esc(m['paso_recomendado'])}</div></div>"
     )
 
 
@@ -254,8 +252,9 @@ def render_mapa_previsita(
     else:
         _emit(
             "<div class='ca-card' translate='no'><div class='ca-h'>Mercados del especialista</div>"
-            "<div class='ca-sub'>Barra azul oscuro = recetas de Gutis · gris = competencia. La escalera muestra dónde está hoy el médico y la meta de esta visita (recuadro punteado). "
-            f"{len(d)} de {len(lista)} mercados.</div>" + "".join(_fila_mercado(m) for m in d) + "</div>"
+            "<div class='ca-sub'>La barra muestra qué % de las recetas del médico son de Gutis. Las rayas verticales marcan 25% (Adopción) y 50% (Lealtad). "
+            "Los círculos son los 5 escalones: lleno = ya alcanzado, punteado = meta de esta visita. "
+            f"Mostrando {len(d)} de {len(lista)} mercados.</div><div class='pv-grid'>" + "".join(_fila_mercado(m) for m in d) + "</div></div>"
         )
 
     # ---- Recetario ----
@@ -289,19 +288,16 @@ def render_recetario(df: pd.DataFrame, titulo: str) -> None:
         es_g = r["Origen"] == "GUTIS"
         w = r["Pxs YTD"] / vmax * 100
         filas.append(
-            f"<div class='mk-r{' gut' if es_g else ''}' style='grid-template-columns:minmax(170px,1.6fr) minmax(150px,2.2fr) 96px 96px'>"
-            f"<div class='mk-n' title='{esc(r['Marca Prescrita'])}'><span class='rk'>{i + 1}</span>{esc(r['Marca Prescrita'])}"
+            f"<div class='pv-rec{' gut' if es_g else ''}'><div class='nm'>{i + 1}. {esc(r['Marca Prescrita'])}"
             f"{'<span class=mk-chip>GUTIS</span>' if es_g else ''}</div>"
-            f"<div class='mk-bar'><div class='mk-fill' style='width:{w:.1f}%;background:{'#002b5c' if es_g else '#94a3b8'}'></div>"
-            f"<span class='{'in' if w > 22 else ''}'>{int(r['Pxs YTD'])} Rx</span></div>"
-            f"<div class='mk-num'>{int(r['Pxs Mes'])} Rx<small>{r['% MS Mes (Categoría)']:.0f}% del mes</small></div>"
-            f"<div class='mk-num'>{r['% MS YTD (Categoría)']:.0f}%<small>del año</small></div></div>"
+            f"<div class='mk-bar'><div class='mk-fill' style='width:{max(w, 1.5):.1f}%;background:{'#002b5c' if es_g else '#94a3b8'}'></div>"
+            f"<span class='{'in' if w > 30 else ''}'>{int(r['Pxs YTD'])} {'receta' if int(r['Pxs YTD']) == 1 else 'recetas'} en el año</span></div>"
+            f"<div class='mt'>Este mes: <b>{int(r['Pxs Mes'])}</b> {'receta' if int(r['Pxs Mes']) == 1 else 'recetas'} ({r['% MS Mes (Categoría)']:.0f}% del mes) · Año: <b>{r['% MS YTD (Categoría)']:.0f}%</b> del mercado</div></div>"
         )
     _emit(
         f"<div class='ca-card' translate='no'><div class='ca-h'>Recetario en {esc(titulo)}</div>"
-        f"<div class='ca-sub'>Gutis tiene {g_m} de {tot_m} Rx este mes y {g_y} de {tot_y} en el año. Barra = recetas del año.</div>"
-        "<div class='mk-h' style='grid-template-columns:minmax(170px,1.6fr) minmax(150px,2.2fr) 96px 96px'><div>Marca prescrita</div><div>Recetas del año</div>"
-        "<div style='text-align:right'>Mes</div><div style='text-align:right'>% del año</div></div>" + "".join(filas) + "</div>"
+        f"<div class='ca-sub'>Gutis tiene {g_m} de {tot_m} recetas este mes y {g_y} de {tot_y} en el año. La barra compara el volumen del año de cada marca.</div>"
+        + "".join(filas) + "</div>"
     )
     with st.expander("Ver tabla completa"):
         st.dataframe(df[["Marca Prescrita", "Origen", "Pxs Mes", "% MS Mes (Categoría)", "Pxs YTD", "% MS YTD (Categoría)"]], width="stretch", hide_index=True)
