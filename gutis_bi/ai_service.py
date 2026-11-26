@@ -15,7 +15,7 @@ from typing import Any, Optional
 import requests
 import streamlit as st
 
-MODELOS_GEMINI = ["gemini-2.5-flash", "gemini-2.0-flash"]
+MODELOS_GEMINI = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 
 
 def obtener_api_key() -> str:
@@ -28,36 +28,69 @@ def obtener_api_key() -> str:
     return os.environ.get("GEMINI_API_KEY", "").strip()
 
 
+def obtener_ultimo_error_gemini() -> str:
+    try:
+        return str(st.session_state.get("_gemini_last_error", "") or "")
+    except Exception:
+        return ""
+
+
+def _registrar_error_gemini(msg: str) -> None:
+    try:
+        st.session_state["_gemini_last_error"] = msg
+    except Exception:
+        pass
+
+
 def llamar_gemini(prompt_text: str, max_tok: int = 2500, temperatura: float = 0.3) -> Optional[str]:
     api_key = obtener_api_key()
     if not api_key:
+        _registrar_error_gemini("No se encontró GEMINI_API_KEY en st.secrets ni en variables de entorno.")
         return None
 
-    payload = {
-        "contents": [{"parts": [{"text": prompt_text}]}],
-        "generationConfig": {
-            "maxOutputTokens": max_tok,
-            "temperature": temperatura,
-        },
-    }
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key,
     }
+    errores: list[str] = []
 
     for mod in MODELOS_GEMINI:
+        gen_cfg: dict[str, Any] = {
+            "maxOutputTokens": max_tok,
+            "temperature": temperatura,
+        }
+        # Desactiva thinking en 2.5 para respuesta rápida (<4s) y evitar consumo del presupuesto de tokens
+        if "2.5" in mod:
+            gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt_text}]}],
+            "generationConfig": gen_cfg,
+        }
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent"
-            res = requests.post(url, headers=headers, json=payload, timeout=28)
+            res = requests.post(url, headers=headers, json=payload, timeout=45)
             if res.status_code == 200:
                 data = res.json()
                 cands = data.get("candidates", [])
                 if cands and "content" in cands[0] and "parts" in cands[0]["content"]:
-                    text = cands[0]["content"]["parts"][0].get("text", "").strip()
-                    if len(text) > 30:
+                    partes = cands[0]["content"]["parts"]
+                    text = "".join(p.get("text", "") for p in partes).strip()
+                    if len(text) > 15:
+                        _registrar_error_gemini("")
                         return text
-        except Exception:
+                errores.append(f"{mod}: respuesta vacía ({data.get('candidates', [{}])[0].get('finishReason', 'sin motivo')})")
+            else:
+                try:
+                    err_msg = res.json().get("error", {}).get("message", res.text[:160])
+                except Exception:
+                    err_msg = res.text[:160]
+                errores.append(f"{mod} [HTTP {res.status_code}]: {err_msg}")
+        except Exception as e:
+            errores.append(f"{mod}: {type(e).__name__}: {e}")
             continue
+
+    _registrar_error_gemini(" | ".join(errores))
     return None
 
 
@@ -67,37 +100,42 @@ def transcribir_audio_gemini(audio_bytes: bytes, mime_type: str = "audio/wav") -
         return None
 
     b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": (
-                            "Transcribe exactamente en español lo que dice este audio de un visitador médico "
-                            "en Nicaragua (nombres de médicos, fármacos como Talerdín, Biotos Inmune, Mometzona, "
-                            "Clembroxil, Ventilar, Mupiral, Bicorpan, Valerpan, Conflexil, Gastroalivio, Renovart, "
-                            "farmacias, departamentos y consultas), sin agregar comentarios ni saludos."
-                        )
-                    },
-                    {"inline_data": {"mime_type": mime_type, "data": b64_audio}},
-                ]
-            }
-        ]
-    }
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key,
     }
 
     for mod in MODELOS_GEMINI:
+        gen_cfg: dict[str, Any] = {}
+        if "2.5" in mod:
+            gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
+        payload: dict[str, Any] = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": (
+                                "Transcribe exactamente en español lo que dice este audio de un visitador médico "
+                                "en Nicaragua (nombres de médicos, fármacos como Talerdín, Biotos Inmune, Mometzona, "
+                                "Clembroxil, Ventilar, Mupiral, Bicorpan, Valerpan, Conflexil, Gastroalivio, Renovart, "
+                                "farmacias, departamentos y consultas), sin agregar comentarios ni saludos."
+                            )
+                        },
+                        {"inline_data": {"mime_type": mime_type, "data": b64_audio}},
+                    ]
+                }
+            ]
+        }
+        if gen_cfg:
+            payload["generationConfig"] = gen_cfg
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent"
-            res = requests.post(url, headers=headers, json=payload, timeout=28)
+            res = requests.post(url, headers=headers, json=payload, timeout=45)
             if res.status_code == 200:
                 data = res.json()
                 cands = data.get("candidates", [])
                 if cands and "content" in cands[0] and "parts" in cands[0]["content"]:
-                    txt = cands[0]["content"]["parts"][0].get("text", "").strip()
+                    txt = "".join(p.get("text", "") for p in cands[0]["content"]["parts"]).strip()
                     if txt:
                         return txt
         except Exception:
@@ -186,28 +224,31 @@ Devuelve ÚNICAMENTE un JSON con estas 4 llaves:
   "medico": "NOMBRE_MEDICO_SI_LO_MENCIONA_O_VACIO"
 }}
 """
-    payload = {
-        "contents": [{"parts": [{"text": prompt_cls}]}],
-        "generationConfig": {
-            "temperature": 0.0,
-            "maxOutputTokens": 220,
-            "responseMimeType": "application/json",
-        },
-    }
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key,
     }
 
     for mod in MODELOS_GEMINI:
+        gen_cfg: dict[str, Any] = {
+            "temperature": 0.0,
+            "maxOutputTokens": 220,
+            "responseMimeType": "application/json",
+        }
+        if "2.5" in mod:
+            gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
+        payload = {
+            "contents": [{"parts": [{"text": prompt_cls}]}],
+            "generationConfig": gen_cfg,
+        }
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent"
-            res = requests.post(url, headers=headers, json=payload, timeout=12)
+            res = requests.post(url, headers=headers, json=payload, timeout=15)
             if res.status_code == 200:
                 data = res.json()
                 cands = data.get("candidates", [])
                 if cands and "content" in cands[0] and "parts" in cands[0]["content"]:
-                    raw_txt = cands[0]["content"]["parts"][0].get("text", "").strip()
+                    raw_txt = "".join(p.get("text", "") for p in cands[0]["content"]["parts"]).strip()
                     raw_txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt).strip()
                     parsed = json.loads(raw_txt)
                     if isinstance(parsed, dict) and parsed.get("intencion") in intenciones_permitidas:
