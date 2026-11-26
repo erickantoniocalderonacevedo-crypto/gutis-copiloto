@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from gutis_bi.ai_service import llamar_gemini, obtener_api_key, transcribir_audio_gemini
+from gutis_bi.ai_service import llamar_gemini, obtener_api_key, obtener_ultimo_error_gemini, transcribir_audio_gemini
 from gutis_bi.analytics import (
     auditoria_marcas,
     calcular_tabla_bi_multifiltro,
@@ -1861,7 +1861,8 @@ elif st.session_state.modulo_activo == "PREVISITA":
                         else:
                             st.warning("La versión de IA alteró métricas de auditoría (%, Pxs o $). Se mantiene el guion calculado localmente.")
                     else:
-                        st.warning("Gemini no devolvió respuesta. Se mantiene el guion calculado localmente.")
+                        err_det = obtener_ultimo_error_gemini()
+                        st.warning(f"Gemini no devolvió respuesta ({err_det or 'sin detalle'}). Se mantiene el guion calculado localmente.")
             else:
                 st.warning("No se detectó GEMINI_API_KEY configurada. Se muestran las 4 fases tácticas locales.")
 
