@@ -15,7 +15,7 @@ from typing import Any, Optional
 import requests
 import streamlit as st
 
-MODELOS_GEMINI = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+MODELOS_GEMINI = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"]
 
 
 def obtener_api_key() -> str:
@@ -59,10 +59,6 @@ def llamar_gemini(prompt_text: str, max_tok: int = 2500, temperatura: float = 0.
             "maxOutputTokens": max_tok,
             "temperature": temperatura,
         }
-        # Desactiva thinking en 2.5 para respuesta rápida (<4s) y evitar consumo del presupuesto de tokens
-        if "2.5" in mod:
-            gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
-
         payload = {
             "contents": [{"parts": [{"text": prompt_text}]}],
             "generationConfig": gen_cfg,
@@ -106,9 +102,6 @@ def transcribir_audio_gemini(audio_bytes: bytes, mime_type: str = "audio/wav") -
     }
 
     for mod in MODELOS_GEMINI:
-        gen_cfg: dict[str, Any] = {}
-        if "2.5" in mod:
-            gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
         payload: dict[str, Any] = {
             "contents": [
                 {
@@ -126,8 +119,6 @@ def transcribir_audio_gemini(audio_bytes: bytes, mime_type: str = "audio/wav") -
                 }
             ]
         }
-        if gen_cfg:
-            payload["generationConfig"] = gen_cfg
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent"
             res = requests.post(url, headers=headers, json=payload, timeout=45)
@@ -235,8 +226,6 @@ Devuelve ÚNICAMENTE un JSON con estas 4 llaves:
             "maxOutputTokens": 220,
             "responseMimeType": "application/json",
         }
-        if "2.5" in mod:
-            gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
         payload = {
             "contents": [{"parts": [{"text": prompt_cls}]}],
             "generationConfig": gen_cfg,
